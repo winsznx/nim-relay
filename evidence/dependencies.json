@@ -1,0 +1,27 @@
+{
+  "recordedAt": "2026-09-01T00:00:00Z",
+  "phase": 0,
+  "source": "npm view <pkg> version, checked against registry at Phase 0 verification time",
+  "dependencies": {
+    "@nimiq/mini-app-sdk": "0.1.0",
+    "@nimiq/core": "2.21.0",
+    "hono": "4.13.5",
+    "pixi.js": "8.20.1",
+    "zustand": "5.0.15",
+    "@tanstack/react-query": "5.102.8",
+    "zod": "4.5.4",
+    "vite": "8.2.2",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "typescript": "5.9.3",
+    "@cloudflare/workers-types": "5.20260901.1",
+    "wrangler": "4.128.0",
+    "@supabase/supabase-js": "2.112.4",
+    "motion": "13.1.1",
+    "@noble/ed25519": "3.2.0"
+  },
+  "notes": {
+    "@nimiq/core": "Node.js build used for local/offline tooling only. Confirmed via empirical spike (evidence/local/phase0-nimiq-core-workerd-spike.log) that the WASM build fails to instantiate inside workerd (wrangler dev, nodejs_compat on, compatibility_date 2026-08-04). Never bundled into the deployed Worker.",
+    "typescript": "5.9.3 pinned; 7.0.2 exists on the registry but is unverified against current tooling as of Phase 0 — do not upgrade without re-verification."
+  }
+}

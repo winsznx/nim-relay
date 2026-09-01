@@ -1,0 +1,33 @@
+{
+  "name": "nim-relay",
+  "private": true,
+  "version": "0.1.0",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.21.0",
+  "scripts": {
+    "lint": "pnpm -r --if-present run lint",
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "test": "pnpm -r --if-present run test",
+    "test:game": "pnpm --filter @nim-relay/game-engine test",
+    "test:worker": "pnpm --filter @nim-relay/worker test",
+    "test:e2e": "pnpm --filter @nim-relay/web test:e2e",
+    "test:security": "pnpm --filter @nim-relay/worker test:security",
+    "test:replay": "pnpm --filter @nim-relay/game-engine test:replay",
+    "benchmark": "pnpm -r --if-present run benchmark",
+    "build": "pnpm -r --if-present run build",
+    "dev": "pnpm --filter @nim-relay/web dev",
+    "dev:worker": "pnpm --filter @nim-relay/worker dev",
+    "preview:worker": "pnpm --filter @nim-relay/worker preview",
+    "verify:deployment": "tsx scripts/verify/deployment.ts",
+    "verify:testnet": "tsx scripts/verify/testnet.ts",
+    "verify:mainnet": "tsx scripts/verify/mainnet.ts",
+    "clean-room": "bash scripts/clean-room/run.sh"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "tsx": "^4.19.2"
+  }
+}

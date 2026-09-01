@@ -1,0 +1,60 @@
+{
+  "product": "NIM Relay",
+  "prd": "NIM_RELAY_PRD_v1.md",
+  "updatedAt": "2026-09-01T00:00:00Z",
+  "currentPhase": 1,
+  "phases": {
+    "0": { "name": "Source-of-truth verification", "status": "PASS", "commit": null },
+    "1": { "name": "Repository and infrastructure foundation", "status": "IN_PROGRESS", "commit": null },
+    "2": { "name": "Nimiq bridge and session", "status": "NOT_STARTED", "commit": null },
+    "3": { "name": "Baton Physics deterministic engine", "status": "NOT_STARTED", "commit": null },
+    "4": { "name": "Relay protocol", "status": "NOT_STARTED", "commit": null },
+    "5": { "name": "Flagship Global and Quick Relay", "status": "NOT_STARTED", "commit": null },
+    "6": { "name": "Crew, Rival, Daily, Creator", "status": "NOT_STARTED", "commit": null },
+    "7": { "name": "Inbox, season, achievements, rankings, rescue", "status": "NOT_STARTED", "commit": null },
+    "8": { "name": "Premium UI polish", "status": "NOT_STARTED", "commit": null },
+    "9": { "name": "Security, privacy, load, clean-room", "status": "NOT_STARTED", "commit": null },
+    "10": { "name": "MainAlbatross production", "status": "NOT_STARTED", "commit": null },
+    "11": { "name": "Early access and evidence", "status": "NOT_STARTED", "commit": null },
+    "12": { "name": "Submission release freeze", "status": "NOT_STARTED", "commit": null }
+  },
+  "lastPassingCommit": null,
+  "blockers": [
+    {
+      "id": "supabase-credentials",
+      "description": "User is providing credentials to a fresh Supabase account (not the CLI-linked account) for the NIM Relay project.",
+      "owner": "user",
+      "neededBy": "end of Phase 1 (applying migrations to a live project)",
+      "status": "PENDING_USER"
+    },
+    {
+      "id": "physical-nimiq-pay-device",
+      "description": "Real Nimiq Pay app on a physical phone is required for SDK init, device identifier prompt, account list, sign, sendBasicTransactionWithData, and all real-device acceptance gates (PRD section 39.8).",
+      "owner": "user",
+      "neededBy": "Phase 2 gate and onward",
+      "status": "PENDING_USER"
+    },
+    {
+      "id": "mainalbatross-nim-funding",
+      "description": "Real NIM on MainAlbatross is required to fund the flagship Global Relay baton and run the production smoke relay.",
+      "owner": "user",
+      "neededBy": "Phase 10",
+      "status": "PENDING_USER"
+    }
+  ],
+  "openVerificationItems": [
+    "RPC network identity (Main vs Test Albatross) for candidate public RPC hosts",
+    "Nimiq Pay deep-link path/query passthrough for /invite/<token> style URLs",
+    "Nimiq message-signing byte layout for backend login-challenge verification"
+  ],
+  "network": {
+    "development": "TestAlbatross",
+    "production": "MainAlbatross"
+  },
+  "deploymentUrls": {
+    "local": null,
+    "staging": null,
+    "production": null
+  },
+  "finalReadinessState": null
+}

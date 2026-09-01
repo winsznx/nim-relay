@@ -1,0 +1,1 @@
+{"ok":false,"error":"TypeError: wasm2.__wbindgen_start is not a function","note":"@nimiq/core WASM fails to instantiate inside workerd via wrangler dev local mode, nodejs_compat enabled, compatibility_date 2026-08-04. Confirms Web Client is not usable in Cloudflare Workers runtime."}
