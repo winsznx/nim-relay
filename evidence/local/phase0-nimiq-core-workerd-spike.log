@@ -1,0 +1,21 @@
+
+ ⛅️ wrangler 4.128.0
+────────────────────
+
+Cloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md
+⎔ Starting local server...
+[wrangler:info] Ready on http://localhost:8799
+Wrangler detected this dev session is running in an AI agent.
+The Local Explorer API is available at http://localhost:8799/cdn-cgi/local/explorer/api
+Useful routes:
+  GET http://localhost:8799/cdn-cgi/local/explorer/api/local/workers - local Workers and bindings
+  GET http://localhost:8799/cdn-cgi/local/explorer/api/storage/kv/namespaces - KV namespaces
+  GET http://localhost:8799/cdn-cgi/local/explorer/api/d1/database - D1 databases
+  GET http://localhost:8799/cdn-cgi/local/explorer/api/r2/buckets - R2 buckets
+  GET http://localhost:8799/cdn-cgi/local/explorer/api/workers/durable_objects/namespaces - Durable Object namespaces
+  GET http://localhost:8799/cdn-cgi/local/explorer/api/workflows - Workflows
+  POST http://localhost:8799/cdn-cgi/local/explorer/api/local/observability/query - run a read-only SQL query (SELECT/WITH only) over captured request traces and console logs. Tables: spans, logs (read attributes via json(attributes)). Example:
+    curl -X POST http://localhost:8799/cdn-cgi/local/explorer/api/local/observability/query -H 'Content-Type: application/json' -d '{"sql":"SELECT service, name, outcome, duration_ms FROM spans WHERE parent_id IS NULL LIMIT 20"}'
+If the routes above don't cover what you need, fetch the full OpenAPI schema (large - use only as a last resort):
+  GET http://localhost:8799/cdn-cgi/local/explorer/api - OpenAPI schema
+[wrangler:info] GET /spike/nimiq-core 500 Internal Server Error (16ms)

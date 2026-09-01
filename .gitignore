@@ -13,3 +13,4 @@ supabase/.branches/
 supabase/.temp/
 .vercel/
 *.log
+!evidence/**/*.log
