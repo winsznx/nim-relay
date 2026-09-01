@@ -1,0 +1,32 @@
+/* Visual authority: DESIGN.md, derived from nim_relay_8_screen_moodboard.png */
+:root {
+  --color-bg-void: #0a0e1a;
+  --color-bg-panel: rgba(255, 255, 255, 0.04);
+  --color-border-panel: rgba(255, 255, 255, 0.08);
+  --color-gold-500: #f5a623;
+  --color-gold-600: #e8890a;
+  --color-cyan-400: #22d3ee;
+  --color-text-primary: #f5f7fa;
+  --color-text-muted: #8b93a7;
+  --font-display: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --radius-panel: 20px;
+  --radius-pill: 999px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg-void);
+  color: var(--color-text-primary);
+  font-family: var(--font-display);
+  -webkit-font-smoothing: antialiased;
+}

@@ -49,6 +49,34 @@ No official, directly-fetchable specification for the exact Nimiq signed-message
 
 ---
 
+## D-004 — Workers test runtime uses `@cloudflare/vitest-plugin`, not `@cloudflare/vitest-pool-workers`
+
+**Date:** 2026-09-01 (Phase 1)
+**Status:** Locked
+
+**Context.** PRD §39.3 requires "Use current Workers Vitest integration" for Durable Object/Worker tests, running inside real `workerd` rather than a Node.js mock.
+
+**What happened.** The originally-installed `@cloudflare/vitest-pool-workers@0.9.14` (paired with our pinned `wrangler@4.128.0` and `vitest@^3.2.4`) failed in two independent ways when actually run:
+1. Its resolved peer `wrangler@4.44.0` doesn't understand the declarative `"exports"` DO-class field (a newer wrangler feature, see the Cloudflare API research in `docs/PHASE_0_VERIFICATION.md` §6) - rejected with "Unexpected fields found in top-level field: exports". Fixed by using the legacy `migrations` array in `wrangler.jsonc` instead, which both the pinned direct `wrangler@4.128.0` and the older peer understand.
+2. After that fix, the bundled `miniflare@4.20251011.0`/`workerd` runtime threw `TypeError: vm._setUnsafeEval is not a function` under Node.js 24.19.0 - an environment incompatibility inside the test-pool's own runtime shim, not something fixable from application code.
+
+Rather than downgrade the local Node.js version to work around a test-tooling bug (which would fight the `.nvmrc`-pinned Node 22+/24 target instead of the actual problem), the fix was to check current official docs directly: Cloudflare has replaced `@cloudflare/vitest-pool-workers`'s config-based setup (`defineWorkersConfig` from a `"./config"` export) with a **plugin-based** one, `@cloudflare/vitest-plugin` (`cloudflareTest()` used as a Vite/Vitest plugin), aligned with Vitest v4's architecture. Confirmed via `developers.cloudflare.com/workers/testing/vitest-integration/get-started/write-your-first-test/`.
+
+**Decision.** Upgraded `vitest` to `^4.1.11` workspace-wide and replaced `@cloudflare/vitest-pool-workers` with `@cloudflare/vitest-plugin@^1.1.3` in `apps/worker`. `apps/worker/src/index.test.ts` (a real `/api/health` request via `SELF.fetch`) now passes running inside actual `workerd`, not a mock - satisfying PRD §39.3 for real.
+
+This is the second empirical toolchain-compatibility finding after D-001, for the same underlying reason: package version numbers and even package *names* in this ecosystem move fast enough that assuming compatibility from memory (mine or the PRD's) would have produced a build that looked configured but silently never ran a real test.
+
+---
+
+## D-005 — `webSocketClose` must not call `ws.close()` again (found via live smoke test)
+
+**Date:** 2026-09-01 (Phase 1)
+**Status:** Fixed
+
+A live `wrangler dev` smoke test (real `workerd`, not the Vitest pool) connected a WebSocket to `RelayRoom`, sent `hello`, got `hello_ack`, closed, then reconnected. First connection worked; closing it threw server-side: `InvalidAccessError: Invalid WebSocket close code: 1005` from inside `webSocketClose`. Root cause: the handler was calling `ws.close(code, reason)` again on a socket the platform was already closing, and the client's default no-status close surfaces as code `1005`, which is not a valid explicit close code to pass back. Fixed by making `webSocketClose` a pure notification handler (no `.close()` call) - matches the Hibernation API's actual contract (the handler is *told* the socket closed, it doesn't close it). Re-verified with a corrected smoke script (clean explicit close code) that now passes for both a fresh connect and a reconnect. Evidence: `evidence/local/phase1-websocket-hello-reconnect-smoke.log`, `evidence/local/phase1-websocket-smoke-script.mjs`.
+
+---
+
 ## D-003 — Supabase project provisioned fresh, not reusing an existing linked project
 
 **Date:** 2026-09-01 (Phase 0)

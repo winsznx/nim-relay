@@ -1,0 +1,36 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "nim-relay",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-04",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/ws/*", "/r/*", "/invite/*", "/proof/*"]
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "RELAY_ROOM", "class_name": "RelayRoom" }
+    ]
+  },
+  // The declarative "exports" field (SQLite-backed DO classes without a
+  // migrations array) requires a newer wrangler than the one currently
+  // pinned as a peer by @cloudflare/vitest-pool-workers (resolved: 4.44.0,
+  // vs. our direct 4.128.0). Using the legacy migrations array here keeps
+  // local `wrangler dev`/deploy and the Workers Vitest pool on the same
+  // page; revisit once vitest-pool-workers bumps its wrangler peer.
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["RelayRoom"] }
+  ],
+  "r2_buckets": [
+    { "binding": "REPLAY_BUCKET", "bucket_name": "nim-relay-artifacts-dev" }
+  ],
+  "triggers": {
+    "crons": ["0 0 * * *", "*/10 * * * *"]
+  },
+  "observability": {
+    "enabled": true
+  }
+}
