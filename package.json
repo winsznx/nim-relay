@@ -25,6 +25,7 @@
     "verify:deployment": "tsx scripts/verify/deployment.ts",
     "verify:testnet": "tsx scripts/verify/testnet.ts",
     "verify:mainnet": "tsx scripts/verify/mainnet.ts",
+    "verify:auth": "tsx scripts/verify/auth-e2e.ts",
     "clean-room": "bash scripts/clean-room/run.sh"
   },
   "dependencies": {

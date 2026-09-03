@@ -22,17 +22,19 @@ Full detail: `docs/phases/PHASE_2_SUMMARY.md`.
 
 - `6eb4269` — reconstructed the earlier session's uncommitted Phase 2 work.
 - `7ef422e` — `/api/auth` routes (`nonce` / `verify` / `logout` / `me`), `requireSession` middleware, `AuthStore` port + `InMemoryAuthStore`, `verifyHandoffTransaction` (pure PRD §9.6, 18 adversarial cases).
-- **Phase 1 closed** — user provided a fresh Supabase project + DB password. `0001_init.sql` and `0002_login_nonces.sql` applied via `supabase db push --db-url`; 25 tables / 10 enums verified; rolled-back `pg` smoke of the full auth flow. Evidence: `evidence/testnet/phase1-supabase-migration.md`.
-- `SupabaseAuthStore` (`service_role` supabase-js over `login_nonces` / `players` / `devices` / `sessions`); `getAuthStore(env)` feature-detects `SUPABASE_SERVICE_ROLE_KEY`. 72 tests, gate green.
+- **Phase 1 closed** — user provided a fresh Supabase project, DB password, and `service_role` key. `0001_init.sql` and `0002_login_nonces.sql` applied via `supabase db push --db-url`; 25 tables / 10 enums verified.
+- `SupabaseAuthStore` (`service_role` supabase-js over `login_nonces` / `players` / `devices` / `sessions`); `getAuthStore(env)` feature-detects `SUPABASE_SERVICE_ROLE_KEY`.
+- **Auth flow verified end-to-end against the live Supabase project**: `nonce → sign → verify` (player + session persisted) → nonce replay 400 → `me` 200 → `logout` 200 (session revoked) → `me` 401. `pnpm verify:auth`; `evidence/testnet/phase2-auth-e2e.log`. Test rows cleaned up.
+- 72 tests, gate green. `vitest.config.ts` pins the Supabase bindings empty so unit tests stay in-memory.
 
-Credentials live only in the gitignored `.env`. `apps/worker/.dev.vars.example` shows how to point local `wrangler dev` at the real project.
+Credentials live only in the gitignored `.env` and `apps/worker/.dev.vars`. For deploy, `wrangler secret put SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` / the HMAC secrets.
 
 ## Immediate next step when resuming
 
-1. **Get the Supabase `service_role` key from the user** (dashboard → Project Settings → API — the `sb_publishable_…` key they gave is not enough, RLS is on with no policies). Put it in `apps/worker/.dev.vars` (local) and `wrangler secret put` (deploy). That flips `getAuthStore()` onto `SupabaseAuthStore`; then run `/api/auth/nonce → verify → me → logout` against the live DB and capture evidence.
-2. Web-side Nimiq Mini App SDK bridge (SDK init, device identifier prompt, account list, `sign`). Non-device code + mock test can land first; real-device acceptance gate needs the physical phone.
-3. Bind `/verify` to the SDK-reported checksummed NQ address, not just the hex address derived from the public key.
-4. Open verification item: Nimiq Pay deep-link `/invite/<token>` path passthrough — test empirically.
+1. Web-side Nimiq Mini App SDK bridge (SDK init, device identifier prompt, account list, `sign`). Non-device code + mock test can land first; real-device acceptance gate needs the physical phone.
+2. Bind `/verify` to the SDK-reported checksummed NQ address, not just the hex address derived from the public key.
+3. Open verification item: Nimiq Pay deep-link `/invite/<token>` path passthrough — test empirically.
+4. Wire `NimiqRpcClient` + `verifyHandoffTransaction` into the handoff-finalization path (RPC lookup + confirmation-wait loop) — mostly Phase 4.
 5. Phase 2 **gate** needs the physical Nimiq Pay device (user blocker) for the real `sign()` / SDK acceptance checks.
 6. Phase 9: design RLS policies for every `public` table (all currently service_role-only).
 
@@ -52,7 +54,7 @@ Full detail: `docs/phases/PHASE_2_SUMMARY.md`, `docs/PHASE_0_VERIFICATION.md` §
 
 ## Outstanding user-owned blockers (see `run-state.json`)
 
-1. Supabase `service_role` key (blocks activating `SupabaseAuthStore` / running the auth flow against the live DB). Project + DB password + migrations are done.
+1. ~~Supabase credentials~~ — resolved 2026-09-03 (project, DB password, service_role key all provided; auth flow verified against the live DB).
 2. Physical phone with Nimiq Pay installed (blocks Phase 2's real-device gate and everything downstream that needs a real wallet action).
 3. Real NIM on MainAlbatross (blocks Phase 10 production launch only — far off, not urgent yet).
 

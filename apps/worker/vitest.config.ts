@@ -9,6 +9,12 @@ export default defineConfig({
   plugins: [
     cloudflareTest({
       wrangler: { configPath: './wrangler.jsonc' },
+      // Tests run the in-memory AuthStore, never the real database. Force the
+      // Supabase bindings empty so a local .dev.vars (used for `wrangler dev`
+      // against the live project) can't pull unit tests onto the network.
+      miniflare: {
+        bindings: { SUPABASE_URL: '', SUPABASE_SERVICE_ROLE_KEY: '' },
+      },
     }),
   ],
 })

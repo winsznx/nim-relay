@@ -1,0 +1,21 @@
+Phase 2 auth flow, end-to-end against the live Supabase project (SupabaseAuthStore active)
+Worker: wrangler dev :8798, apps/worker/.dev.vars = SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
+Command: pnpm tsx scripts/verify/auth-e2e.ts http://localhost:8798 http://localhost:5173
+
+nonce -> 3fa62eca-45b7-4abf-bd50-7b7688826a8c
+verify -> 200 player df59d1ce-d724-43d0-bc08-35f529d8050f (runner-8b97a3) wallet 988D42E1700D4217B72C65240EFF672BCD8B97A3
+verify (replayed nonce) -> 400 as expected
+me -> 200 same player
+logout -> 200
+me (after logout) -> 401 as expected
+
+AUTH_E2E_PASS player=df59d1ce-d724-43d0-bc08-35f529d8050f
+
+DB verification (pg, session pooler), immediately after:
+  players:      1 row  - handle runner-8b97a3, wallet_address 988D42...B97A3 (hex, upper), wallet_public_key set
+  sessions:     1 row  - revoked_at set (logout), not expired
+  login_nonces: 0 rows - challenge consumed; single-use delete confirmed by the 400 on replay
+  devices:      0 rows - no deviceId sent in this run
+
+Test rows deleted afterward; players/sessions/devices/login_nonces all back to 0.
+No errors or rejections in the Worker log.

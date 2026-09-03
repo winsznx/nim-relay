@@ -1,10 +1,10 @@
 # Phase 2 Summary — Nimiq bridge and session
 
-**Status: IN PROGRESS.** The first slice (RPC client, signed-message verify,
-session/nonce/device primitives) was reconstructed on 2026-09-03 from an earlier
-session's uncommitted work; it plus the auth routes, backend tx verifier, and the
-Supabase-backed store are now committed. Remaining: activate `SupabaseAuthStore`
-with the `service_role` key, the Mini App SDK bridge, and the deep-link test.
+**Status: IN PROGRESS.** RPC client, signed-message verify, session/nonce/device
+primitives, `/api/auth` routes, the backend tx verifier, and the Supabase-backed
+store are committed. The auth flow is **verified end-to-end against the live
+Supabase project**. Remaining: the Mini App SDK bridge, NQ-address binding, and
+the deep-link test — plus the physical-device gate.
 
 ## Objective
 Nimiq Mini App SDK bridge, login-challenge signing/verification, session cookies,
@@ -85,6 +85,13 @@ trust boundary from PRD §9.6, §11, §32.
   `vars` block; `.env.example` documents `APP_ORIGIN`.
 - Live `wrangler dev` smoke: `/api/auth/nonce` → 200, `/verify` bad body → 400,
   `/me` no cookie → 401.
+- **End-to-end against the live Supabase project** (`SupabaseAuthStore` active via
+  `apps/worker/.dev.vars`): `nonce → sign → verify` (200, player + session rows
+  persisted) → nonce replay 400 → `me` 200 → `logout` 200 (session `revoked_at`
+  set) → `me` 401. `scripts/verify/auth-e2e.ts` (`pnpm verify:auth`);
+  `evidence/testnet/phase2-auth-e2e.log`. Test rows cleaned up afterward.
+  `vitest.config.ts` pins the Supabase bindings empty so unit tests never leave
+  the in-memory store.
 
 ### Decisions
 - **D-006** — both Nimiq RPC endpoints confirmed by network in both directions
@@ -97,6 +104,7 @@ trust boundary from PRD §9.6, §11, §32.
 pnpm typecheck  PASS
 pnpm lint       PASS  (0 errors, 0 warnings)
 pnpm test       PASS  (72 passing, 0 failing)   [13 at end of Phase 1]
+pnpm verify:auth PASS  (AUTH_E2E_PASS, live Supabase - evidence/testnet/phase2-auth-e2e.log)
 pnpm build      PASS
 ```
 
@@ -110,9 +118,6 @@ pnpm build      PASS
    same construction end to end.
 
 ## Remaining Phase 2 work
-- Set `SUPABASE_SERVICE_ROLE_KEY` (Worker secret + `apps/worker/.dev.vars`) to
-  activate `SupabaseAuthStore`, then run the auth flow end-to-end against the live
-  DB. Blocked on `supabase-service-role-key`.
 - Wire `NimiqRpcClient` + `verifyHandoffTransaction` into the handoff-finalization
   path (the RPC lookup + retry/confirmation-wait loop that calls the pure verifier).
   Most of this is Phase 4 (relay protocol), but the verifier and client are ready.
@@ -126,8 +131,7 @@ pnpm build      PASS
 ## Blockers
 - `physical-nimiq-pay-device` (user-owned) — blocks the Phase 2 **gate**, not the
   non-device work above.
-- `supabase-service-role-key` (user-owned) — the project, DB password, and
-  migrations are done; the `service_role` JWT is still needed to run the auth flow
-  through `SupabaseAuthStore`. `getAuthStore()` stays in-memory until it is set.
+- `supabase-service-role-key` — **resolved 2026-09-03**; the auth flow runs against
+  the live DB. For deploy, set the Supabase secrets with `wrangler secret put`.
 
 ## Result: IN PROGRESS
