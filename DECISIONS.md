@@ -77,6 +77,24 @@ A live `wrangler dev` smoke test (real `workerd`, not the Vitest pool) connected
 
 ---
 
+## D-006 — Nimiq RPC endpoints confirmed by network, both directions
+
+**Date:** 2026-09-02 (Phase 2)
+**Status:** Locked
+
+Phase 0's open item ("which network does `rpc.nimiqwatch.com` serve?") is resolved with direct evidence, not inference from the hostname:
+
+- **MainAlbatross**: `https://rpc.nimiqwatch.com` — `getBlockNumber` returned a live height that tracked `api.nimiq.watch`'s mainnet explorer API within a ~70-block gap over ~70 seconds (i.e. moving in real time, same chain).
+- **TestAlbatross**: `https://rpc.testnet.nimiqwatch.com/` — `getBlockNumber` returned a live height that matched `test-api.nimiq.watch`'s testnet explorer API, at a completely different height from mainnet (confirms it's genuinely a separate chain, not the same node mislabeled).
+- Both are listed under "Open RPC Servers" in the official `nimiq/awesome` GitHub org repo, operated by the same known community maintainer (`sisou`, also the author of the `nimiq.watch` explorer software).
+- `getTransactionByHash` confirmed as the correct method name empirically: calling it with a well-formed-but-nonexistent hash against the testnet endpoint returns `{"error":{"code":-32603,"message":"Internal error","data":"Transaction not found: <hash>"}}` rather than a method-not-found error, confirming both the method name and its not-found error shape.
+
+**Limitation to carry forward.** `nimiq/awesome` explicitly labels these "public RPC servers that may not be suitable for production applications... no uptime guarantees." They're used for TestAlbatross development throughout the build. Before Phase 10 (MainAlbatross production), revisit whether a single best-effort community node is sufficient for judging traffic or whether NIM Relay should run/pin a dedicated node or query multiple RPC sources for quorum - tracked as an open Phase 9/10 item, not resolved here.
+
+`NIMIQ_RPC_URL` in `.env.example` is set per-environment: TestAlbatross endpoint for local/staging, the MainAlbatross endpoint (revisited per the limitation above) for production.
+
+---
+
 ## D-003 — Supabase project provisioned fresh, not reusing an existing linked project
 
 **Date:** 2026-09-01 (Phase 0)

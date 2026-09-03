@@ -3,8 +3,8 @@
 Live phase tracker. See `run-state.json` for the machine-readable version and `docs/phases/` for per-phase summaries once each phase closes.
 
 - [x] Phase 0 — Source-of-truth verification (`docs/PHASE_0_VERIFICATION.md`)
-- [ ] Phase 1 — Repository and infrastructure foundation
-- [ ] Phase 2 — Nimiq bridge and session
+- [~] Phase 1 — Repository and infrastructure foundation (committed `c798da8`, 4/5 gate items pass; DB migration blocked on user Supabase credentials)
+- [~] Phase 2 — Nimiq bridge and session (in progress, uncommitted; RPC client + signed-message verify + session/nonce/device-hash primitives done, see `docs/phases/PHASE_2_SUMMARY.md`)
 - [ ] Phase 3 — Baton Physics deterministic engine
 - [ ] Phase 4 — Relay protocol
 - [ ] Phase 5 — Flagship Global and Quick Relay

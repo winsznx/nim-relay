@@ -1,0 +1,5 @@
+[TestAlbatross] getBlockNumber -> 10313548
+[TestAlbatross] getTransactionByHash(fakeHash) -> TransactionNotFoundError (expected)
+[MainAlbatross] getBlockNumber -> 60474890
+[MainAlbatross] getTransactionByHash(fakeHash) -> TransactionNotFoundError (expected)
+NIMIQ_RPC_SPIKE_PASS

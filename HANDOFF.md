@@ -1,23 +1,30 @@
 # Handoff
 
-State-of-the-build snapshot for anyone (human or agent) picking this up mid-build. Read this first, then `run-state.json` for machine-readable state, then `docs/phases/PHASE_1_SUMMARY.md` for the latest phase detail. Repo: https://github.com/winsznx/nim-relay
+State-of-the-build snapshot for anyone (human or agent) picking this up mid-build. Read this first, then `run-state.json` for machine-readable state, then `docs/phases/PHASE_2_SUMMARY.md` for the latest phase detail. Repo: https://github.com/winsznx/nim-relay
 
-## Current state (paused here at user request)
+## Current state (2026-09-03 — resumed, tracking files re-synced to the working tree)
 
-Phase 0: **PASS**. Phase 1: **in progress, 4/5 gate items passing with live evidence**, paused for handoff rather than blocked on a technical problem.
+Phase 0: **PASS**. Phase 1: **committed `c798da8`, 4/5 gate items pass** (DB migration still blocked on user Supabase credentials). Phase 2: **in progress, uncommitted.**
 
-Phase 1 gate status:
-- Local build (web + worker): **PASS**
-- Worker preview (`wrangler dev`, live, twice): **PASS**
-- WebSocket hello/reconnect against the real `RelayRoom` Durable Object: **PASS**, evidence in `evidence/local/phase1-websocket-hello-reconnect-smoke.log`
-- Mobile app shell (Vite React app, `/api/health` reachable through the LAN dev proxy): **PASS**
-- Database migration: **BLOCKED** — `supabase/migrations/0001_init.sql` is written (full PRD §15 schema, 24 tables, reviewed manually) but **not yet applied to a live database**. No Docker on this machine (can't run `supabase start` locally) and no dedicated NIM Relay Supabase project yet.
+A prior session committed Phase 1 and then did a chunk of Phase 2 work without updating `run-state.json` / `TASKS.md` / a phase summary. That has now been reconstructed from the working tree and written back. Gate is green: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` all pass, 38 tests (up from 13).
+
+Phase 2 done so far (all uncommitted, on top of `c798da8`):
+- `packages/relay-protocol/src/nimiq-rpc.ts` — first-party plain-`fetch` JSON-RPC client (`getBlockNumber`, `getTransactionByHash` + typed `TransactionNotFoundError`).
+- `packages/relay-protocol/src/nimiq-verify.ts` — pure-JS Nimiq signed-message verify + Blake2b address derivation, cross-checked against a golden vector from the real `@nimiq/core` build (`evidence/testnet/phase2-nimiq-signature-vector.md`).
+- `apps/worker/src/auth/` — `session.ts` (HMAC session cookie), `nonce.ts` (login nonce + message shape), `device-hash.ts` (peppered device-id hash), all with tests.
+- `scripts/verify/nimiq-rpc-spike.ts` + `evidence/testnet/phase2-nimiq-rpc-spike.log`.
+- `DECISIONS.md` D-006 — both RPC endpoints network-confirmed.
+- deps: `@noble/ed25519`, `@noble/hashes`.
+
+Full detail: `docs/phases/PHASE_2_SUMMARY.md`.
 
 ## Immediate next step when resuming
 
-1. **Get Supabase credentials from the user** for the fresh account they mentioned providing (not the CLI-linked account — see `DECISIONS.md` D-003). Run `supabase link --project-ref <ref>` then `supabase db push` from repo root. Verify all 24 tables/enums create cleanly; fix forward and re-verify if anything in the migration doesn't apply as written (it has not been tested against a real Postgres yet).
-2. Close the Phase 1 gate, write the commit, update `run-state.json` phase 1 → `PASS`.
-3. Move to **Phase 2 — Nimiq bridge and session** (`TaskList` task #3). Start with the three open verification items below — they're Phase 2's actual first work, not optional extras.
+1. **Commit the reconstructed Phase 2 work** (currently all uncommitted) once reviewed — the working tree is green and self-consistent.
+2. **Get Supabase credentials from the user** for the fresh account (not the CLI-linked account — `DECISIONS.md` D-003). `supabase link --project-ref <ref>` then `supabase db push`. Verify all 24 tables/enums apply cleanly; fix forward. Closes the last Phase 1 gate item.
+3. Continue Phase 2 (non-device work, not blocked): wire the auth primitives into Worker routes (`/api/auth/nonce` → `/api/auth/verify` → session middleware → `/api/auth/logout`), and build the backend transaction verifier composing `NimiqRpcClient` into the full PRD §9.6 check with adversarial tests.
+4. Still open verification item: Nimiq Pay deep-link `/invite/<token>` path passthrough — test empirically.
+5. Phase 2 **gate** needs the physical Nimiq Pay device (user blocker) for the real `sign()` / SDK acceptance checks.
 
 ## Two real bugs/toolchain issues found and fixed this session (don't reintroduce)
 
@@ -27,11 +34,11 @@ Phase 1 gate status:
 
 ## Open Nimiq verification items (all deferred to Phase 2 on purpose, not forgotten)
 
-1. Which network (`TestAlbatross`/`MainAlbatross`) `rpc.nimiqwatch.com` (or any other RPC candidate) actually serves — confirm before using it for any real verification.
-2. Whether `/invite/<token>`-style nested paths survive the Nimiq Pay deep-link opener round-trip — test empirically before locking the invite URL encoding.
-3. The exact Nimiq message-signing byte layout for backend login-challenge verification — capture a real signature from a physical device via `sign()` and derive/cross-check against `@noble/ed25519` before any session-auth code depends on it.
+1. **RESOLVED** (`DECISIONS.md` D-006) — `rpc.nimiqwatch.com` = MainAlbatross, `rpc.testnet.nimiqwatch.com` = TestAlbatross, confirmed by live block-height cross-referencing in both directions.
+2. **OPEN** — whether `/invite/<token>`-style nested paths survive the Nimiq Pay deep-link opener round-trip. Not yet tested.
+3. **PARTIALLY RESOLVED** — the message-signing byte layout is cross-checked against a golden vector from the real `@nimiq/core` build (`evidence/testnet/phase2-nimiq-signature-vector.md`, verified by `packages/relay-protocol/src/nimiq-verify.ts`). Still open: confirming the Mini App SDK `sign()` path on a real physical device follows the same construction end to end.
 
-Full detail on all three: `docs/PHASE_0_VERIFICATION.md` §7, `DECISIONS.md` D-001/D-002.
+Full detail: `docs/phases/PHASE_2_SUMMARY.md`, `docs/PHASE_0_VERIFICATION.md` §7, `DECISIONS.md` D-001/D-002/D-006.
 
 ## Outstanding user-owned blockers (see `run-state.json`)
 
@@ -41,9 +48,9 @@ Full detail on all three: `docs/PHASE_0_VERIFICATION.md` §7, `DECISIONS.md` D-0
 
 ## What exists in the repo right now
 
-- Full monorepo scaffold: `apps/web` (Vite+React+TS shell), `apps/worker` (Hono + `RelayRoom` Durable Object + R2 binding + cron stub), `packages/shared` (money/state types, tested), `packages/relay-protocol` (tx-data commitment codec per PRD §9.5, tested), `packages/game-engine` (version-binding scaffold only — real Baton Physics is Phase 3), `packages/test-utils` (placeholder).
+- Full monorepo scaffold: `apps/web` (Vite+React+TS shell), `apps/worker` (Hono + `RelayRoom` Durable Object + R2 binding + cron stub + `src/auth/` session/nonce/device-hash primitives, uncommitted), `packages/shared` (money/state types, tested), `packages/relay-protocol` (tx-data codec per PRD §9.5 + `nimiq-rpc.ts` + `nimiq-verify.ts`, tested; last two uncommitted), `packages/game-engine` (version-binding scaffold only — real Baton Physics is Phase 3), `packages/test-utils` (placeholder).
 - `supabase/migrations/0001_init.sql` — full schema, not yet live (see above).
 - All 15 required control docs from PRD §0.2 (`README.md`, `ARCHITECTURE.md`, `SECURITY.md`, `PRIVACY.md`, `SETUP.md`, `CONTRIBUTIONS.md`, `DECISIONS.md`, `CLAIMS.md`, `TASKS.md`, `BENCHMARKS.md`, `EVIDENCE.md`, `DEMO.md`, `HANDOFF.md`, `run-state.json`, `DESIGN.md`) plus `docs/PHASE_0_VERIFICATION.md` and per-phase summaries in `docs/phases/`.
 - CI (`.github/workflows/ci.yml`) mirrors the local gate: typecheck, lint, test, build.
-- 13 passing unit/integration tests (money conversion, tx-data codec adversarial cases, a real in-`workerd` health-endpoint test) — `pnpm typecheck && pnpm lint && pnpm test && pnpm build` all green as of this pause.
-- Public MIT repo live at https://github.com/winsznx/nim-relay (two commits pushed so far: Phase 0 scaffold, gitignore fix; this pause's Phase 1 work is about to be committed).
+- 38 passing unit/integration tests (money conversion, tx-data codec adversarial cases, Nimiq RPC client, Nimiq signed-message golden-vector check, session/nonce/device-hash, a real in-`workerd` health-endpoint test) — `pnpm typecheck && pnpm lint && pnpm test && pnpm build` all green as of 2026-09-03.
+- Public MIT repo at https://github.com/winsznx/nim-relay. Three commits: `fc2f74d` Phase 0 scaffold, `57ea824` gitignore fix, `c798da8` Phase 1. The Phase 2 work described above is uncommitted in the working tree. Local `main` matches `origin/main`.

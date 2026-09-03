@@ -1,23 +1,46 @@
 {
   "product": "NIM Relay",
   "prd": "NIM_RELAY_PRD_v1.md",
-  "updatedAt": "2026-09-01T21:10:00Z",
-  "currentPhase": 1,
+  "updatedAt": "2026-09-03T00:00:00Z",
+  "currentPhase": 2,
   "phases": {
     "0": { "name": "Source-of-truth verification", "status": "PASS", "commit": "fc2f74d" },
     "1": {
       "name": "Repository and infrastructure foundation",
       "status": "IN_PROGRESS",
-      "commit": null,
+      "commit": "c798da8",
       "gate": {
         "localBuild": "PASS",
         "workerPreview": "PASS",
         "databaseMigration": "BLOCKED_ON_USER (Supabase credentials for a fresh project not yet provided; migration SQL written and reviewed at supabase/migrations/0001_init.sql, not yet applied)",
         "webSocketHelloReconnect": "PASS (evidence/local/phase1-websocket-hello-reconnect-smoke.log)",
         "mobileAppShell": "PASS (Vite app shell renders, /api/health reachable through the dev proxy)"
-      }
+      },
+      "note": "Committed as c798da8 with 4/5 gate items passing. The only open item (database migration) is a user-owned blocker, not a technical question. Phase 2 work started on top of this commit rather than waiting."
     },
-    "2": { "name": "Nimiq bridge and session", "status": "NOT_STARTED", "commit": null },
+    "2": {
+      "name": "Nimiq bridge and session",
+      "status": "IN_PROGRESS",
+      "commit": null,
+      "note": "Work reconstructed from the working tree on 2026-09-03 - the prior session did this work but did not update the tracking files.",
+      "done": [
+        "packages/relay-protocol/src/nimiq-rpc.ts (+test) - first-party plain-fetch JSON-RPC client (getBlockNumber, getTransactionByHash with a typed TransactionNotFoundError), scoped to only the methods the backend tx verifier needs (DECISIONS.md D-001)",
+        "packages/relay-protocol/src/nimiq-verify.ts (+test) - pure-JS Nimiq signed-message verification (@noble/ed25519 + @noble/hashes, SHA-256 prefix construction) and Blake2b-256 address derivation, cross-checked byte-for-byte against a golden vector generated from the real @nimiq/core Node build (evidence/testnet/phase2-nimiq-signature-vector.md)",
+        "apps/worker/src/auth/session.ts (+test) - HMAC-signed opaque session token, HttpOnly/Secure/SameSite=Lax cookie, 30-day max age, timing-safe compare (PRD 11.6)",
+        "apps/worker/src/auth/nonce.ts (+test) - single-use expiring origin-bound login nonce and the exact sign-in message shape (PRD 11.4 / 32.3)",
+        "apps/worker/src/auth/device-hash.ts (+test) - HMAC-SHA256 (server pepper) of the Nimiq Pay device identifier; raw value never persisted (PRD 11.5)",
+        "scripts/verify/nimiq-rpc-spike.ts - live dual-network RPC spike; evidence at evidence/testnet/phase2-nimiq-rpc-spike.log (NIMIQ_RPC_SPIKE_PASS)",
+        "DECISIONS.md D-006 - both Nimiq RPC endpoints confirmed by network in both directions",
+        "deps: @noble/ed25519@3.2.0, @noble/hashes@2.4.0 added to packages/relay-protocol"
+      ],
+      "remaining": [
+        "Wire the auth building blocks into actual Worker routes (issue nonce -> verify signed message -> create session -> set cookie; session middleware; logout)",
+        "Backend transaction verifier module composing NimiqRpcClient into the full PRD 9.6 check (hash/sender/recipient/value/data/network/inclusion state), with adversarial tests",
+        "Web-side Nimiq Mini App SDK bridge (SDK init, device identifier prompt, account list, sign) - needs the physical-device blocker for the real acceptance gate",
+        "Deep-link path/query passthrough test for /invite/<token> URLs (third open verification item, still open)",
+        "Real physical-device signature captured through Nimiq Pay sign() and cross-checked against nimiq-verify.ts (closes the SDK-path caveat on the golden vector)"
+      ]
+    },
     "3": { "name": "Baton Physics deterministic engine", "status": "NOT_STARTED", "commit": null },
     "4": { "name": "Relay protocol", "status": "NOT_STARTED", "commit": null },
     "5": { "name": "Flagship Global and Quick Relay", "status": "NOT_STARTED", "commit": null },
@@ -29,9 +52,16 @@
     "11": { "name": "Early access and evidence", "status": "NOT_STARTED", "commit": null },
     "12": { "name": "Submission release freeze", "status": "NOT_STARTED", "commit": null }
   },
-  "lastPassingCommit": "fc2f74d",
-  "pausedForHandoff": true,
-  "pausedReason": "User requested a pause; wrote HANDOFF.md and this file for the next agent/session to resume from.",
+  "lastPassingCommit": "c798da8",
+  "pausedForHandoff": false,
+  "pausedReason": null,
+  "gate": {
+    "asOf": "2026-09-03",
+    "typecheck": "PASS",
+    "lint": "PASS (0 errors, 0 warnings)",
+    "test": "PASS (38 passing, 0 failing across 13 files)",
+    "build": "PASS (apps/web vite build + apps/worker tsc)"
+  },
   "blockers": [
     {
       "id": "supabase-credentials",
@@ -42,9 +72,9 @@
     },
     {
       "id": "physical-nimiq-pay-device",
-      "description": "Real Nimiq Pay app on a physical phone is required for SDK init, device identifier prompt, account list, sign, sendBasicTransactionWithData, and all real-device acceptance gates (PRD section 39.8).",
+      "description": "Real Nimiq Pay app on a physical phone is required for SDK init, device identifier prompt, account list, sign, sendBasicTransactionWithData, and all real-device acceptance gates (PRD section 39.8). Blocks the Phase 2 gate. Non-device Phase 2 work (auth routes, backend tx verifier) can proceed without it.",
       "owner": "user",
-      "neededBy": "Phase 2 gate and onward",
+      "neededBy": "Phase 2 gate",
       "status": "PENDING_USER"
     },
     {
@@ -56,9 +86,9 @@
     }
   ],
   "openVerificationItems": [
-    "RPC network identity (Main vs Test Albatross) for candidate public RPC hosts - resolve in Phase 2",
-    "Nimiq Pay deep-link path/query passthrough for /invite/<token> style URLs - resolve in Phase 2",
-    "Nimiq message-signing byte layout for backend login-challenge verification - resolve in Phase 2 with a real device signature"
+    "RESOLVED (D-006): RPC network identity for rpc.nimiqwatch.com (MainAlbatross) and rpc.testnet.nimiqwatch.com (TestAlbatross), confirmed by live block-height cross-referencing in both directions.",
+    "OPEN: Nimiq Pay deep-link path/query passthrough for /invite/<token> style URLs - still to test empirically in Phase 2.",
+    "PARTIALLY RESOLVED: Nimiq message-signing byte layout cross-checked against a golden vector from the real @nimiq/core build (evidence/testnet/phase2-nimiq-signature-vector.md). Still open: confirming the Mini App SDK sign() path on a real physical device follows the same construction end to end."
   ],
   "network": {
     "development": "TestAlbatross",

@@ -27,6 +27,9 @@
     "verify:mainnet": "tsx scripts/verify/mainnet.ts",
     "clean-room": "bash scripts/clean-room/run.sh"
   },
+  "dependencies": {
+    "@nim-relay/relay-protocol": "workspace:*"
+  },
   "devDependencies": {
     "typescript": "5.9.3",
     "tsx": "^4.19.2",

@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@nim-relay/relay-protocol':
+        specifier: workspace:*
+        version: link:packages/relay-protocol
     devDependencies:
       '@eslint/js':
         specifier: ^9.38.0
@@ -130,6 +134,12 @@ importers:
       '@nim-relay/shared':
         specifier: workspace:*
         version: link:../shared
+      '@noble/ed25519':
+        specifier: 3.2.0
+        version: 3.2.0
+      '@noble/hashes':
+        specifier: 2.4.0
+        version: 2.4.0
       zod:
         specifier: 4.5.4
         version: 4.5.4
@@ -858,6 +868,13 @@ packages:
 
   '@nimiq/mini-app-sdk@0.1.0':
     resolution: {integrity: sha512-QR5GGrL25U5xRkWdDhDMqY6npRXMtIu07Fe0cTXon5dLLlAuPhIaJU2egwASYITwFH1RXpYCE0JnufO88SleKA==}
+
+  '@noble/ed25519@3.2.0':
+    resolution: {integrity: sha512-criDgRlnUA09hchYrTy/JUWPIEap5rZxQe6wDWzRx51oWWpDRcUpuNzlgPxDJaOK6AsW9c0wKcj3rKRv6t+bPQ==}
+
+  '@noble/hashes@2.4.0':
+    resolution: {integrity: sha512-X5XaVWZIBCT7HHZGm5I7ZQXDwLG+bGXuSrMQAW+7Zvl87h1kmc1ZB1VSRJcpUfoUrGQp4Fkoxm5kZ+Ms+aW+eA==}
+    engines: {node: '>= 20.19.0'}
 
   '@oxc-project/types@0.147.0':
     resolution: {integrity: sha512-IJ3s6ltHLp45S0bh7phkX+gJO7A1Wuz2EaqpAhb8WjqDwbzMiWKHhyyT42tskaWjEYXtHtVCPpnBJVT9+dcRLg==}
@@ -2487,6 +2504,10 @@ snapshots:
       '@jridgewell/sourcemap-codec': 1.6.0
 
   '@nimiq/mini-app-sdk@0.1.0': {}
+
+  '@noble/ed25519@3.2.0': {}
+
+  '@noble/hashes@2.4.0': {}
 
   '@oxc-project/types@0.147.0': {}
 

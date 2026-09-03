@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@nim-relay/shared": "workspace:*",
+    "@noble/ed25519": "3.2.0",
+    "@noble/hashes": "2.4.0",
     "zod": "4.5.4"
   },
   "devDependencies": {
