@@ -25,19 +25,25 @@
       "note": "Work reconstructed from the working tree on 2026-09-03 - the prior session did this work but did not update the tracking files.",
       "done": [
         "packages/relay-protocol/src/nimiq-rpc.ts (+test) - first-party plain-fetch JSON-RPC client (getBlockNumber, getTransactionByHash with a typed TransactionNotFoundError), scoped to only the methods the backend tx verifier needs (DECISIONS.md D-001)",
-        "packages/relay-protocol/src/nimiq-verify.ts (+test) - pure-JS Nimiq signed-message verification (@noble/ed25519 + @noble/hashes, SHA-256 prefix construction) and Blake2b-256 address derivation, cross-checked byte-for-byte against a golden vector generated from the real @nimiq/core Node build (evidence/testnet/phase2-nimiq-signature-vector.md)",
+        "packages/relay-protocol/src/nimiq-verify.ts (+test) - pure-JS Nimiq signed-message verification (@noble/ed25519 + @noble/hashes, SHA-256 prefix construction) and Blake2b-256 address derivation, cross-checked byte-for-byte against a golden vector generated from the real @nimiq/core Node build (evidence/testnet/phase2-nimiq-signature-vector.md). Also signNimiqSignedMessage/nimiqPublicKeyFromPrivate for offline tooling + tests (not on the trust path).",
+        "packages/relay-protocol/src/verify-transaction.ts (+test) - pure PRD 9.6 decision function verifyHandoffTransaction(tx, expected): sender/recipient/no-self-transfer/value(bigint-exact)/NR1 data commitment(relay+leg+128-bit)/network/inclusion/execution/confirmations -> discriminated ok|fail result, never throws. 18 adversarial cases including cross-relay and cross-leg commitment replay.",
+        "apps/worker/src/auth/routes.ts (+test) - Hono sub-app at /api/auth: POST /nonce, POST /verify (zod -> consume nonce -> expiry -> verify signed message -> derive address -> find-or-create player -> device hash -> session -> cookie), POST /logout, GET /me. 12 tests in real workerd (SELF.fetch) incl single-use/replay, expiry, wrong-message signature, forged cookie, full login->me->logout.",
+        "apps/worker/src/auth/middleware.ts - requireSession: HMAC gate + store lookup as revocation/expiry authority (PRD 11.6)",
+        "apps/worker/src/auth/store.ts (+test) - AuthStore port + InMemoryAuthStore for dev/tests; Supabase impl pending credentials, routes depend only on the interface",
         "apps/worker/src/auth/session.ts (+test) - HMAC-signed opaque session token, HttpOnly/Secure/SameSite=Lax cookie, 30-day max age, timing-safe compare (PRD 11.6)",
         "apps/worker/src/auth/nonce.ts (+test) - single-use expiring origin-bound login nonce and the exact sign-in message shape (PRD 11.4 / 32.3)",
         "apps/worker/src/auth/device-hash.ts (+test) - HMAC-SHA256 (server pepper) of the Nimiq Pay device identifier; raw value never persisted (PRD 11.5)",
+        "apps/worker: env.ts gains APP_ORIGIN; wrangler.jsonc gains a dev/test vars block; index.ts mounts /api/auth; .env.example documents APP_ORIGIN",
         "scripts/verify/nimiq-rpc-spike.ts - live dual-network RPC spike; evidence at evidence/testnet/phase2-nimiq-rpc-spike.log (NIMIQ_RPC_SPIKE_PASS)",
         "DECISIONS.md D-006 - both Nimiq RPC endpoints confirmed by network in both directions",
         "deps: @noble/ed25519@3.2.0, @noble/hashes@2.4.0 added to packages/relay-protocol"
       ],
       "remaining": [
-        "Wire the auth building blocks into actual Worker routes (issue nonce -> verify signed message -> create session -> set cookie; session middleware; logout)",
-        "Backend transaction verifier module composing NimiqRpcClient into the full PRD 9.6 check (hash/sender/recipient/value/data/network/inclusion state), with adversarial tests",
+        "Swap InMemoryAuthStore for a Supabase-backed AuthStore once credentials land (players / sessions / login_nonces) - blocked on supabase-credentials",
+        "Wire NimiqRpcClient + verifyHandoffTransaction into the handoff-finalization path (RPC lookup + confirmation-wait loop) - mostly Phase 4",
         "Web-side Nimiq Mini App SDK bridge (SDK init, device identifier prompt, account list, sign) - needs the physical-device blocker for the real acceptance gate",
-        "Deep-link path/query passthrough test for /invite/<token> URLs (third open verification item, still open)",
+        "Bind /verify to the SDK-reported checksummed NQ address, not just the hex address derived from the public key",
+        "Deep-link path/query passthrough test for /invite/<token> URLs (open verification item)",
         "Real physical-device signature captured through Nimiq Pay sign() and cross-checked against nimiq-verify.ts (closes the SDK-path caveat on the golden vector)"
       ]
     },
@@ -59,7 +65,7 @@
     "asOf": "2026-09-03",
     "typecheck": "PASS",
     "lint": "PASS (0 errors, 0 warnings)",
-    "test": "PASS (38 passing, 0 failing across 13 files)",
+    "test": "PASS (66 passing, 0 failing)",
     "build": "PASS (apps/web vite build + apps/worker tsc)"
   },
   "blockers": [

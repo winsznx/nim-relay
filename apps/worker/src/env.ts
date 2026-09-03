@@ -12,4 +12,5 @@ export interface Env {
   RUN_CHALLENGE_SECRET: string
   NIMIQ_NETWORK: 'TestAlbatross' | 'MainAlbatross'
   NIMIQ_RPC_URL: string
+  APP_ORIGIN: string
 }

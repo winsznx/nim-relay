@@ -1,6 +1,6 @@
 # Architecture
 
-Status: living document, updated every phase. Current as of Phase 1.
+Status: living document, updated every phase. Current as of Phase 2 (in progress).
 
 ## Four authorities
 
@@ -28,6 +28,20 @@ Single Cloudflare Worker serves static Vite assets, the Hono API, WebSocket upgr
 /proof/*     public judge proof surface
 /assets/*    static asset cache
 ```
+
+## Auth surface (Phase 2)
+
+Nimiq-account login, no passwords. `POST /api/auth/nonce` issues a single-use,
+5-minute, origin-bound challenge; the client signs `NIM Relay login\norigin:
+<APP_ORIGIN>\nnonce: <nonce>` with its Nimiq account key via the Mini App SDK's
+`sign()`; `POST /api/auth/verify` independently verifies that signature
+(`packages/relay-protocol/nimiq-verify.ts`, pure `@noble` crypto — no `@nimiq/core`
+WASM, see D-001), derives the wallet address from the public key, finds-or-creates
+the player, and opens an HMAC-signed `nr_session` cookie (HttpOnly, Secure,
+SameSite=Lax, 30-day max). The DB session row is the revocation authority;
+`requireSession` checks the HMAC first (cheap) then the row (`POST /api/auth/logout`,
+`GET /api/auth/me`). Auth persistence goes through the `AuthStore` port —
+in-memory for local dev/tests, Supabase-backed once the project's credentials land.
 
 ## Non-custodial invariant
 

@@ -10,7 +10,7 @@ import type { Env } from '../env'
  */
 
 const SESSION_COOKIE_NAME = 'nr_session'
-const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60 // 30 days
+export const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60 // 30 days
 
 export interface SessionTokenPayload {
   sessionId: string

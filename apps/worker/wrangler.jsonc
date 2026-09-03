@@ -27,6 +27,19 @@
   "r2_buckets": [
     { "binding": "REPLAY_BUCKET", "bucket_name": "nim-relay-artifacts-dev" }
   ],
+  // Local/dev + test values only. Production sets APP_ORIGIN/NIMIQ_* per
+  // environment and injects SESSION_SECRET, DEVICE_HASH_SECRET,
+  // RUN_CHALLENGE_SECRET, SUPABASE_SERVICE_ROLE_KEY via `wrangler secret`.
+  "vars": {
+    "APP_ORIGIN": "http://localhost:5173",
+    "NIMIQ_NETWORK": "TestAlbatross",
+    "NIMIQ_RPC_URL": "https://rpc.testnet.nimiqwatch.com/",
+    "SESSION_SECRET": "dev-only-session-secret-not-for-production",
+    "DEVICE_HASH_SECRET": "dev-only-device-hash-pepper-not-for-production",
+    "RUN_CHALLENGE_SECRET": "dev-only-run-challenge-secret-not-for-production",
+    "SUPABASE_URL": "http://localhost:54321",
+    "SUPABASE_SERVICE_ROLE_KEY": "dev-only-placeholder"
+  },
   "triggers": {
     "crons": ["0 0 * * *", "*/10 * * * *"]
   },

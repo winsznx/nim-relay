@@ -1,4 +1,9 @@
-import { verifyAsync as ed25519Verify, hashes } from '@noble/ed25519'
+import {
+  getPublicKeyAsync as ed25519GetPublicKey,
+  signAsync as ed25519Sign,
+  verifyAsync as ed25519Verify,
+  hashes,
+} from '@noble/ed25519'
 import { sha512 } from '@noble/hashes/sha2.js'
 import { blake2b } from '@noble/hashes/blake2.js'
 
@@ -74,6 +79,25 @@ export function hexToBytes(hex: string): Uint8Array {
     out[i] = Number.parseInt(clean.slice(i * 2, i * 2 + 2), 16)
   }
   return out
+}
+
+/**
+ * Produce a Nimiq signed message. Not on the trust path - verification is
+ * (`verifyNimiqSignedMessage`). This exists for offline tooling and tests
+ * that need a signature without driving a real device. Real logins are
+ * signed by the wallet via the Mini App SDK's `sign()`.
+ */
+export async function signNimiqSignedMessage(input: {
+  message: string
+  privateKeyHex: string
+}): Promise<string> {
+  const hash = await nimiqMessageHash(new TextEncoder().encode(input.message))
+  const signature = await ed25519Sign(hash, hexToBytes(input.privateKeyHex))
+  return bytesToHex(signature)
+}
+
+export async function nimiqPublicKeyFromPrivate(privateKeyHex: string): Promise<string> {
+  return bytesToHex(await ed25519GetPublicKey(hexToBytes(privateKeyHex)))
 }
 
 export interface VerifyNimiqSignedMessageInput {

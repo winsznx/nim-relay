@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import type { Env } from './env'
 import { RelayRoom } from './durable/relay-room'
+import { authRoutes } from './auth/routes'
 
 export { RelayRoom }
 
@@ -9,6 +10,8 @@ const app = new Hono<{ Bindings: Env }>()
 app.get('/api/health', (c) =>
   c.json({ ok: true, service: 'nim-relay-worker', network: c.env.NIMIQ_NETWORK ?? null }),
 )
+
+app.route('/api/auth', authRoutes)
 
 app.get('/ws/relays/:code', async (c) => {
   const code = c.req.param('code')
