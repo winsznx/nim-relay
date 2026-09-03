@@ -46,11 +46,13 @@ beforeEach(() => {
 })
 
 describe('POST /api/auth/nonce', () => {
-  it('issues a nonce with an expiry', async () => {
+  it('issues a nonce with the message to sign and an expiry', async () => {
     const res = await post('/nonce')
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { nonce: string; expiresAt: number }
+    const body = (await res.json()) as { nonce: string; message: string; expiresAt: number }
     expect(body.nonce).toHaveLength(36)
+    expect(body.message).toContain(body.nonce)
+    expect(body.message).toContain('NIM Relay login')
     expect(body.expiresAt).toBeGreaterThan(Date.now())
   })
 })

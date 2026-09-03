@@ -34,6 +34,9 @@
         "supabase/migrations/0002_login_nonces.sql - login_nonces table (single-use expiring challenges), applied to the live project",
         "supabase: 0001+0002 applied to the fresh project; rolled-back pg smoke exercised the full auth flow + wallet uniqueness (evidence/testnet/phase1-supabase-migration.md)",
         "AUTH FLOW E2E against the live Supabase project: nonce -> sign -> verify (200, player + session persisted) -> nonce replay 400 -> me 200 -> logout 200 (session revoked) -> me 401. scripts/verify/auth-e2e.ts + pnpm verify:auth; evidence/testnet/phase2-auth-e2e.log. vitest forces the Supabase bindings empty so unit tests stay in-memory.",
+        "/api/auth/nonce now returns { nonce, message, expiresAt } - the client signs the exact server-built message, no client-side origin knowledge needed",
+        "apps/web login harness: lib/nimiq.ts (Mini App SDK wrappers), lib/auth-api.ts (typed /api/auth client), App.tsx - Connect with Nimiq Pay -> requestDeviceIdentifier -> sign challenge -> /verify -> signed-in state + Sign out; outside Nimiq Pay shows the deep link (PRD 20.3)",
+        "DEPLOYED to Cloudflare: https://nim-relay.timjosh507.workers.dev (Workers free plan, TestAlbatross). Secrets via wrangler secret put; R2 binding omitted (not enabled, unused). auth-e2e passes against the deployed Worker + live Supabase. evidence/testnet/phase2-deploy.md",
         "dep: @supabase/supabase-js@2.114.0 (apps/worker)",
         "apps/worker/src/auth/session.ts (+test) - HMAC-signed opaque session token, HttpOnly/Secure/SameSite=Lax cookie, 30-day max age, timing-safe compare (PRD 11.6)",
         "apps/worker/src/auth/nonce.ts (+test) - single-use expiring origin-bound login nonce and the exact sign-in message shape (PRD 11.4 / 32.3)",
@@ -44,11 +47,10 @@
         "deps: @noble/ed25519@3.2.0, @noble/hashes@2.4.0 added to packages/relay-protocol"
       ],
       "remaining": [
+        "REAL PHONE: open https://nim-relay.timjosh507.workers.dev in Nimiq Pay (TestAlbatross account), tap Connect, confirm the signed-in state. If the SDK sign() signature fails /verify, capture {publicKey,signature,message} from the device and reconcile nimiq-verify.ts - closes open verification item #3.",
         "Wire NimiqRpcClient + verifyHandoffTransaction into the handoff-finalization path (RPC lookup + confirmation-wait loop) - mostly Phase 4",
-        "Web-side Nimiq Mini App SDK bridge (SDK init, device identifier prompt, account list, sign) - needs the physical-device blocker for the real acceptance gate",
-        "Bind /verify to the SDK-reported checksummed NQ address, not just the hex address derived from the public key",
-        "Deep-link path/query passthrough test for /invite/<token> URLs (open verification item)",
-        "Real physical-device signature captured through Nimiq Pay sign() and cross-checked against nimiq-verify.ts (closes the SDK-path caveat on the golden vector)"
+        "Bind /verify to the SDK-reported checksummed NQ address, not just the hex address derived from the public key (needs an address<->pubkey cross-check once a real device address is in hand)",
+        "Deep-link path/query passthrough test for /invite/<token> URLs (open verification item #2)"
       ]
     },
     "3": { "name": "Baton Physics deterministic engine", "status": "NOT_STARTED", "commit": null },
@@ -82,7 +84,7 @@
     },
     {
       "id": "physical-nimiq-pay-device",
-      "description": "Real Nimiq Pay app on a physical phone is required for SDK init, device identifier prompt, account list, sign, sendBasicTransactionWithData, and all real-device acceptance gates (PRD section 39.8). Blocks the Phase 2 gate. Non-device Phase 2 work (auth routes, backend tx verifier) can proceed without it.",
+      "description": "Real Nimiq Pay app on a physical phone (TestAlbatross account) is required for SDK init, device identifier prompt, account list, sign, sendBasicTransactionWithData, and all real-device acceptance gates (PRD section 39.8). The deployed Mini App is live at https://nim-relay.timjosh507.workers.dev - open it in Nimiq Pay and run the Connect flow. This is now the main thing between the current state and the Phase 2 gate.",
       "owner": "user",
       "neededBy": "Phase 2 gate",
       "status": "PENDING_USER"
@@ -106,9 +108,10 @@
     "production": "MainAlbatross"
   },
   "deploymentUrls": {
-    "local": "http://localhost:8797 (wrangler dev, not currently running)",
-    "staging": null,
-    "production": null
+    "local": "http://localhost:8787 (wrangler dev)",
+    "staging": "https://nim-relay.timjosh507.workers.dev (TestAlbatross; Workers free plan; account eb94a234b390bb8da04babac718d6c92)",
+    "production": null,
+    "note": "The workers.dev URL currently serves as the TestAlbatross staging/test target. Phase 10 stands up the MainAlbatross production deployment, likely on a custom domain. Secrets set via `wrangler secret put`: SESSION_SECRET, DEVICE_HASH_SECRET, RUN_CHALLENGE_SECRET, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, APP_ORIGIN."
   },
   "repository": "https://github.com/winsznx/nim-relay",
   "finalReadinessState": null

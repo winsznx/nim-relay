@@ -48,7 +48,11 @@ export const authRoutes = new Hono<{ Bindings: Env; Variables: AuthedVars }>()
 authRoutes.post('/nonce', async (c) => {
   const nonce = issueLoginNonce()
   await getAuthStore(c.env).putNonce(nonce)
-  return c.json({ nonce: nonce.nonce, expiresAt: nonce.expiresAt })
+  return c.json({
+    nonce: nonce.nonce,
+    message: buildLoginMessage(c.env.APP_ORIGIN, nonce.nonce),
+    expiresAt: nonce.expiresAt,
+  })
 })
 
 authRoutes.post('/verify', async (c) => {

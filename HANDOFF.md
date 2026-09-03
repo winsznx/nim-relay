@@ -4,7 +4,7 @@ State-of-the-build snapshot for anyone (human or agent) picking this up mid-buil
 
 ## Current state (2026-09-03 — resumed, tracking files re-synced to the working tree)
 
-Phase 0: **PASS**. Phase 1: **PASS** (code `c798da8`; migrations applied to the fresh Supabase project 2026-09-03). Phase 2: **in progress**, committed through HEAD.
+Phase 0: **PASS**. Phase 1: **PASS**. Phase 2: **in progress**, committed through HEAD. Deployed to `https://nim-relay.timjosh507.workers.dev` (TestAlbatross) — auth flow works end to end; the one thing left for the Phase 2 gate is a real-phone Connect run in Nimiq Pay.
 
 A prior session committed Phase 1 and then did a chunk of Phase 2 work without updating `run-state.json` / `TASKS.md` / a phase summary. That has now been reconstructed from the working tree and written back. Gate is green: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` all pass, 38 tests (up from 13).
 
@@ -24,19 +24,20 @@ Full detail: `docs/phases/PHASE_2_SUMMARY.md`.
 - `7ef422e` — `/api/auth` routes (`nonce` / `verify` / `logout` / `me`), `requireSession` middleware, `AuthStore` port + `InMemoryAuthStore`, `verifyHandoffTransaction` (pure PRD §9.6, 18 adversarial cases).
 - **Phase 1 closed** — user provided a fresh Supabase project, DB password, and `service_role` key. `0001_init.sql` and `0002_login_nonces.sql` applied via `supabase db push --db-url`; 25 tables / 10 enums verified.
 - `SupabaseAuthStore` (`service_role` supabase-js over `login_nonces` / `players` / `devices` / `sessions`); `getAuthStore(env)` feature-detects `SUPABASE_SERVICE_ROLE_KEY`.
-- **Auth flow verified end-to-end against the live Supabase project**: `nonce → sign → verify` (player + session persisted) → nonce replay 400 → `me` 200 → `logout` 200 (session revoked) → `me` 401. `pnpm verify:auth`; `evidence/testnet/phase2-auth-e2e.log`. Test rows cleaned up.
-- 72 tests, gate green. `vitest.config.ts` pins the Supabase bindings empty so unit tests stay in-memory.
+- **Auth flow verified end-to-end** against the live Supabase project and against the deployed Worker: `nonce → sign → verify` (player + session persisted) → nonce replay 400 → `me` 200 → `logout` 200 (session revoked) → `me` 401. `pnpm verify:auth [url] [origin]`; evidence in `evidence/testnet/phase2-auth-e2e.log` and `phase2-deploy.md`. Test rows cleaned up.
+- **Nimiq Pay login harness** in `apps/web` (`lib/nimiq.ts`, `lib/auth-api.ts`, `App.tsx`) — Connect button runs SDK connect → device id → sign challenge → `/verify`. `/api/auth/nonce` now returns the message to sign.
+- **Deployed**: `https://nim-relay.timjosh507.workers.dev` (Cloudflare Workers free plan, TestAlbatross). Secrets via `wrangler secret put`; R2 omitted (not enabled, `Env.REPLAY_BUCKET` now optional).
+- 72 tests, gate green.
 
-Credentials live only in the gitignored `.env` and `apps/worker/.dev.vars`. For deploy, `wrangler secret put SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` / the HMAC secrets.
+Credentials live only in the gitignored `.env` and `apps/worker/.dev.vars`. Redeploy: `cd apps/worker && npx wrangler deploy` (build web first: `pnpm build`).
 
 ## Immediate next step when resuming
 
-1. Web-side Nimiq Mini App SDK bridge (SDK init, device identifier prompt, account list, `sign`). Non-device code + mock test can land first; real-device acceptance gate needs the physical phone.
+1. **Real phone**: open `https://nim-relay.timjosh507.workers.dev` in Nimiq Pay (TestAlbatross account), tap Connect, confirm the signed-in state. If `sign()` fails `/verify`, capture the device's `{ publicKey, signature, message }` and reconcile `packages/relay-protocol/src/nimiq-verify.ts` — closes open verification item #3 and the D-002 caveat.
 2. Bind `/verify` to the SDK-reported checksummed NQ address, not just the hex address derived from the public key.
-3. Open verification item: Nimiq Pay deep-link `/invite/<token>` path passthrough — test empirically.
-4. Wire `NimiqRpcClient` + `verifyHandoffTransaction` into the handoff-finalization path (RPC lookup + confirmation-wait loop) — mostly Phase 4.
-5. Phase 2 **gate** needs the physical Nimiq Pay device (user blocker) for the real `sign()` / SDK acceptance checks.
-6. Phase 9: design RLS policies for every `public` table (all currently service_role-only).
+3. Deep-link `/invite/<token>` path passthrough — test empirically (open verification item #2).
+4. Wire `NimiqRpcClient` + `verifyHandoffTransaction` into the handoff-finalization path — mostly Phase 4.
+5. Phase 9: design RLS policies for every `public` table (all currently service_role-only).
 
 ## Two real bugs/toolchain issues found and fixed this session (don't reintroduce)
 

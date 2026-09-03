@@ -1,10 +1,11 @@
 # Phase 2 Summary — Nimiq bridge and session
 
 **Status: IN PROGRESS.** RPC client, signed-message verify, session/nonce/device
-primitives, `/api/auth` routes, the backend tx verifier, and the Supabase-backed
-store are committed. The auth flow is **verified end-to-end against the live
-Supabase project**. Remaining: the Mini App SDK bridge, NQ-address binding, and
-the deep-link test — plus the physical-device gate.
+primitives, `/api/auth` routes, the backend tx verifier, the Supabase-backed
+store, and a Nimiq Pay login harness are committed. The auth flow is verified
+end-to-end against the live Supabase project **and against the deployed Worker**
+(`https://nim-relay.timjosh507.workers.dev`). Remaining: the real-phone Connect
+run (open verification item #3), NQ-address binding, and the deep-link test.
 
 ## Objective
 Nimiq Mini App SDK bridge, login-challenge signing/verification, session cookies,
@@ -93,6 +94,25 @@ trust boundary from PRD §9.6, §11, §32.
   `vitest.config.ts` pins the Supabase bindings empty so unit tests never leave
   the in-memory store.
 
+### Nimiq Pay login harness (`apps/web`) + deployment
+- **`/api/auth/nonce`** now returns `{ nonce, message, expiresAt }` — the client
+  signs the exact server-built message, so it needs no client-side knowledge of
+  `APP_ORIGIN` and origin/message drift is impossible.
+- **`src/lib/nimiq.ts`** — `@nimiq/mini-app-sdk` wrappers: `isInsideNimiqPay()`,
+  `connectAccount()` (`listAccounts`), `signMessage()` (`sign` → `{publicKey,
+  signature}`, unwraps the SDK's `{error}` shape), `deviceIdentifier()`
+  (`requestDeviceIdentifier`), `nimiqPayDeepLink()`.
+- **`src/lib/auth-api.ts`** — typed `/api/auth` client.
+- **`src/app/App.tsx`** — login harness (real screens are Phase 5-8): inside Nimiq
+  Pay → **Connect with Nimiq Pay** runs connect → device id → sign challenge →
+  `/verify` → signed-in state (handle + wallet) + Sign out; outside Nimiq Pay →
+  "Open in Nimiq Pay" deep link (PRD §20.3). `me` via react-query, login/logout
+  as mutations.
+- **Deployed** to `https://nim-relay.timjosh507.workers.dev` (Workers free plan,
+  TestAlbatross). Secrets via `wrangler secret put`; R2 binding omitted (not
+  enabled, unused — `Env.REPLAY_BUCKET` now optional). `auth-e2e` passes against
+  the deployed Worker + live Supabase. `evidence/testnet/phase2-deploy.md`.
+
 ### Decisions
 - **D-006** — both Nimiq RPC endpoints confirmed by network in both directions
   (MainAlbatross `rpc.nimiqwatch.com`, TestAlbatross `rpc.testnet.nimiqwatch.com`),
@@ -106,27 +126,25 @@ pnpm lint       PASS  (0 errors, 0 warnings)
 pnpm test       PASS  (72 passing, 0 failing)   [13 at end of Phase 1]
 pnpm verify:auth PASS  (AUTH_E2E_PASS, live Supabase - evidence/testnet/phase2-auth-e2e.log)
 pnpm build      PASS
+deployed        https://nim-relay.timjosh507.workers.dev  (health 200, auth-e2e PASS - evidence/testnet/phase2-deploy.md)
 ```
 
 ## Open verification items
 1. **RESOLVED (D-006)** — RPC network identity.
 2. **OPEN** — Nimiq Pay deep-link path/query passthrough for `/invite/<token>` URLs.
    Not yet tested.
-3. **PARTIALLY RESOLVED** — message-signing byte layout matches the real `@nimiq/core`
-   build for a generated keypair. Still open: confirming the Mini App SDK `sign()`
-   path on a **real physical device** produces a signature that verifies through the
-   same construction end to end.
+3. **OPEN, ready to close on a phone** — the Mini App SDK `sign()` path. The login
+   harness is deployed; opening it in Nimiq Pay and tapping Connect exercises
+   `sign()` end to end against `verifyNimiqSignedMessage`. If it fails, capture the
+   device's `{ publicKey, signature, message }` and reconcile the verifier.
 
 ## Remaining Phase 2 work
+- **Real-phone Connect run** against the deployed Mini App (item #3 above).
 - Wire `NimiqRpcClient` + `verifyHandoffTransaction` into the handoff-finalization
-  path (the RPC lookup + retry/confirmation-wait loop that calls the pure verifier).
-  Most of this is Phase 4 (relay protocol), but the verifier and client are ready.
-- Web-side Nimiq Mini App SDK bridge (SDK init, device identifier prompt, account
-  list, `sign`). Real-device acceptance gate is blocked on the physical-phone
-  blocker; the non-device code and a mock-backed test can land first.
-- Bind the `/verify` route to the SDK-reported NQ address (checksummed
-  user-friendly form) rather than only the hex address derived from the public key.
-- Deep-link `/invite/<token>` passthrough test (open verification item 2).
+  path — mostly Phase 4 (relay protocol); the verifier and client are ready.
+- Bind `/verify` to the SDK-reported checksummed NQ address rather than only the
+  hex address derived from the public key.
+- Deep-link `/invite/<token>` passthrough test (item #2).
 
 ## Blockers
 - `physical-nimiq-pay-device` (user-owned) — blocks the Phase 2 **gate**, not the

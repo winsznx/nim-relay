@@ -24,25 +24,19 @@
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["RelayRoom"] }
   ],
-  "r2_buckets": [
-    { "binding": "REPLAY_BUCKET", "bucket_name": "nim-relay-artifacts-dev" }
-  ],
-  // Local/dev + test values only. Production sets APP_ORIGIN/NIMIQ_*/SUPABASE_URL
-  // per environment and injects SESSION_SECRET, DEVICE_HASH_SECRET,
-  // RUN_CHALLENGE_SECRET, SUPABASE_SERVICE_ROLE_KEY via `wrangler secret`.
-  // With no SUPABASE_SERVICE_ROLE_KEY, getAuthStore() falls back to the
-  // in-memory store - see apps/worker/src/auth/store.ts. Point a local dev
-  // session at the real project by adding SUPABASE_URL + the service_role key
-  // to a .dev.vars file (gitignored).
+  // REPLAY_BUCKET (R2) is added back when replay-artifact storage is built
+  // (Phase 4+). R2 is not yet enabled on the deploy account and nothing reads
+  // the binding today, so it is omitted to keep `wrangler deploy` unblocked.
+  //
+  // Non-sensitive shared config only. APP_ORIGIN, SESSION_SECRET,
+  // DEVICE_HASH_SECRET, RUN_CHALLENGE_SECRET, SUPABASE_URL and
+  // SUPABASE_SERVICE_ROLE_KEY are set with `wrangler secret put` for the
+  // deployed Worker and via apps/worker/.dev.vars (gitignored) for local
+  // `wrangler dev` - see .dev.vars.example. With no SUPABASE_SERVICE_ROLE_KEY,
+  // getAuthStore() falls back to the in-memory store.
   "vars": {
-    "APP_ORIGIN": "http://localhost:5173",
     "NIMIQ_NETWORK": "TestAlbatross",
-    "NIMIQ_RPC_URL": "https://rpc.testnet.nimiqwatch.com/",
-    "SESSION_SECRET": "dev-only-session-secret-not-for-production",
-    "DEVICE_HASH_SECRET": "dev-only-device-hash-pepper-not-for-production",
-    "RUN_CHALLENGE_SECRET": "dev-only-run-challenge-secret-not-for-production",
-    "SUPABASE_URL": "",
-    "SUPABASE_SERVICE_ROLE_KEY": ""
+    "NIMIQ_RPC_URL": "https://rpc.testnet.nimiqwatch.com/"
   },
   "triggers": {
     "crons": ["0 0 * * *", "*/10 * * * *"]

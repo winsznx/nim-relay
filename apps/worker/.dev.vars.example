@@ -1,4 +1,8 @@
-# Copy to apps/worker/.dev.vars (gitignored) to point `wrangler dev` at the
-# real Supabase project instead of the in-memory auth store.
+# Copy to apps/worker/.dev.vars (gitignored) for local `wrangler dev`.
+# The deployed Worker gets these via `wrangler secret put`.
 SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=<service_role JWT from Supabase dashboard -> Project Settings -> API>
+SUPABASE_SERVICE_ROLE_KEY=<service_role JWT>
+SESSION_SECRET=<random 32+ byte hex>
+DEVICE_HASH_SECRET=<random 32+ byte hex>
+RUN_CHALLENGE_SECRET=<random 32+ byte hex>
+APP_ORIGIN=http://localhost:5173

@@ -4,6 +4,25 @@ Architectural decisions and rejected alternatives, recorded as they happen. Newe
 
 ---
 
+## D-007 — First deployment is a `workers.dev` TestAlbatross target; config via secrets, R2 deferred
+
+**Date:** 2026-09-03 (Phase 2)
+**Status:** Locked for TestAlbatross; revisit at Phase 10 for MainAlbatross production
+
+**Context.** The user asked for a deployment they can test in Nimiq Pay on a real phone. Phase 2's gate does not require a public deploy, but the Mini App SDK `sign()` path (open verification item #3) can only be exercised inside the real Nimiq Pay WebView, which needs a public HTTPS origin.
+
+**Decisions.**
+
+1. **Target.** Deploy to `https://nim-relay.timjosh507.workers.dev` on the Workers free plan (account `eb94a234b390bb8da04babac718d6c92`). This is the TestAlbatross staging/test target, not production. Phase 10 stands up MainAlbatross production, most likely on a custom domain.
+
+2. **All environment-specific and sensitive config is set with `wrangler secret put`, not `vars` in `wrangler.jsonc`.** Secrets shadow vars of the same name, so `wrangler.jsonc` keeps only non-sensitive shared values (`NIMIQ_NETWORK`, `NIMIQ_RPC_URL`) and nothing in git needs real values. `SESSION_SECRET` / `DEVICE_HASH_SECRET` / `RUN_CHALLENGE_SECRET` are fresh `openssl rand -hex 32`; `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` / `APP_ORIGIN` are the real values. Local `wrangler dev` reads the same names from the gitignored `apps/worker/.dev.vars` (see `.dev.vars.example`); `vitest.config.ts` pins deterministic test values via `miniflare.bindings`.
+
+3. **The R2 binding (`REPLAY_BUCKET`) is omitted from the deploy.** R2 is not enabled on the account (`code: 10042`, needs a dashboard opt-in + payment method), and nothing reads the binding until replay-artifact storage is built in Phase 4+. `Env.REPLAY_BUCKET` is now optional. Rejected: enabling R2 now just to satisfy an unused binding, or blocking the deploy on it.
+
+4. **`/api/auth/nonce` returns the full message to sign** (`{ nonce, message, expiresAt }`), so the client signs exactly what the server will verify and never needs to know `APP_ORIGIN`. This removes origin/message drift as a failure mode across environments.
+
+---
+
 ## D-001 — Backend Nimiq transaction verification uses plain JSON-RPC-over-HTTPS, not `@nimiq/core`
 
 **Date:** 2026-09-01 (Phase 0)
