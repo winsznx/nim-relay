@@ -18,13 +18,19 @@ Phase 2 done so far (all uncommitted, on top of `c798da8`):
 
 Full detail: `docs/phases/PHASE_2_SUMMARY.md`.
 
+## Done since resuming (commits `6eb4269`, `7ef422e`)
+
+- Reconstructed Phase 2 work committed (`6eb4269`).
+- `7ef422e`: `/api/auth` routes (`nonce` / `verify` / `logout` / `me`), `requireSession` middleware, `AuthStore` port + `InMemoryAuthStore`, and `verifyHandoffTransaction` (pure PRD §9.6 decision function, 18 adversarial cases). 66 tests, gate green.
+
 ## Immediate next step when resuming
 
-1. **Commit the reconstructed Phase 2 work** (currently all uncommitted) once reviewed — the working tree is green and self-consistent.
-2. **Get Supabase credentials from the user** for the fresh account (not the CLI-linked account — `DECISIONS.md` D-003). `supabase link --project-ref <ref>` then `supabase db push`. Verify all 24 tables/enums apply cleanly; fix forward. Closes the last Phase 1 gate item.
-3. Continue Phase 2 (non-device work, not blocked): wire the auth primitives into Worker routes (`/api/auth/nonce` → `/api/auth/verify` → session middleware → `/api/auth/logout`), and build the backend transaction verifier composing `NimiqRpcClient` into the full PRD §9.6 check with adversarial tests.
-4. Still open verification item: Nimiq Pay deep-link `/invite/<token>` path passthrough — test empirically.
-5. Phase 2 **gate** needs the physical Nimiq Pay device (user blocker) for the real `sign()` / SDK acceptance checks.
+1. **Get Supabase credentials from the user** for the fresh account (not the CLI-linked account — `DECISIONS.md` D-003). `supabase link --project-ref <ref>` then `supabase db push`. Verify all 24 tables/enums apply cleanly; fix forward. Closes the last Phase 1 gate item.
+2. Swap `InMemoryAuthStore` for a Supabase-backed `AuthStore` (players / sessions / login_nonces) — blocked on step 1.
+3. Web-side Nimiq Mini App SDK bridge (SDK init, device identifier prompt, account list, `sign`). Non-device code + mock test can land first; real-device acceptance gate needs the physical phone.
+4. Bind `/verify` to the SDK-reported checksummed NQ address, not just the hex address derived from the public key.
+5. Open verification item: Nimiq Pay deep-link `/invite/<token>` path passthrough — test empirically.
+6. Phase 2 **gate** needs the physical Nimiq Pay device (user blocker) for the real `sign()` / SDK acceptance checks.
 
 ## Two real bugs/toolchain issues found and fixed this session (don't reintroduce)
 
