@@ -21,6 +21,8 @@ Architectural decisions and rejected alternatives, recorded as they happen. Newe
 
 4. **`/api/auth/nonce` returns the full message to sign** (`{ nonce, message, expiresAt }`), so the client signs exactly what the server will verify and never needs to know `APP_ORIGIN`. This removes origin/message drift as a failure mode across environments.
 
+5. **Nimiq Pay deep link format**, from `nimiq.dev/mini-apps` (2026-09-03): HTTPS form `https://nimpay.app/miniapps/open/<host>` (scheme stripped from the target), custom-scheme form `nimiqpay://miniapp?url=<host>`. `nimiqPayDeepLink()` uses the HTTPS form. An earlier guess (`pay.nimiq.com/mini-app?url=`) was wrong and is corrected. Whether a path/query after the host (the `/invite/<token>` case) survives the round-trip is still undocumented — that remains open verification item #2, to test on a device.
+
 ---
 
 ## D-001 — Backend Nimiq transaction verification uses plain JSON-RPC-over-HTTPS, not `@nimiq/core`

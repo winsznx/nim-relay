@@ -46,7 +46,7 @@ rows deleted afterward (players/sessions/devices/login_nonces back to 0).
 ## What is testable on a phone now
 
 Open `https://nim-relay.timjosh507.workers.dev` inside **Nimiq Pay** (deep link:
-`https://pay.nimiq.com/mini-app?url=https%3A%2F%2Fnim-relay.timjosh507.workers.dev`).
+`https://nimpay.app/miniapps/open/nim-relay.timjosh507.workers.dev` (or the custom scheme `nimiqpay://miniapp?url=nim-relay.timjosh507.workers.dev`)).
 The screen shows a **Connect with Nimiq Pay** button that runs
 connect -> `requestDeviceIdentifier` -> sign the server challenge -> `/api/auth/verify`,
 then shows the signed-in handle and wallet address, with a Sign out button.

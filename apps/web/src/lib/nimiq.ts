@@ -10,9 +10,14 @@ export function isInsideNimiqPay(): boolean {
   return typeof window !== 'undefined' && (window.nimiq !== undefined || getHostLanguage() !== undefined)
 }
 
-/** Canonical deep link that opens this Mini App inside Nimiq Pay (PRD 20.3). */
+/**
+ * Canonical HTTPS deep link that opens this Mini App inside Nimiq Pay
+ * (PRD 20.3). Format per nimiq.dev/mini-apps: the target is the host (and
+ * path) with the scheme stripped. The custom-scheme form is
+ * `nimiqpay://miniapp?url=<host>`.
+ */
 export function nimiqPayDeepLink(origin: string): string {
-  return `https://pay.nimiq.com/mini-app?url=${encodeURIComponent(origin)}`
+  return `https://nimpay.app/miniapps/open/${origin.replace(/^https?:\/\//, '')}`
 }
 
 function unwrap<T>(value: T | { error: { type: string; message: string } }): T {
