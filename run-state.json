@@ -21,8 +21,8 @@
     "2": {
       "name": "Nimiq bridge and session",
       "status": "IN_PROGRESS",
-      "commit": "8f626f2",
-      "note": "Committed through 8f626f2. First slice was reconstructed from an earlier session's uncommitted work (6eb4269); auth routes + tx verifier (7ef422e); Supabase migrations + SupabaseAuthStore (8f626f2).",
+      "commit": "508f95c",
+      "note": "Committed through 508f95c. First slice was reconstructed from an earlier session's uncommitted work (6eb4269); auth routes + tx verifier (7ef422e); Supabase migrations + SupabaseAuthStore (508f95c).",
       "done": [
         "packages/relay-protocol/src/nimiq-rpc.ts (+test) - first-party plain-fetch JSON-RPC client (getBlockNumber, getTransactionByHash with a typed TransactionNotFoundError), scoped to only the methods the backend tx verifier needs (DECISIONS.md D-001)",
         "packages/relay-protocol/src/nimiq-verify.ts (+test) - pure-JS Nimiq signed-message verification (@noble/ed25519 + @noble/hashes, SHA-256 prefix construction) and Blake2b-256 address derivation, cross-checked byte-for-byte against a golden vector generated from the real @nimiq/core Node build (evidence/testnet/phase2-nimiq-signature-vector.md). Also signNimiqSignedMessage/nimiqPublicKeyFromPrivate for offline tooling + tests (not on the trust path).",
@@ -62,7 +62,7 @@
     "11": { "name": "Early access and evidence", "status": "NOT_STARTED", "commit": null },
     "12": { "name": "Submission release freeze", "status": "NOT_STARTED", "commit": null }
   },
-  "lastPassingCommit": "8f626f2",
+  "lastPassingCommit": "508f95c",
   "pausedForHandoff": false,
   "pausedReason": null,
   "gate": {
