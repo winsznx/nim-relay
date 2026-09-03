@@ -1,15 +1,17 @@
 # Phase 2 Summary — Nimiq bridge and session
 
-**Status: IN PROGRESS.** Reconstructed on 2026-09-03 from the working tree — the prior
-session did this work on top of the Phase 1 commit (`c798da8`) but did not update
-`run-state.json`, `TASKS.md`, or write this summary. Nothing here is committed yet.
+**Status: IN PROGRESS.** The first slice (RPC client, signed-message verify,
+session/nonce/device primitives) was reconstructed on 2026-09-03 from an earlier
+session's uncommitted work; it plus the auth routes, backend tx verifier, and the
+Supabase-backed store are now committed. Remaining: activate `SupabaseAuthStore`
+with the `service_role` key, the Mini App SDK bridge, and the deep-link test.
 
 ## Objective
 Nimiq Mini App SDK bridge, login-challenge signing/verification, session cookies,
 device-identifier handling, and an independent backend transaction verifier — the
 trust boundary from PRD §9.6, §11, §32.
 
-## Done so far (working tree, uncommitted)
+## Done so far
 
 ### `packages/relay-protocol`
 - **`src/nimiq-rpc.ts` (+ `nimiq-rpc.test.ts`)** — first-party JSON-RPC client over plain
@@ -68,10 +70,15 @@ trust boundary from PRD §9.6, §11, §32.
 - **`middleware.ts`** — `requireSession`: HMAC signature check as the cheap gate,
   store lookup as the authority for revocation/expiry (PRD §11.6); clears the
   cookie and 401s on an expired/revoked session.
-- **`store.ts` (+ `store.test.ts`)** — `AuthStore` port (nonces, players, sessions)
-  with an `InMemoryAuthStore` for local `wrangler dev` and tests. The Supabase-
-  backed implementation lands with the fresh project's credentials; route and
-  middleware code depends only on the interface.
+- **`store.ts` (+ `store.test.ts`)** — `AuthStore` port (nonces, players, sessions).
+  `getAuthStore(env)` returns `SupabaseAuthStore` when `SUPABASE_SERVICE_ROLE_KEY`
+  is set, else `InMemoryAuthStore` (local `wrangler dev` without secrets, tests).
+- **`supabase-store.ts` (+ `supabase-store.test.ts`)** — `SupabaseAuthStore`: a
+  `service_role` supabase-js client over `login_nonces` / `players` / `devices` /
+  `sessions`. Single-use nonce via `delete … returning`, handle-collision retry on
+  `23505`, device upsert then a linked session row, idempotent revoke
+  (`where revoked_at is null`). 6 tests against a PostgREST-builder fake.
+  Needs `0002_login_nonces.sql` (added this phase, applied to the live project).
 - **`nimiq-verify.ts`** gained `signNimiqSignedMessage` / `nimiqPublicKeyFromPrivate`
   (offline tooling + tests only — not on the trust path).
 - `apps/worker`: `env.ts` gains `APP_ORIGIN`; `wrangler.jsonc` gains a dev/test
@@ -89,7 +96,7 @@ trust boundary from PRD §9.6, §11, §32.
 ```
 pnpm typecheck  PASS
 pnpm lint       PASS  (0 errors, 0 warnings)
-pnpm test       PASS  (66 passing, 0 failing)   [13 at end of Phase 1]
+pnpm test       PASS  (72 passing, 0 failing)   [13 at end of Phase 1]
 pnpm build      PASS
 ```
 
@@ -103,8 +110,9 @@ pnpm build      PASS
    same construction end to end.
 
 ## Remaining Phase 2 work
-- Swap `InMemoryAuthStore` for a Supabase-backed `AuthStore` once credentials land
-  (players / sessions / login_nonces). Blocked on `supabase-credentials`.
+- Set `SUPABASE_SERVICE_ROLE_KEY` (Worker secret + `apps/worker/.dev.vars`) to
+  activate `SupabaseAuthStore`, then run the auth flow end-to-end against the live
+  DB. Blocked on `supabase-service-role-key`.
 - Wire `NimiqRpcClient` + `verifyHandoffTransaction` into the handoff-finalization
   path (the RPC lookup + retry/confirmation-wait loop that calls the pure verifier).
   Most of this is Phase 4 (relay protocol), but the verifier and client are ready.
@@ -118,7 +126,8 @@ pnpm build      PASS
 ## Blockers
 - `physical-nimiq-pay-device` (user-owned) — blocks the Phase 2 **gate**, not the
   non-device work above.
-- `supabase-credentials` (user-owned) — still the open Phase 1 gate item; the auth
-  `verify` route's player upsert and session persistence need the live DB.
+- `supabase-service-role-key` (user-owned) — the project, DB password, and
+  migrations are done; the `service_role` JWT is still needed to run the auth flow
+  through `SupabaseAuthStore`. `getAuthStore()` stays in-memory until it is set.
 
 ## Result: IN PROGRESS

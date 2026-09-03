@@ -1,4 +1,5 @@
 import type { LoginNonce } from './nonce'
+import { SupabaseAuthStore } from './supabase-store'
 
 /**
  * Persistence port for the auth flow. The Worker owns no money and no live
@@ -131,18 +132,32 @@ export class InMemoryAuthStore implements AuthStore {
   }
 }
 
-let singleton: InMemoryAuthStore | null = null
+interface AuthStoreEnv {
+  SUPABASE_URL?: string
+  SUPABASE_SERVICE_ROLE_KEY?: string
+}
+
+let inMemorySingleton: InMemoryAuthStore | null = null
+let supabaseSingleton: AuthStore | null = null
 
 /**
- * Resolve the auth store for a request. Swap the body for the Supabase-backed
- * store once credentials exist; the route and middleware code depends only on
- * the `AuthStore` interface and does not change.
+ * Resolve the auth store for a request. Uses the Supabase-backed store when a
+ * `service_role` key is configured (production / linked dev), and the
+ * in-memory store otherwise (local `wrangler dev` without secrets, and tests).
+ * Route and middleware code depends only on the `AuthStore` interface.
  */
-export function getAuthStore(_env: unknown): AuthStore {
-  singleton ??= new InMemoryAuthStore()
-  return singleton
+export function getAuthStore(env: AuthStoreEnv | undefined): AuthStore {
+  const url = env?.SUPABASE_URL
+  const key = env?.SUPABASE_SERVICE_ROLE_KEY
+  if (url && key) {
+    supabaseSingleton ??= SupabaseAuthStore.fromEnv(url, key)
+    return supabaseSingleton
+  }
+  inMemorySingleton ??= new InMemoryAuthStore()
+  return inMemorySingleton
 }
 
 export function __resetAuthStoreForTests(): void {
-  singleton = null
+  inMemorySingleton = null
+  supabaseSingleton = null
 }

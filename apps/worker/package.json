@@ -19,7 +19,8 @@
     "zod": "4.5.4",
     "@nim-relay/shared": "workspace:*",
     "@nim-relay/relay-protocol": "workspace:*",
-    "@nim-relay/game-engine": "workspace:*"
+    "@nim-relay/game-engine": "workspace:*",
+    "@supabase/supabase-js": "2.114.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260901.1",

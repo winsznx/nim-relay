@@ -27,9 +27,13 @@
   "r2_buckets": [
     { "binding": "REPLAY_BUCKET", "bucket_name": "nim-relay-artifacts-dev" }
   ],
-  // Local/dev + test values only. Production sets APP_ORIGIN/NIMIQ_* per
-  // environment and injects SESSION_SECRET, DEVICE_HASH_SECRET,
+  // Local/dev + test values only. Production sets APP_ORIGIN/NIMIQ_*/SUPABASE_URL
+  // per environment and injects SESSION_SECRET, DEVICE_HASH_SECRET,
   // RUN_CHALLENGE_SECRET, SUPABASE_SERVICE_ROLE_KEY via `wrangler secret`.
+  // With no SUPABASE_SERVICE_ROLE_KEY, getAuthStore() falls back to the
+  // in-memory store - see apps/worker/src/auth/store.ts. Point a local dev
+  // session at the real project by adding SUPABASE_URL + the service_role key
+  // to a .dev.vars file (gitignored).
   "vars": {
     "APP_ORIGIN": "http://localhost:5173",
     "NIMIQ_NETWORK": "TestAlbatross",
@@ -37,8 +41,8 @@
     "SESSION_SECRET": "dev-only-session-secret-not-for-production",
     "DEVICE_HASH_SECRET": "dev-only-device-hash-pepper-not-for-production",
     "RUN_CHALLENGE_SECRET": "dev-only-run-challenge-secret-not-for-production",
-    "SUPABASE_URL": "http://localhost:54321",
-    "SUPABASE_SERVICE_ROLE_KEY": "dev-only-placeholder"
+    "SUPABASE_URL": "",
+    "SUPABASE_SERVICE_ROLE_KEY": ""
   },
   "triggers": {
     "crons": ["0 0 * * *", "*/10 * * * *"]

@@ -5,6 +5,8 @@ dist/
 *.tsbuildinfo
 .env
 .env.local
+.dev.vars
+**/.dev.vars
 .DS_Store
 coverage/
 playwright-report/

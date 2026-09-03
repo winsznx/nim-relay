@@ -1,6 +1,8 @@
 # Phase 1 Summary — Repository and infrastructure foundation
 
-**Status: IN PROGRESS (paused for handoff).** Four of five gate items pass with live evidence; the fifth (database migration) is blocked on user-provided Supabase credentials, not on any unresolved technical question.
+**Status: PASS.** Code committed as `c798da8` on 2026-09-01 with four of five gate
+items passing; the fifth (database migration) closed on 2026-09-03 once the user
+provided a fresh Supabase project. All five gate items now pass.
 
 ## Objective
 Monorepo, TypeScript strict, lint, test runner, Vite app, Worker, Hono, Durable Object, R2 binding, Supabase migrations, local same-origin proxy, environment schemas, basic CI, docs skeleton.
@@ -50,8 +52,19 @@ None new. No secrets committed; `.env.example` remains names/comments only.
 ## Evidence paths
 `evidence/local/phase1-websocket-hello-reconnect-smoke.log`, `evidence/local/phase1-websocket-smoke-script.mjs`.
 
-## Known limitations
-**Database migration not yet applied.** `supabase/migrations/0001_init.sql` is written and manually reviewed but has not been run against a live Postgres instance — this machine has neither Docker (so `supabase start` can't run a local instance) nor a linked NIM Relay Supabase project (the CLI-linked account holds unrelated projects; the user is providing credentials to a dedicated fresh account per `DECISIONS.md` D-003). **This is the one open Phase 1 gate item, blocked on user input, not on an unresolved technical question.**
+## Database migration — applied 2026-09-03
+`supabase/migrations/0001_init.sql` (and `0002_login_nonces.sql`, added in Phase 2)
+were applied to the fresh Supabase project (`eu-west-2`) with
+`supabase db push --db-url <session-pooler>`. No `supabase link` — the user
+provided DB credentials, not a personal access token. Verified: 25 tables, 10
+enums, both migrations tracked, plus a rolled-back `pg` smoke of the full
+player/device/session/nonce flow including the `wallet_address` unique
+constraint. Evidence: `evidence/testnet/phase1-supabase-migration.md`.
+
+RLS is auto-enabled on every `public` table with no policies yet (service_role
+only) — explicit policy design is a Phase 9 item. No Docker on this machine, so
+`supabase db dump`/`supabase start` are unavailable; schema verification is done
+directly over the session pooler with `pg`.
 
 ## Claim-ledger changes
 None yet — no product claims to make until Phase 2+ builds real user-facing surfaces.
@@ -62,4 +75,4 @@ D-004 (Workers Vitest tooling), D-005 (`webSocketClose` bug) added to `DECISIONS
 ## Commit SHA
 Recorded in `run-state.json` after this phase's commit.
 
-## Result: IN PROGRESS — resume by applying `supabase/migrations/0001_init.sql` once credentials arrive, then close the Phase 1 gate and move to Phase 2.
+## Result: PASS — all five gate items pass; migrations live on the fresh Supabase project.

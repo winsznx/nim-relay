@@ -1,35 +1,39 @@
 {
   "product": "NIM Relay",
   "prd": "NIM_RELAY_PRD_v1.md",
-  "updatedAt": "2026-09-03T00:00:00Z",
+  "updatedAt": "2026-09-03T12:00:00Z",
   "currentPhase": 2,
   "phases": {
     "0": { "name": "Source-of-truth verification", "status": "PASS", "commit": "fc2f74d" },
     "1": {
       "name": "Repository and infrastructure foundation",
-      "status": "IN_PROGRESS",
+      "status": "PASS",
       "commit": "c798da8",
       "gate": {
         "localBuild": "PASS",
         "workerPreview": "PASS",
-        "databaseMigration": "BLOCKED_ON_USER (Supabase credentials for a fresh project not yet provided; migration SQL written and reviewed at supabase/migrations/0001_init.sql, not yet applied)",
+        "databaseMigration": "PASS (0001_init.sql + 0002_login_nonces.sql applied to the fresh Supabase project 2026-09-03; 25 tables / 10 enums verified; evidence/testnet/phase1-supabase-migration.md)",
         "webSocketHelloReconnect": "PASS (evidence/local/phase1-websocket-hello-reconnect-smoke.log)",
         "mobileAppShell": "PASS (Vite app shell renders, /api/health reachable through the dev proxy)"
       },
-      "note": "Committed as c798da8 with 4/5 gate items passing. The only open item (database migration) is a user-owned blocker, not a technical question. Phase 2 work started on top of this commit rather than waiting."
+      "note": "Code committed as c798da8; the database-migration gate item closed 2026-09-03 once the user provided the fresh Supabase project. All 5 gate items pass."
     },
     "2": {
       "name": "Nimiq bridge and session",
       "status": "IN_PROGRESS",
-      "commit": null,
-      "note": "Work reconstructed from the working tree on 2026-09-03 - the prior session did this work but did not update the tracking files.",
+      "commit": "8f626f2",
+      "note": "Committed through 8f626f2. First slice was reconstructed from an earlier session's uncommitted work (6eb4269); auth routes + tx verifier (7ef422e); Supabase migrations + SupabaseAuthStore (8f626f2).",
       "done": [
         "packages/relay-protocol/src/nimiq-rpc.ts (+test) - first-party plain-fetch JSON-RPC client (getBlockNumber, getTransactionByHash with a typed TransactionNotFoundError), scoped to only the methods the backend tx verifier needs (DECISIONS.md D-001)",
         "packages/relay-protocol/src/nimiq-verify.ts (+test) - pure-JS Nimiq signed-message verification (@noble/ed25519 + @noble/hashes, SHA-256 prefix construction) and Blake2b-256 address derivation, cross-checked byte-for-byte against a golden vector generated from the real @nimiq/core Node build (evidence/testnet/phase2-nimiq-signature-vector.md). Also signNimiqSignedMessage/nimiqPublicKeyFromPrivate for offline tooling + tests (not on the trust path).",
         "packages/relay-protocol/src/verify-transaction.ts (+test) - pure PRD 9.6 decision function verifyHandoffTransaction(tx, expected): sender/recipient/no-self-transfer/value(bigint-exact)/NR1 data commitment(relay+leg+128-bit)/network/inclusion/execution/confirmations -> discriminated ok|fail result, never throws. 18 adversarial cases including cross-relay and cross-leg commitment replay.",
         "apps/worker/src/auth/routes.ts (+test) - Hono sub-app at /api/auth: POST /nonce, POST /verify (zod -> consume nonce -> expiry -> verify signed message -> derive address -> find-or-create player -> device hash -> session -> cookie), POST /logout, GET /me. 12 tests in real workerd (SELF.fetch) incl single-use/replay, expiry, wrong-message signature, forged cookie, full login->me->logout.",
         "apps/worker/src/auth/middleware.ts - requireSession: HMAC gate + store lookup as revocation/expiry authority (PRD 11.6)",
-        "apps/worker/src/auth/store.ts (+test) - AuthStore port + InMemoryAuthStore for dev/tests; Supabase impl pending credentials, routes depend only on the interface",
+        "apps/worker/src/auth/store.ts (+test) - AuthStore port + InMemoryAuthStore; getAuthStore(env) feature-detects SUPABASE_SERVICE_ROLE_KEY and uses SupabaseAuthStore when present, in-memory otherwise",
+        "apps/worker/src/auth/supabase-store.ts (+test) - SupabaseAuthStore: service_role supabase-js client backing login_nonces / players / devices / sessions; single-use nonce via delete..returning, handle-collision retry, device upsert + linked session, idempotent revoke. 6 tests against a PostgREST-builder fake",
+        "supabase/migrations/0002_login_nonces.sql - login_nonces table (single-use expiring challenges), applied to the live project",
+        "supabase: 0001+0002 applied to the fresh project; rolled-back pg smoke exercised the full auth flow + wallet uniqueness (evidence/testnet/phase1-supabase-migration.md)",
+        "dep: @supabase/supabase-js@2.114.0 (apps/worker)",
         "apps/worker/src/auth/session.ts (+test) - HMAC-signed opaque session token, HttpOnly/Secure/SameSite=Lax cookie, 30-day max age, timing-safe compare (PRD 11.6)",
         "apps/worker/src/auth/nonce.ts (+test) - single-use expiring origin-bound login nonce and the exact sign-in message shape (PRD 11.4 / 32.3)",
         "apps/worker/src/auth/device-hash.ts (+test) - HMAC-SHA256 (server pepper) of the Nimiq Pay device identifier; raw value never persisted (PRD 11.5)",
@@ -39,7 +43,7 @@
         "deps: @noble/ed25519@3.2.0, @noble/hashes@2.4.0 added to packages/relay-protocol"
       ],
       "remaining": [
-        "Swap InMemoryAuthStore for a Supabase-backed AuthStore once credentials land (players / sessions / login_nonces) - blocked on supabase-credentials",
+        "Set SUPABASE_SERVICE_ROLE_KEY (Worker secret + apps/worker/.dev.vars) to flip getAuthStore() onto SupabaseAuthStore, then run the auth flow end-to-end against the live DB",
         "Wire NimiqRpcClient + verifyHandoffTransaction into the handoff-finalization path (RPC lookup + confirmation-wait loop) - mostly Phase 4",
         "Web-side Nimiq Mini App SDK bridge (SDK init, device identifier prompt, account list, sign) - needs the physical-device blocker for the real acceptance gate",
         "Bind /verify to the SDK-reported checksummed NQ address, not just the hex address derived from the public key",
@@ -58,22 +62,22 @@
     "11": { "name": "Early access and evidence", "status": "NOT_STARTED", "commit": null },
     "12": { "name": "Submission release freeze", "status": "NOT_STARTED", "commit": null }
   },
-  "lastPassingCommit": "c798da8",
+  "lastPassingCommit": "8f626f2",
   "pausedForHandoff": false,
   "pausedReason": null,
   "gate": {
     "asOf": "2026-09-03",
     "typecheck": "PASS",
     "lint": "PASS (0 errors, 0 warnings)",
-    "test": "PASS (66 passing, 0 failing)",
+    "test": "PASS (72 passing, 0 failing)",
     "build": "PASS (apps/web vite build + apps/worker tsc)"
   },
   "blockers": [
     {
-      "id": "supabase-credentials",
-      "description": "User is providing credentials to a fresh Supabase account (not the CLI-linked account) for the NIM Relay project. Needed to run `supabase link` + `supabase db push` against supabase/migrations/0001_init.sql, closing the last Phase 1 gate item.",
+      "id": "supabase-service-role-key",
+      "description": "The fresh Supabase project and its DB password were provided 2026-09-03; migrations are applied and Phase 1 is closed. Still outstanding: the service_role JWT (Supabase dashboard -> Project Settings -> API). The Worker's SupabaseAuthStore needs it; getAuthStore() uses the in-memory store until SUPABASE_SERVICE_ROLE_KEY is set. The sb_publishable key the user gave is not sufficient (RLS is on with no policies).",
       "owner": "user",
-      "neededBy": "to close Phase 1",
+      "neededBy": "to run the auth flow against the live DB (Phase 2)",
       "status": "PENDING_USER"
     },
     {
@@ -94,7 +98,8 @@
   "openVerificationItems": [
     "RESOLVED (D-006): RPC network identity for rpc.nimiqwatch.com (MainAlbatross) and rpc.testnet.nimiqwatch.com (TestAlbatross), confirmed by live block-height cross-referencing in both directions.",
     "OPEN: Nimiq Pay deep-link path/query passthrough for /invite/<token> style URLs - still to test empirically in Phase 2.",
-    "PARTIALLY RESOLVED: Nimiq message-signing byte layout cross-checked against a golden vector from the real @nimiq/core build (evidence/testnet/phase2-nimiq-signature-vector.md). Still open: confirming the Mini App SDK sign() path on a real physical device follows the same construction end to end."
+    "PARTIALLY RESOLVED: Nimiq message-signing byte layout cross-checked against a golden vector from the real @nimiq/core build (evidence/testnet/phase2-nimiq-signature-vector.md). Still open: confirming the Mini App SDK sign() path on a real physical device follows the same construction end to end.",
+    "OPEN (Phase 9): every public Supabase table has RLS enabled with no policies (service_role-only). Explicit RLS policy design is required before any direct browser->Supabase access."
   ],
   "network": {
     "development": "TestAlbatross",
