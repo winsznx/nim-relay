@@ -64,9 +64,11 @@ Called twice ~10s apart; block number incremented, confirming a live synced node
 ## D-002 — Nimiq message-signing verification scheme deferred to an empirical Phase 2 spike
 
 **Date:** 2026-09-01 (Phase 0)
-**Status:** Open, scheduled for Phase 2
+**Status:** Resolved 2026-09-05
 
 No official, directly-fetchable specification for the exact Nimiq signed-message byte layout (prefix + hash + Ed25519 verify) was found at Phase 0. Rather than guess a byte layout and risk silently accepting or rejecting valid signatures, Phase 2 will capture a real signature produced by a physical device via `sign()` (Mini App SDK, TestAlbatross) and derive/cross-check the verification routine against it before any session-auth code depends on it. Verification will use `@noble/ed25519` (pure TypeScript, zero native dependencies, Workers-safe) rather than `@nimiq/core`'s WASM crypto module, for the same Workers-runtime reasons as D-001.
+
+**Resolved.** The construction was first derived from the `core-rs-albatross` Rust source and pinned with a golden vector from the real `@nimiq/core` Node build (`evidence/testnet/phase2-nimiq-signature-vector.md`). On 2026-09-05 it was confirmed end to end on a physical phone: signing in through Nimiq Pay on the deployed Mini App produced a `sign()` result that `verifyNimiqSignedMessage` accepted, and `deriveNimiqAddress(publicKey)` matched the expected address. `SIGN_PREFIX = 0x16 ++ "Nimiq Signed Message:\n"`, `hash = SHA-256(prefix ++ decimalAsciiLength ++ message)`, `Ed25519.verify(sig, hash, pubkey)`; address = first 20 bytes of Blake2b-256(pubkey). No changes needed.
 
 ---
 

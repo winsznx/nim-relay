@@ -59,3 +59,16 @@ from the device and reconcile the verifier — that is the point of testing it h
 
 Not yet built: any game, baton pass, or relay UI. Real product screens are
 Phase 5-8.
+
+## Result — real phone, 2026-09-05
+
+Signed in successfully in Nimiq Pay on a physical iPhone over LTE. Screen showed
+"Signed in / runner-204816 / F823E386D87A9352C3A85FC9CB140163FB204816 / Sign out".
+
+Confirms:
+- The Mini App SDK `sign()` output verifies against `verifyNimiqSignedMessage`
+  (open verification item #3 / D-002 — resolved).
+- `deriveNimiqAddress(publicKey)` produces the correct address from real Nimiq
+  Pay output.
+- `requestDeviceIdentifier`, the nonce round-trip, session cookie, and the live
+  SupabaseAuthStore all work from a real device.

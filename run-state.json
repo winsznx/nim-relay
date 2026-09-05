@@ -47,7 +47,7 @@
         "deps: @noble/ed25519@3.2.0, @noble/hashes@2.4.0 added to packages/relay-protocol"
       ],
       "remaining": [
-        "REAL PHONE: open https://nim-relay.timjosh507.workers.dev in Nimiq Pay (TestAlbatross account), tap Connect, confirm the signed-in state. If the SDK sign() signature fails /verify, capture {publicKey,signature,message} from the device and reconcile nimiq-verify.ts - closes open verification item #3.",
+        "DONE 2026-09-05: real-phone Connect in Nimiq Pay works - sign() verifies, address derives correctly. Screenshot evidence.",
         "Wire NimiqRpcClient + verifyHandoffTransaction into the handoff-finalization path (RPC lookup + confirmation-wait loop) - mostly Phase 4",
         "Bind /verify to the SDK-reported checksummed NQ address, not just the hex address derived from the public key (needs an address<->pubkey cross-check once a real device address is in hand)",
         "Deep-link path/query passthrough test for /invite/<token> URLs (open verification item #2)"
@@ -100,7 +100,7 @@
   "openVerificationItems": [
     "RESOLVED (D-006): RPC network identity for rpc.nimiqwatch.com (MainAlbatross) and rpc.testnet.nimiqwatch.com (TestAlbatross), confirmed by live block-height cross-referencing in both directions.",
     "OPEN: Nimiq Pay deep-link path/query passthrough for /invite/<token> style URLs - still to test empirically in Phase 2.",
-    "PARTIALLY RESOLVED: Nimiq message-signing byte layout cross-checked against a golden vector from the real @nimiq/core build (evidence/testnet/phase2-nimiq-signature-vector.md). Still open: confirming the Mini App SDK sign() path on a real physical device follows the same construction end to end.",
+    "RESOLVED (2026-09-05, real device): the Mini App SDK sign() path verifies against verifyNimiqSignedMessage end to end. Signed in on a physical phone in Nimiq Pay over LTE - handle runner-204816, address F823E386D87A9352C3A85FC9CB140163FB204816 derived correctly from the pubkey. Confirms both the signed-message construction and deriveNimiqAddress against real Nimiq Pay output, not just the @nimiq/core golden vector. Closes D-002.",
     "OPEN (Phase 9): every public Supabase table has RLS enabled with no policies (service_role-only). Explicit RLS policy design is required before any direct browser->Supabase access."
   ],
   "network": {
