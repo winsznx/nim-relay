@@ -1,11 +1,15 @@
 {
   "product": "NIM Relay",
   "prd": "NIM_RELAY_PRD_v1.md",
-  "updatedAt": "2026-09-06T18:00:00Z",
+  "updatedAt": "2026-09-06T22:00:00Z",
   "currentPhase": 4,
-  "topBlocker": "PRODUCT-QUALITY: the playable layer (5 one-axis gauge challenges) is not competitive with the previous Nimiq Mini App winners. Relay-protocol implementation is STOPPED. docs/GAMEPLAY_BENCHMARK_AUDIT.md (NimJump + Nimiq Space deep audit) and docs/RELAY_GAME_V2.md (one cohesive Relay Run redesign + a 10-point Gameplay Quality Gate) are written. Phase 5 is blocked until that gate passes. The Phase 4 anti-cheat / HMAC issuance / server-replay / auth work is preserved and unchanged.",
+  "topBlocker": "PRODUCT-QUALITY / game redesign. Phase 3.6 instrumented vertical slice is BUILT + DEPLOYED at https://nim-relay.timjosh507.workers.dev/lab/relay-run-v2 (engine/challenge v2 relay-run composite: analog-steer traversal, fork, turbulence, pulse, Redline, race ghost, two-stage Sling, deterministic server replay verified in Node+workerd, full instrumentation). AWAITING the user to play and approve the slice against the docs/RELAY_GAME_V2.md \u00a79 quality gate. Do NOT proceed to full V2 world/content production or resume relay-protocol/Phase 5 until that approval. Phase 0-4 anti-cheat/auth/replay/Supabase work preserved and unchanged; engine v1 + corpus frozen.",
   "phases": {
-    "0": { "name": "Source-of-truth verification", "status": "PASS", "commit": "fc2f74d" },
+    "0": {
+      "name": "Source-of-truth verification",
+      "status": "PASS",
+      "commit": "fc2f74d"
+    },
     "1": {
       "name": "Repository and infrastructure foundation",
       "status": "PASS",
@@ -100,14 +104,70 @@
         "Wire /play to optionally submit runs to /api/runs for a server-verified score"
       ]
     },
-    "5": { "name": "Flagship Global and Quick Relay", "status": "BLOCKED", "commit": null, "note": "Blocked until the Gameplay Quality Gate in docs/RELAY_GAME_V2.md passes." },
-    "6": { "name": "Crew, Rival, Daily, Creator", "status": "NOT_STARTED", "commit": null },
-    "7": { "name": "Inbox, season, achievements, rankings, rescue", "status": "NOT_STARTED", "commit": null },
-    "8": { "name": "Premium UI polish", "status": "NOT_STARTED", "commit": null },
-    "9": { "name": "Security, privacy, load, clean-room", "status": "NOT_STARTED", "commit": null },
-    "10": { "name": "MainAlbatross production", "status": "NOT_STARTED", "commit": null },
-    "11": { "name": "Early access and evidence", "status": "NOT_STARTED", "commit": null },
-    "12": { "name": "Submission release freeze", "status": "NOT_STARTED", "commit": null }
+    "5": {
+      "name": "Flagship Global and Quick Relay",
+      "status": "BLOCKED",
+      "commit": null,
+      "note": "Blocked until the Gameplay Quality Gate in docs/RELAY_GAME_V2.md passes."
+    },
+    "6": {
+      "name": "Crew, Rival, Daily, Creator",
+      "status": "NOT_STARTED",
+      "commit": null
+    },
+    "7": {
+      "name": "Inbox, season, achievements, rankings, rescue",
+      "status": "NOT_STARTED",
+      "commit": null
+    },
+    "8": {
+      "name": "Premium UI polish",
+      "status": "NOT_STARTED",
+      "commit": null
+    },
+    "9": {
+      "name": "Security, privacy, load, clean-room",
+      "status": "NOT_STARTED",
+      "commit": null
+    },
+    "10": {
+      "name": "MainAlbatross production",
+      "status": "NOT_STARTED",
+      "commit": null
+    },
+    "11": {
+      "name": "Early access and evidence",
+      "status": "NOT_STARTED",
+      "commit": null
+    },
+    "12": {
+      "name": "Submission release freeze",
+      "status": "NOT_STARTED",
+      "commit": null
+    },
+    "3.6": {
+      "name": "Relay Run v2 vertical slice (instrumented lab)",
+      "status": "AWAITING_PLAYTEST_APPROVAL",
+      "commit": "b1f37b8",
+      "url": "https://nim-relay.timjosh507.workers.dev/lab/relay-run-v2",
+      "done": [
+        "engine/challenge version 2 relay-run composite: input (quantized analog steer + pressed, keyframed, bounded, validated), route (deterministic composition of authored modules, integer-only, no libm), sim (one fixed-60Hz composite step - physical steering no inversion, Catch, gates, fork wide/tight, turbulence physical-params, pulse breathing gates, Redline heat with in-run-only overheat, two-stage Sling), score + replayRelayRun() with full-final-state hash, deriveCarryState (leg inheritance, all values clamped so no leg is impossible)",
+        "96-case committed corpus byte-identical in Node AND isolated workerd; 9 unit tests; engine v1 + its corpus untouched",
+        "lab client at /lab/relay-run-v2: fixed-tick controller records the trace + asserts live sim == canonical replayRelayRun() (divergence flag), par heuristic ghost then the player's own trace, PixiJS vertical-scroller renderer (deliberately unjuiced), full instrumentation panel (frame-time dist, input latency, restart/completion/voluntary-replay, fork choice, redline usage, ghost lead changes, score dist) shown + emitted as JSON",
+        "Playwright smoke: full ~45s run via synthetic input -> results, live sim matched canonical replay (no divergence). Screenshots artifacts/relay-run-v2-*.png",
+        "DEPLOYED. Gate green, 432 tests."
+      ],
+      "belowGate": [
+        "FEEL is unplaytested - I cannot judge whether it feels like a commercial mobile game. This is the whole point of the slice; the user must play it.",
+        "Score tuning off: overheat penalty too harsh, Catch rarely lands with a bot; needs playtest-driven tuning",
+        "Renderer minimal by instruction: gates don't cull cleanly behind the baton, fork/turbulence read weakly, NO audio, no juice",
+        "Pulse is 'one system inside traversal' in the sim but the renderer doesn't yet make it *feel* rhythmic (no music bed)",
+        "Real-device 60fps NOT VERIFIED - headless frame-time is contaminated by the test harness's input pacing; needs a physical Nimiq Pay iOS run + a clean fps probe",
+        "One route only (one seed) in the lab, not the region-pair variety",
+        "Sling stage 2/3 (wallet) is a labelled placeholder, as instructed",
+        "No 15s silent video captured yet - screenshots read as a game but a recording is a gate criterion"
+      ]
+    }
   },
   "lastPassingCommit": "76ce4e7",
   "pausedForHandoff": false,
@@ -116,7 +176,7 @@
     "asOf": "2026-09-03",
     "typecheck": "PASS",
     "lint": "PASS (0 errors, 0 warnings)",
-    "test": "PASS (326 passing: game-engine 240, worker 44, relay-protocol 39, shared 3; plus game-engine corpus parity/mutation and web-controller/Playwright)",
+    "test": "PASS (432: game-engine 346 incl 96-case relay-run v2 corpus, worker 44, relay-protocol 39, shared 3; relay-run corpus also byte-identical in isolated workerd)",
     "build": "PASS (apps/web vite build + apps/worker tsc)"
   },
   "blockers": [
@@ -156,7 +216,8 @@
     "local": "http://localhost:8787 (wrangler dev)",
     "staging": "https://nim-relay.timjosh507.workers.dev (TestAlbatross, Workers free plan). / = login. /play = solo Baton Physics challenges (no login).",
     "production": null,
-    "note": "The workers.dev URL currently serves as the TestAlbatross staging/test target. Phase 10 stands up the MainAlbatross production deployment, likely on a custom domain. Secrets set via `wrangler secret put`: SESSION_SECRET, DEVICE_HASH_SECRET, RUN_CHALLENGE_SECRET, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, APP_ORIGIN."
+    "note": "The workers.dev URL currently serves as the TestAlbatross staging/test target. Phase 10 stands up the MainAlbatross production deployment, likely on a custom domain. Secrets set via `wrangler secret put`: SESSION_SECRET, DEVICE_HASH_SECRET, RUN_CHALLENGE_SECRET, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, APP_ORIGIN.",
+    "lab": "https://nim-relay.timjosh507.workers.dev/lab/relay-run-v2 (Phase 3.6 Relay Run v2 vertical slice - isolated, placeholder handoff, awaiting play-test approval)"
   },
   "repository": "https://github.com/winsznx/nim-relay",
   "finalReadinessState": null
