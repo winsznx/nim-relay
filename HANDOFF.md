@@ -2,42 +2,60 @@
 
 State-of-the-build snapshot for anyone (human or agent) picking this up mid-build. Read this first, then `run-state.json` for machine-readable state, then `docs/phases/PHASE_2_SUMMARY.md` for the latest phase detail. Repo: https://github.com/winsznx/nim-relay
 
-## Current state (2026-09-03 — resumed, tracking files re-synced to the working tree)
+## Current state (2026-09-06)
 
-Phase 0: **PASS**. Phase 1: **PASS**. Phase 2: **in progress**, committed through HEAD. Deployed to `https://nim-relay.timjosh507.workers.dev` (TestAlbatross) — auth flow works end to end; the one thing left for the Phase 2 gate is a real-phone Connect run in Nimiq Pay.
+Phase 0: **PASS**. Phase 1: **PASS**. Phase 2: **in progress** (auth verified end
+to end on a real phone; `SupabaseAuthStore` live). Phase 3: **in progress** —
+Baton Physics engine `1.0.0` + all 5 challenges + playable `/play` client, built
+by a delegated agent on the `game-engine` branch, reviewed and fast-forward
+merged to `main` 2026-09-06.
 
-A prior session committed Phase 1 and then did a chunk of Phase 2 work without updating `run-state.json` / `TASKS.md` / a phase summary. That has now been reconstructed from the working tree and written back. Gate is green: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` all pass, 38 tests (up from 13).
+Deployed: `https://nim-relay.timjosh507.workers.dev` — `/` is Nimiq Pay login,
+`/play` is the solo Baton Physics challenges (no login). Gate green:
+`pnpm typecheck && pnpm lint && pnpm test && pnpm build`, 312 tests (game-engine
+240, worker 33, protocol 34, shared 3, web 4) plus corpus parity, mutation
+checks and 7 Playwright browser tests.
 
-Phase 2 done so far (all uncommitted, on top of `c798da8`):
-- `packages/relay-protocol/src/nimiq-rpc.ts` — first-party plain-`fetch` JSON-RPC client (`getBlockNumber`, `getTransactionByHash` + typed `TransactionNotFoundError`).
-- `packages/relay-protocol/src/nimiq-verify.ts` — pure-JS Nimiq signed-message verify + Blake2b address derivation, cross-checked against a golden vector from the real `@nimiq/core` build (`evidence/testnet/phase2-nimiq-signature-vector.md`).
-- `apps/worker/src/auth/` — `session.ts` (HMAC session cookie), `nonce.ts` (login nonce + message shape), `device-hash.ts` (peppered device-id hash), all with tests.
-- `scripts/verify/nimiq-rpc-spike.ts` + `evidence/testnet/phase2-nimiq-rpc-spike.log`.
-- `DECISIONS.md` D-006 — both RPC endpoints network-confirmed.
-- deps: `@noble/ed25519`, `@noble/hashes`.
+Full detail: `docs/phases/PHASE_2_SUMMARY.md`, `docs/phases/PHASE_3_SUMMARY.md`.
 
-Full detail: `docs/phases/PHASE_2_SUMMARY.md`.
+## Phase 3 — what the delegated build delivered (commits `601369e`, `76ce4e7`)
 
-## Done since resuming (commits `6eb4269` … HEAD)
+- `packages/game-engine` — deterministic core: Q16.16 fixed-point (BigInt
+  intermediates), SplitMix64 PRNG, pure 60Hz `step`, the PRD §7.6 trace format +
+  typed validator, all 5 challenges, per-challenge scoring, `replay()` (the
+  function Phase 4's Worker calls) with a full-final-state SHA-256 `resultHash`,
+  and an immutable v1 version registry. No DOM/Math/Date/random/IO.
+- **200-case committed corpus** verified byte-identical in Node, isolated
+  `workerd`, Chromium and WebKit. Mutation testing proves the corpus catches
+  drift. Fixtures deliberately not PRNG-generated.
+- `apps/web/src/game` — PixiJS 8 renderer separate from the sim, accumulator
+  fixed-tick stepping, trace recording, a live-sim-vs-canonical-replay assert,
+  local ghost replay (labeled "not server-verified"), keyboard + full multi-touch
+  lifecycle, `/play` route. On-brand visuals (dark navy, gold hex baton, cyan
+  perfect-zone band).
+- Boundaries respected: touched only `packages/game-engine/`,
+  `apps/web/src/game/`, `apps/web/tests/`, an additive `App.tsx` route, and
+  `artifacts/`. Nothing in `apps/worker/`, `relay-protocol/`, `shared/`,
+  `supabase/` or deploy config.
 
-- `6eb4269` — reconstructed the earlier session's uncommitted Phase 2 work.
-- `7ef422e` — `/api/auth` routes (`nonce` / `verify` / `logout` / `me`), `requireSession` middleware, `AuthStore` port + `InMemoryAuthStore`, `verifyHandoffTransaction` (pure PRD §9.6, 18 adversarial cases).
-- **Phase 1 closed** — user provided a fresh Supabase project, DB password, and `service_role` key. `0001_init.sql` and `0002_login_nonces.sql` applied via `supabase db push --db-url`; 25 tables / 10 enums verified.
-- `SupabaseAuthStore` (`service_role` supabase-js over `login_nonces` / `players` / `devices` / `sessions`); `getAuthStore(env)` feature-detects `SUPABASE_SERVICE_ROLE_KEY`.
-- **Auth flow verified end-to-end** against the live Supabase project and against the deployed Worker: `nonce → sign → verify` (player + session persisted) → nonce replay 400 → `me` 200 → `logout` 200 (session revoked) → `me` 401. `pnpm verify:auth [url] [origin]`; evidence in `evidence/testnet/phase2-auth-e2e.log` and `phase2-deploy.md`. Test rows cleaned up.
-- **Nimiq Pay login harness** in `apps/web` (`lib/nimiq.ts`, `lib/auth-api.ts`, `App.tsx`) — Connect button runs SDK connect → device id → sign challenge → `/verify`. `/api/auth/nonce` now returns the message to sign.
-- **Deployed**: `https://nim-relay.timjosh507.workers.dev` (Cloudflare Workers free plan, TestAlbatross). Secrets via `wrangler secret put`; R2 omitted (not enabled, `Env.REPLAY_BUCKET` now optional).
-- 72 tests, gate green.
-
-Credentials live only in the gitignored `.env` and `apps/worker/.dev.vars`. Redeploy: `cd apps/worker && npx wrangler deploy` (build web first: `pnpm build`).
+Engine `1.0.0` is **version-frozen** — gameplay tuning adds a new
+`challengeVersion` + corpus, never edits v1.
 
 ## Immediate next step when resuming
 
-1. **Real phone**: open `https://nim-relay.timjosh507.workers.dev` in Nimiq Pay (TestAlbatross account), tap Connect, confirm the signed-in state. If `sign()` fails `/verify`, capture the device's `{ publicKey, signature, message }` and reconcile `packages/relay-protocol/src/nimiq-verify.ts` — closes open verification item #3 and the D-002 caveat.
-2. Bind `/verify` to the SDK-reported checksummed NQ address, not just the hex address derived from the public key.
-3. Deep-link `/invite/<token>` path passthrough — test empirically (open verification item #2).
-4. Wire `NimiqRpcClient` + `verifyHandoffTransaction` into the handoff-finalization path — mostly Phase 4.
-5. Phase 9: design RLS policies for every `public` table (all currently service_role-only).
+1. **Phase 4 — wire `replay()` into the relay** (owned here): server-side
+   challenge issuance (signed config + HMAC, §7.8), `/api/runs/*` endpoints that
+   replay the submitted trace server-side and derive the canonical score (§7.7),
+   R2 artifact storage (§7.9), `game_runs` / `relay_legs` tables. Also the baton
+   handoff state machine and `verifyHandoffTransaction` wiring (RPC lookup +
+   confirmation-wait loop).
+2. **Human playtest** the 5 challenges at `/play` — feel is unverified.
+3. Bind `/verify` to the SDK-reported checksummed NQ address, not just the hex
+   address derived from the public key.
+4. Deep-link `/invite/<token>` path passthrough — test empirically (open
+   verification item #2).
+5. Phase 9: design RLS policies for every `public` table (all currently
+   service_role-only).
 
 ## Two real bugs/toolchain issues found and fixed this session (don't reintroduce)
 

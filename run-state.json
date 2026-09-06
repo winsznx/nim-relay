@@ -1,8 +1,8 @@
 {
   "product": "NIM Relay",
   "prd": "NIM_RELAY_PRD_v1.md",
-  "updatedAt": "2026-09-03T12:00:00Z",
-  "currentPhase": 2,
+  "updatedAt": "2026-09-06T00:00:00Z",
+  "currentPhase": 3,
   "phases": {
     "0": { "name": "Source-of-truth verification", "status": "PASS", "commit": "fc2f74d" },
     "1": {
@@ -53,7 +53,28 @@
         "Deep-link path/query passthrough test for /invite/<token> URLs (open verification item #2)"
       ]
     },
-    "3": { "name": "Baton Physics deterministic engine", "status": "NOT_STARTED", "commit": null },
+    "3": {
+      "name": "Baton Physics deterministic engine",
+      "status": "IN_PROGRESS",
+      "commit": "76ce4e7",
+      "note": "Built on a branch by a delegated agent (Codex), reviewed and merged to main 2026-09-06. Engine is version-locked at 1.0.0.",
+      "done": [
+        "packages/game-engine/src: fixed-point (Q16.16, BigInt intermediates, truncate-toward-zero), prng (splitmix64 + FNV seed hash), input (binary-transition trace format + typed validator, PRD 7.6), simulation (pure createState/step, fixed 60Hz), challenges (all 5: stabilize/slipstream/pulse-sync/sling/redline), scoring (per-challenge integer score + breakdown), replay (replay() = the function the Worker will call; resultForState binds the ENTIRE final state into a hand-rolled SHA-256 resultHash), versions (ENGINE_VERSION 1.0.0, immutable v1 handler registry)",
+        "No DOM/Math/Date/performance/random/timers/IO in the engine package - verified by review",
+        "200-case immutable determinism corpus (tests/corpus/expected.json committed): 40 per challenge, 200 seeds, 10 difficulties, 4 durations, empty/held/boundary/dense/periodic/jittered input patterns. Fixtures deliberately NOT PRNG-generated.",
+        "Cross-runtime parity: corpus matches byte-identical in Node, isolated workerd (@cloudflare/vitest-plugin harness that never loads the deployed Worker), Chromium and WebKit",
+        "Mutation testing (tests/mutation-check.mjs): PRNG constant / fixed-point divisor / scoring constant each break the corpus in a sandboxed copy (199/183/38 failures), restore passes",
+        "apps/web/src/game: PixiJS 8 renderer separate from sim, accumulator-based fixed-tick stepping, trace recording on input transitions, live-sim-vs-canonical-replay divergence assert, local ghost replay (labeled 'not server-verified'), keyboard + multi-touch input with full pointer lifecycle (capture/cancel/blur/visibility/orientation)",
+        "/play route (client-routed, SPA fallback), 8 acceptance screenshots in artifacts/, 7 Playwright browser tests incl touch-only multi-finger completion",
+        "240 engine tests; full workspace gate green; DEPLOYED - https://nim-relay.timjosh507.workers.dev/play",
+        "packages/game-engine/README.md documents the determinism contract"
+      ],
+      "remaining": [
+        "Human playtest the 5 challenges - gameplay feel is unverified (no person has played them). Tuning goes through a challengeVersion bump + new corpus, keeping v1.",
+        "Physical Nimiq Pay iOS WebView 60fps - NOT VERIFIED (headless Chromium measured ~59.8Hz / 16.7ms mean, 3 draw calls/frame)",
+        "Phase 8 will do the premium visual polish pass; current visuals are a solid on-brand first pass"
+      ]
+    },
     "4": { "name": "Relay protocol", "status": "NOT_STARTED", "commit": null },
     "5": { "name": "Flagship Global and Quick Relay", "status": "NOT_STARTED", "commit": null },
     "6": { "name": "Crew, Rival, Daily, Creator", "status": "NOT_STARTED", "commit": null },
@@ -64,14 +85,14 @@
     "11": { "name": "Early access and evidence", "status": "NOT_STARTED", "commit": null },
     "12": { "name": "Submission release freeze", "status": "NOT_STARTED", "commit": null }
   },
-  "lastPassingCommit": "508f95c",
+  "lastPassingCommit": "76ce4e7",
   "pausedForHandoff": false,
   "pausedReason": null,
   "gate": {
     "asOf": "2026-09-03",
     "typecheck": "PASS",
     "lint": "PASS (0 errors, 0 warnings)",
-    "test": "PASS (72 passing, 0 failing; vitest pins Supabase bindings empty so unit tests stay in-memory)",
+    "test": "PASS (312 passing: game-engine 240, worker 33, protocol 34, shared 3, web-controller 4; plus corpus parity in Node/workerd/Chromium/WebKit, mutation checks, 7 Playwright browser tests)",
     "build": "PASS (apps/web vite build + apps/worker tsc)"
   },
   "blockers": [
@@ -109,7 +130,7 @@
   },
   "deploymentUrls": {
     "local": "http://localhost:8787 (wrangler dev)",
-    "staging": "https://nim-relay.timjosh507.workers.dev (TestAlbatross; Workers free plan; account eb94a234b390bb8da04babac718d6c92)",
+    "staging": "https://nim-relay.timjosh507.workers.dev (TestAlbatross, Workers free plan). / = login. /play = solo Baton Physics challenges (no login).",
     "production": null,
     "note": "The workers.dev URL currently serves as the TestAlbatross staging/test target. Phase 10 stands up the MainAlbatross production deployment, likely on a custom domain. Secrets set via `wrangler secret put`: SESSION_SECRET, DEVICE_HASH_SECRET, RUN_CHALLENGE_SECRET, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, APP_ORIGIN."
   },

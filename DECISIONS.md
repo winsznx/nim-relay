@@ -4,6 +4,38 @@ Architectural decisions and rejected alternatives, recorded as they happen. Newe
 
 ---
 
+## D-008 — Baton Physics engine built via a delegated agent on a branch, gated on determinism
+
+**Date:** 2026-09-06 (Phase 3)
+**Status:** Locked; engine `1.0.0` is version-frozen
+
+**Context.** The user wanted the game engine + playable challenges built by a
+second agent (Codex) so this session could keep the relay/backend work moving.
+The engine is the anti-cheat trust boundary (PRD §7.7 — the Worker re-runs it to
+verify every score), so a "make it fun" delegation would have been unsafe.
+
+**Decision.** The delegated build was scoped by a one-shot brief whose headline
+constraint was determinism, with hard boundaries: touch only
+`packages/game-engine/` + `apps/web/src/game/`, work on a `game-engine` branch,
+no push, no deploy, no backend/social/wallet features, spec = PRD §7–8 +
+`DESIGN.md`. The result was reviewed here before merge against: byte-level
+determinism (BigInt fixed-point, integer PRNG, no `Math`/`Date`/random/DOM),
+cross-runtime parity (Node / `workerd` / Chromium / WebKit on a 200-case
+committed corpus), mutation testing, boundary compliance, and that the `/play`
+client consumes the real engine with no forked physics. It passed and was
+fast-forward merged to `main` (`601369e`, `76ce4e7`).
+
+**Consequence.** `packages/game-engine` v1 (`ENGINE_VERSION = '1.0.0'`), its
+scoring, and `tests/corpus/expected.json` are immutable. Gameplay tuning — which
+is expected once a human playtests — must add a new `challengeVersion` handler
+and a fresh corpus, never edit v1. Old runs stay replayable by their recorded
+version (§7.3).
+
+**Not verified.** Gameplay feel (no human has played the five challenges) and
+physical iOS Nimiq Pay WebView 60fps (headless Chromium only).
+
+---
+
 ## D-007 — First deployment is a `workers.dev` TestAlbatross target; config via secrets, R2 deferred
 
 **Date:** 2026-09-03 (Phase 2)
