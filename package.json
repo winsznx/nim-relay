@@ -26,10 +26,12 @@
     "verify:testnet": "tsx scripts/verify/testnet.ts",
     "verify:mainnet": "tsx scripts/verify/mainnet.ts",
     "verify:auth": "tsx scripts/verify/auth-e2e.ts",
-    "clean-room": "bash scripts/clean-room/run.sh"
+    "clean-room": "bash scripts/clean-room/run.sh",
+    "verify:runs": "tsx scripts/verify/runs-e2e.ts"
   },
   "dependencies": {
-    "@nim-relay/relay-protocol": "workspace:*"
+    "@nim-relay/relay-protocol": "workspace:*",
+    "@nim-relay/game-engine": "workspace:*"
   },
   "devDependencies": {
     "typescript": "5.9.3",

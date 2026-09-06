@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import type { Env } from './env'
 import { RelayRoom } from './durable/relay-room'
 import { authRoutes } from './auth/routes'
+import { runRoutes } from './runs/routes'
 
 export { RelayRoom }
 
@@ -12,6 +13,7 @@ app.get('/api/health', (c) =>
 )
 
 app.route('/api/auth', authRoutes)
+app.route('/api/runs', runRoutes)
 
 app.get('/ws/relays/:code', async (c) => {
   const code = c.req.param('code')

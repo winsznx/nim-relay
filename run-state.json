@@ -1,8 +1,8 @@
 {
   "product": "NIM Relay",
   "prd": "NIM_RELAY_PRD_v1.md",
-  "updatedAt": "2026-09-06T00:00:00Z",
-  "currentPhase": 3,
+  "updatedAt": "2026-09-06T12:00:00Z",
+  "currentPhase": 4,
   "phases": {
     "0": { "name": "Source-of-truth verification", "status": "PASS", "commit": "fc2f74d" },
     "1": {
@@ -75,7 +75,30 @@
         "Phase 8 will do the premium visual polish pass; current visuals are a solid on-brand first pass"
       ]
     },
-    "4": { "name": "Relay protocol", "status": "NOT_STARTED", "commit": null },
+    "4": {
+      "name": "Relay protocol",
+      "status": "IN_PROGRESS",
+      "commit": null,
+      "note": "Slice 1 of many: server-issued challenges + server-verified runs. The state machine / DO / handoff / chain-verification / end-to-end TestAlbatross handoff (the gate) are later slices.",
+      "done": [
+        "packages/relay-protocol/src/challenge.ts (+test) - ChallengeFields/IssuedChallenge types, challengeMacMessage (the exact ASCII the MAC covers), isChallengeStartable, isWellFormedChallenge. relay-protocol now depends on @nim-relay/game-engine for ChallengeId.",
+        "apps/worker/src/runs/challenge-mac.ts (+covered by routes test) - HMAC-SHA256 sign/verify over challengeMacMessage keyed with RUN_CHALLENGE_SECRET, hex, timing-safe",
+        "apps/worker/src/runs/store.ts - RunStore port + InMemoryRunStore + SupabaseRunStore (game_runs), getRunStore(env) feature-detects the service_role key, idempotent insert on id",
+        "apps/worker/src/runs/routes.ts (+test, 11 cases in workerd) - POST /api/runs/issue (server picks seed/difficulty/duration, returns a MAC-signed IssuedChallenge), POST /api/runs/submit (verify MAC -> stale-rules 409 -> expired 410 -> replay() -> persist to game_runs, idempotent on runId, reports clientMatchesServer without trusting it), GET /api/runs/:runId (owner-scoped). All behind requireSession.",
+        "supabase/migrations/0003_game_run_trace.sql - game_runs.input_trace jsonb; applied to the live project",
+        "scripts/verify/runs-e2e.ts + pnpm verify:runs - live smoke: login -> issue -> submit (server score == local replay) -> get -> idempotent resubmit -> tampered seed 401. RUNS_E2E_PASS against the deployed Worker + live Supabase (evidence/testnet/phase4-runs.md). Deployed.",
+        "root package.json gains @nim-relay/game-engine (workspace:*) so the verify scripts resolve it"
+      ],
+      "remaining": [
+        "Relay + relay_legs tables in use, the relay state machine (PRD 9.1), canonical holder (9.2)",
+        "RelayRoom Durable Object: live coordination, runner claim, alarms, one-sendable-intent-per-leg",
+        "Handoff intent creation + tx-data commitment persistence (handoff_intents, 9.4/9.5)",
+        "Handoff finalization: NimiqRpcClient lookup + verifyHandoffTransaction + confirmation policy (9.6/9.7) + idempotency key relay_id+leg_number+tx_hash (9.8) + advance canonical holder",
+        "IndexedDB recovery (9.9), reroute (10.1), stranded (10.3)",
+        "Phase 4 gate: end-to-end TestAlbatross handoff + concurrency tests + failure-path tests",
+        "Wire /play to optionally submit runs to /api/runs for a server-verified score"
+      ]
+    },
     "5": { "name": "Flagship Global and Quick Relay", "status": "NOT_STARTED", "commit": null },
     "6": { "name": "Crew, Rival, Daily, Creator", "status": "NOT_STARTED", "commit": null },
     "7": { "name": "Inbox, season, achievements, rankings, rescue", "status": "NOT_STARTED", "commit": null },
@@ -92,7 +115,7 @@
     "asOf": "2026-09-03",
     "typecheck": "PASS",
     "lint": "PASS (0 errors, 0 warnings)",
-    "test": "PASS (312 passing: game-engine 240, worker 33, protocol 34, shared 3, web-controller 4; plus corpus parity in Node/workerd/Chromium/WebKit, mutation checks, 7 Playwright browser tests)",
+    "test": "PASS (326 passing: game-engine 240, worker 44, relay-protocol 39, shared 3; plus game-engine corpus parity/mutation and web-controller/Playwright)",
     "build": "PASS (apps/web vite build + apps/worker tsc)"
   },
   "blockers": [

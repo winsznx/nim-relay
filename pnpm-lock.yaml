@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@nim-relay/game-engine':
+        specifier: workspace:*
+        version: link:packages/game-engine
       '@nim-relay/relay-protocol':
         specifier: workspace:*
         version: link:packages/relay-protocol
@@ -134,6 +137,9 @@ importers:
 
   packages/relay-protocol:
     dependencies:
+      '@nim-relay/game-engine':
+        specifier: workspace:*
+        version: link:../game-engine
       '@nim-relay/shared':
         specifier: workspace:*
         version: link:../shared

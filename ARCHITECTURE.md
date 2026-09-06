@@ -1,6 +1,6 @@
 # Architecture
 
-Status: living document, updated every phase. Current as of Phase 2 (in progress).
+Status: living document, updated every phase. Current as of Phase 4 (in progress).
 
 ## Four authorities
 
@@ -42,6 +42,21 @@ SameSite=Lax, 30-day max). The DB session row is the revocation authority;
 `requireSession` checks the HMAC first (cheap) then the row (`POST /api/auth/logout`,
 `GET /api/auth/me`). Auth persistence goes through the `AuthStore` port —
 in-memory for local dev/tests, Supabase-backed once the project's credentials land.
+
+## Server-verified runs (Phase 4)
+
+The score for any run is derived by the Worker, never by the client (PRD §7.7).
+`POST /api/runs/issue` returns a challenge config (`runId`, `seed`, `difficulty`,
+`durationMs`, `rulesHash`, `startBefore`) with an HMAC `mac` over every field
+(keyed with `RUN_CHALLENGE_SECRET`), so the client cannot alter the seed or rules
+and still submit a valid run. The client plays locally against that exact config,
+then `POST /api/runs/submit`s the input trace; the Worker re-checks the MAC,
+rejects a stale `rulesHash` or an elapsed start window, replays the trace with the
+same `@nim-relay/game-engine` `replay()` the client used, and persists the
+canonical result to `game_runs` (row id = `runId`, so a repeated submit is
+idempotent). A client-claimed `resultHash` is stored and compared for drift
+detection but never affects the stored score. The relay state machine, handoff
+intents and chain verification build on this in later Phase 4 slices.
 
 ## Non-custodial invariant
 
