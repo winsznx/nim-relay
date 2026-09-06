@@ -26,10 +26,15 @@ async function runLogin() {
 }
 
 const GamePage = lazy(() => import('../game/GamePage').then(module => ({ default: module.GamePage })))
+const RelayRunLab = lazy(() => import('../lab/relay-run/RelayRunLab').then(module => ({ default: module.RelayRunLab })))
 
 export function App() {
-  if (window.location.pathname === '/play' || window.location.pathname === '/play/') {
+  const path = window.location.pathname
+  if (path === '/play' || path === '/play/') {
     return <Suspense fallback={<p>Loading solo practice…</p>}><GamePage /></Suspense>
+  }
+  if (path === '/lab/relay-run-v2' || path === '/lab/relay-run-v2/') {
+    return <Suspense fallback={<p>Loading lab…</p>}><RelayRunLab /></Suspense>
   }
   return <LoginApp />
 }

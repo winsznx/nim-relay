@@ -1,0 +1,1442 @@
+[
+  {
+    "id": "rr-00",
+    "score": 3927,
+    "breakdown": {
+      "gates": 2920,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 134,
+      "comboMax": 2
+    },
+    "resultHash": "c459e44e9435e02a156087ea1c70ff963c6d4892ffaf97c68f8e7638cbf8ae48",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-01",
+    "score": 0,
+    "breakdown": {
+      "gates": 4464,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 600,
+      "overheat": -8000,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "4e8beedc273eedabb74aa2d58c001d0ca55afe11db461cfb4200356a762adc10",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-02",
+    "score": 668,
+    "breakdown": {
+      "gates": 0,
+      "catch": 489,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "c00e378c7033d10762e19361127f2249a2fa3ad6bf11e1fcd6c45340888a8746",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-03",
+    "score": 5275,
+    "breakdown": {
+      "gates": 1780,
+      "catch": 2079,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "755a82472d448ebe3ae91ec1d5a2ccaab18f15caa9a9f22dd0c980e8c7107fa0",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-04",
+    "score": 0,
+    "breakdown": {
+      "gates": 1628,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -8400,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "e77a239a56ce71d91b88cf90af29535ef3337447e92e95888929b5a2d84fd1da",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-05",
+    "score": 0,
+    "breakdown": {
+      "gates": 0,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -8000,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "7d72c40b723d8b2759f0b6b986519e2de4b9e1dc0407bde95092aae129de1251",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-06",
+    "score": 0,
+    "breakdown": {
+      "gates": 5640,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 300,
+      "overheat": -7600,
+      "slingMultiplierPct": 134,
+      "comboMax": 1
+    },
+    "resultHash": "0bf65cc37d4d300aa2d862e6b37a718391bd47a4a921df2c435b8fbfdda1b21a",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-07",
+    "score": 619,
+    "breakdown": {
+      "gates": 440,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "ca59fe04c63e01fecd259e93a46c5108a5c3e747363496a6f36068685467c01d",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-08",
+    "score": 1230,
+    "breakdown": {
+      "gates": 900,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "1a8063f0cbd0a6776c0c89c50292b20b63b7125c654ca0733b0372467079792d",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-09",
+    "score": 0,
+    "breakdown": {
+      "gates": 4524,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 300,
+      "overheat": -8000,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "37fc7d77d42cb054fde887e1c393414d573d36eb905f5cd08eeba5390276fc9d",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-10",
+    "score": 0,
+    "breakdown": {
+      "gates": 4672,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -7600,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "3416b58daca48ef4898c5d34b4ced08a4f3746787891cc15677227df95f081c9",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-11",
+    "score": 1457,
+    "breakdown": {
+      "gates": 1120,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 130,
+      "comboMax": 1
+    },
+    "resultHash": "0609777921d11136b5bcae7c71ec3cc171a78ea07150bd793c0993cd5e1248a6",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-12",
+    "score": 5604,
+    "breakdown": {
+      "gates": 2020,
+      "catch": 1780,
+      "stabilizeCorridor": 0,
+      "pulseSync": 300,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "8c7b76e4cdc2fefa099b53eaf7f063db0192124a23820aa45100af037adcc05e",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-13",
+    "score": 5571,
+    "breakdown": {
+      "gates": 3360,
+      "catch": 659,
+      "stabilizeCorridor": 0,
+      "pulseSync": 300,
+      "overheat": 0,
+      "slingMultiplierPct": 129,
+      "comboMax": 1
+    },
+    "resultHash": "dc8ed612d4bf09ec76e12a73be3397c1d9c62faa9f67c112b3158efc559f10aa",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-14",
+    "score": 0,
+    "breakdown": {
+      "gates": 0,
+      "catch": 656,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -7600,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "40e6d4b992c437a660f75020f29d486bfd5b327983db152df6af96ec18d11b12",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-15",
+    "score": 3038,
+    "breakdown": {
+      "gates": 880,
+      "catch": 1343,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "19c65092c23865f3bfcf8d6693060c9dc813d0fc69d24cd48ebb54ebc9a98ff1",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-16",
+    "score": 0,
+    "breakdown": {
+      "gates": 5140,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -8400,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "403243bf8a31fcaf409bb88ab4ec69b4aa60c843c43667334b44bd2abe57cb27",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-17",
+    "score": 0,
+    "breakdown": {
+      "gates": 0,
+      "catch": 374,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -8000,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "17e44b8bbcd9e2e6da17732c7984705dcaf8161d324009f74f911629d321fc1f",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-18",
+    "score": 3171,
+    "breakdown": {
+      "gates": 2020,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 300,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "029bb757a362929901fe41339c7ffc998957dc415b989fa52988e81bb4529b49",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-19",
+    "score": 0,
+    "breakdown": {
+      "gates": 2848,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -7200,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "be2df1d03a0835964c74828aa8afab133a6cad941f9a5bc8636afd0f827775eb",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-20",
+    "score": 0,
+    "breakdown": {
+      "gates": 924,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -8400,
+      "slingMultiplierPct": 130,
+      "comboMax": 0
+    },
+    "resultHash": "4435540fb3039dc9f8bdc9f10d0c9fa5249f22a099534993adfb90476a6abf55",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-21",
+    "score": 0,
+    "breakdown": {
+      "gates": 2012,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 300,
+      "overheat": -8000,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "cddae8249bf28b6d533efcb8dc3adaabb2ae66260dfaabbbcf55fccbc2d4afa4",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-22",
+    "score": 2196,
+    "breakdown": {
+      "gates": 0,
+      "catch": 1607,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "93f9f84ce5da00777414bd03e7f2ea79c5b1668adf1428c35e5a1e8472fc4eb4",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-23",
+    "score": 0,
+    "breakdown": {
+      "gates": 352,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -7200,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "cbc1b724f15b70740c8bfa053a58232e345cc5e070806db14d0ea4e1ec5b1960",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-24",
+    "score": 4429,
+    "breakdown": {
+      "gates": 2680,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 600,
+      "overheat": 0,
+      "slingMultiplierPct": 134,
+      "comboMax": 1
+    },
+    "resultHash": "2faa379494336537c6a14f24c76fff074e4eec136e2d3f4b32de4671f9ce753c",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-25",
+    "score": 0,
+    "breakdown": {
+      "gates": 1428,
+      "catch": 1961,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -8000,
+      "slingMultiplierPct": 135,
+      "comboMax": 1
+    },
+    "resultHash": "29493f067e8ed77afbee6bf4721a99422ad075dfa42dfc28a8bfa08293ec5211",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-26",
+    "score": 601,
+    "breakdown": {
+      "gates": 440,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "5a5fe96e543688e59477fd9b6555ea9be6eb47be50216f00deb6eed786f76305",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-27",
+    "score": 3298,
+    "breakdown": {
+      "gates": 1800,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 600,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "d35c50cbdbd3af1509e825d2353ccea7458c5313746c4585b0827880afae8fa5",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-28",
+    "score": 8867,
+    "breakdown": {
+      "gates": 4500,
+      "catch": 1387,
+      "stabilizeCorridor": 0,
+      "pulseSync": 600,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 2
+    },
+    "resultHash": "c2b557bb4669565455246aee2a0c0a3636165a1ce3014ec3b3527fab6283bdd8",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-29",
+    "score": 0,
+    "breakdown": {
+      "gates": 0,
+      "catch": 387,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -8000,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "84cbb9d684f44382277389ddbffcdbe623d04ff3be00275303c42d317af885aa",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-30",
+    "score": 0,
+    "breakdown": {
+      "gates": 2912,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 300,
+      "overheat": -7600,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "5f9bf5f3b0fb96fea6f3f2327f86dfb17d2ff80c1912f30d419208b02b793d44",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-31",
+    "score": 648,
+    "breakdown": {
+      "gates": 220,
+      "catch": 257,
+      "stabilizeCorridor": 13,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 132,
+      "comboMax": 0
+    },
+    "resultHash": "0eacfed6a1e13bde85b7b847abbe4d98e28b5d8b626360e7429732fb42953b3d",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-32",
+    "score": 0,
+    "breakdown": {
+      "gates": 0,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -8400,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "8610359d654baf5f8c9839f82270be8b16a91bb5e2eca63002a1e9bfb633e3a1",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-33",
+    "score": 0,
+    "breakdown": {
+      "gates": 4320,
+      "catch": 1444,
+      "stabilizeCorridor": 13,
+      "pulseSync": 900,
+      "overheat": -8000,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "c474a395f7240d45d8beb0f40e6656bd852c2fa52b5864b3fd2c0804fcb1cff5",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-34",
+    "score": 1941,
+    "breakdown": {
+      "gates": 1120,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 300,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "4c1ded607c012b04d7873d438e07556ac933d1b6ee987affe8375919190940e2",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-35",
+    "score": 0,
+    "breakdown": {
+      "gates": 352,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -7200,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "3419eecf482b0d03897f6f5244268476af37ebe82f926009771bb4f52e0398c8",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-36",
+    "score": 8301,
+    "breakdown": {
+      "gates": 5160,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 900,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 2
+    },
+    "resultHash": "4bdaf0b20afdc39634a96cee076446011b2b3f738dafff85a9665627a5936fb7",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-37",
+    "score": 1531,
+    "breakdown": {
+      "gates": 1120,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "d686eb5616e5c7eee5866e131b772ce8c9551d844ceb5fbb14e76bfca7159c40",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-38",
+    "score": 0,
+    "breakdown": {
+      "gates": 352,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -7600,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "568bf048b0d95e0e53b712322013689dc5ff457400309e93f6cb9cd3ac4a917c",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-39",
+    "score": 0,
+    "breakdown": {
+      "gates": 2512,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 300,
+      "overheat": -7200,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "eb0582368546f1f9aad0f5443ecf6307e4b098bf4a7af0f5ad3ec600631ad470",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-40",
+    "score": 3489,
+    "breakdown": {
+      "gates": 2240,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 300,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "ec1f874be699c4080aca195336a60c162215de19767055cbc153613327e95828",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-41",
+    "score": 522,
+    "breakdown": {
+      "gates": 0,
+      "catch": 382,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "0ee1d07b25aa476757f9ed681cadf9c5317b7fe4078c4eaeb916985c4c53cc84",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-42",
+    "score": 4200,
+    "breakdown": {
+      "gates": 2460,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 600,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "eb3201f9a68609753f6bc73a46f1b58bbb6028b635a528a494553e1e3ae73f40",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-43",
+    "score": 902,
+    "breakdown": {
+      "gates": 660,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "665ba31a9dd690ecb6e53bf491903f775fdd35d899916dd6907d31326e20fce1",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-44",
+    "score": 1170,
+    "breakdown": {
+      "gates": 900,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 130,
+      "comboMax": 1
+    },
+    "resultHash": "34b4be3534c1d37c91bc7c7a093a3e7517e85cba27d550ae0e45a501a08dc04c",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-45",
+    "score": 5935,
+    "breakdown": {
+      "gates": 3800,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 600,
+      "overheat": 0,
+      "slingMultiplierPct": 134,
+      "comboMax": 2
+    },
+    "resultHash": "7c18108a27af3e6fb9cc16d113011df49f637d76c2d4221139e025e33fed7b98",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-46",
+    "score": 3046,
+    "breakdown": {
+      "gates": 1340,
+      "catch": 876,
+      "stabilizeCorridor": 13,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "07593ccd53c993860fa2e2f5d36b7650095f9716fef80109778fecf1652c77b7",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-47",
+    "score": 1230,
+    "breakdown": {
+      "gates": 900,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "0608d18e0fc55fed82d0c21f42e2762433aabeb1179df73398a017f5ad653556",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-48",
+    "score": 11207,
+    "breakdown": {
+      "gates": 7420,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 900,
+      "overheat": 0,
+      "slingMultiplierPct": 134,
+      "comboMax": 6
+    },
+    "resultHash": "d9240e8c850cbc39ef07233b8187d1a638541d8bfcc8cf4b84b225f14b5131eb",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-49",
+    "score": 0,
+    "breakdown": {
+      "gates": 1780,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 0,
+      "overheat": -8000,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "dec586aa980300161a61eedce96ed33cf894387b40ad17626fde9cf2d3081739",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-50",
+    "score": 0,
+    "breakdown": {
+      "gates": 0,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -7600,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "be0cc34e0d12850027634578ccc92dc49163295a2427664077eab442a49b5a41",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-51",
+    "score": 743,
+    "breakdown": {
+      "gates": 6840,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 900,
+      "overheat": -7200,
+      "slingMultiplierPct": 134,
+      "comboMax": 1
+    },
+    "resultHash": "763f4bfc24ef36091039a456845d2a8364fc9d2278bcb13950ac4b8648f167a2",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-52",
+    "score": 1202,
+    "breakdown": {
+      "gates": 880,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "89244adc6c9a59bdb5cfc4d234370e641713f73c6bce6b3be4fef760130a98f9",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-53",
+    "score": 0,
+    "breakdown": {
+      "gates": 0,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -8000,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "45896bbcf38facc068b0ebc758c3d6b2a84a26adfcf21243c8fa58b151993560",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-54",
+    "score": 3599,
+    "breakdown": {
+      "gates": 2020,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 600,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "cd3419f21a0befdf1d835db73bcb12f0cc8ed8abb0195a1ed6bed8df95b182cc",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-55",
+    "score": 1531,
+    "breakdown": {
+      "gates": 1120,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "76333d30128a3d2afd3607a4a910922fae9e8f67fd67e6eb157f281e53ab4335",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-56",
+    "score": 0,
+    "breakdown": {
+      "gates": 528,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -8400,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "e46ecfa2fdd1f3b91dfac50b1fcc76f864377bf012c4e9f78b6ade7916fc8f62",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-57",
+    "score": 2751,
+    "breakdown": {
+      "gates": 2000,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "02a52a4d269d657c54c6e28d37aa4af98452892a14a2509a8b47abf6d02ce614",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-58",
+    "score": 0,
+    "breakdown": {
+      "gates": 6784,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 600,
+      "overheat": -7600,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "f9f76c5a84865b8adee6d244d815ff61e9c2b197163449c16a034fc6b0f604fb",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-59",
+    "score": 0,
+    "breakdown": {
+      "gates": 0,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -7200,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "fbc6a1e11875a571eb69aee1152262108ddcd9735d1b7fdbf5112a21009bf0a8",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-60",
+    "score": 0,
+    "breakdown": {
+      "gates": 3040,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 300,
+      "overheat": -8400,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "fb8fa3dff3c273088c0e94e6c37fbd2af5d248e794b67eb9d84f543c73f50d49",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-61",
+    "score": 1116,
+    "breakdown": {
+      "gates": 7904,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 900,
+      "overheat": -8000,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "5fa1bc8c4f1524b6c4399aa60547d00dcaa5fa1391d6e2e6f81d82d30d01fc20",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-62",
+    "score": 0,
+    "breakdown": {
+      "gates": 0,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -7600,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "b112c62d887da733f7eff1817e079ddb1d3e1d9292202fcca4d06b6c2a88d410",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-63",
+    "score": 1794,
+    "breakdown": {
+      "gates": 7600,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 900,
+      "overheat": -7200,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "40121f04a1d411e1284b3f415e159297df750ecb45c94b14dcb562d12e8e3045",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-64",
+    "score": 3772,
+    "breakdown": {
+      "gates": 2460,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 300,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "699050e8d7c68d7d06f233d83bd951033069410d3f5bd9ea61397538c41f2bb8",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-65",
+    "score": 0,
+    "breakdown": {
+      "gates": 220,
+      "catch": 1374,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -8000,
+      "slingMultiplierPct": 133,
+      "comboMax": 0
+    },
+    "resultHash": "510b0c382acbf8e076529073fda2465b76076475532eccebc482005a44db1d4d",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-66",
+    "score": 0,
+    "breakdown": {
+      "gates": 2320,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 0,
+      "overheat": -7600,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "290a715d096dec2f6a307118aee0455ce223ff8c079199f27d7af8682664d242",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-67",
+    "score": 0,
+    "breakdown": {
+      "gates": 572,
+      "catch": 360,
+      "stabilizeCorridor": 13,
+      "pulseSync": 0,
+      "overheat": -7200,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "2c4b24b1b991487519c1bac9ab42863901afc26ec6f00232b5fa35f0b333cc4a",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-68",
+    "score": 0,
+    "breakdown": {
+      "gates": 1428,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -8400,
+      "slingMultiplierPct": 130,
+      "comboMax": 1
+    },
+    "resultHash": "b28f469fe27c37ae8432f556706a401b413e56e931b075b43a453bbd2de83b31",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-69",
+    "score": 2888,
+    "breakdown": {
+      "gates": 1800,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 300,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "e36787c5c72eef2f7b54e192a5be58f34e9ca001dbc7456e56abae5c5b850a08",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-70",
+    "score": 0,
+    "breakdown": {
+      "gates": 1232,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -7600,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "5de22b319a7be68332a1d7249d9166fe7bd67792dda10a89879e18a5b57005f7",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-71",
+    "score": 0,
+    "breakdown": {
+      "gates": 0,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "d54de469613c6d5fff26cc2bbb4b46c730eecc9edaf96ad14f88c33f45274e59",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-72",
+    "score": 0,
+    "breakdown": {
+      "gates": 6464,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 900,
+      "overheat": -8400,
+      "slingMultiplierPct": 134,
+      "comboMax": 1
+    },
+    "resultHash": "988e216b36aabca9ec00ff3c853f500e698eeed1ac83154c0d53f46690eb6ce4",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-73",
+    "score": 0,
+    "breakdown": {
+      "gates": 2864,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 300,
+      "overheat": -8000,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "43e47c78f48a73301588300f21864500ef6dc4710daa0d5960f6ae9a1afa8407",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-74",
+    "score": 0,
+    "breakdown": {
+      "gates": 0,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -7600,
+      "slingMultiplierPct": 130,
+      "comboMax": 0
+    },
+    "resultHash": "c9bb3638976026546ea3c68a410879c2bb688ac4c7b22a6069ab40b2a4c1e700",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-75",
+    "score": 3599,
+    "breakdown": {
+      "gates": 2020,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 600,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "3d09fbb2c96ac678c3ebc04eaed05851acf85a7ee02b6e635a6f3a6266ed854b",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-76",
+    "score": 0,
+    "breakdown": {
+      "gates": 4132,
+      "catch": 1132,
+      "stabilizeCorridor": 13,
+      "pulseSync": 600,
+      "overheat": -8400,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "caeafa8938a46a2df85d670164b666db0325395d3abd160fe8a74ab5e49c32bb",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-77",
+    "score": 0,
+    "breakdown": {
+      "gates": 0,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "6bc8a0843a55b3058e062eb74239b54c459c012077e4968501a1402566811c61",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-78",
+    "score": 0,
+    "breakdown": {
+      "gates": 4112,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 0,
+      "overheat": -7600,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "90b4fb6b9f844084c36a03345f92bed95eb0e773ef2ad699b6af037a84a5bf66",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-79",
+    "score": 0,
+    "breakdown": {
+      "gates": 2864,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -7200,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "58bdb930d8fdecb258b51eec77f8f873ee99749b7fc65c47a2c8d487fd4b369f",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-80",
+    "score": 0,
+    "breakdown": {
+      "gates": 1584,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -8400,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "aa24ce82124ba8ce1498807d0588a8b48ad2ba674b77bc1d70a8e4072502934d",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-81",
+    "score": 4993,
+    "breakdown": {
+      "gates": 3340,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 300,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "43b9e4f191cefe1f09245335fdad8fd2445d8d81b29400c95f4120352f4f990a",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-82",
+    "score": 0,
+    "breakdown": {
+      "gates": 1792,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 300,
+      "overheat": -7600,
+      "slingMultiplierPct": 132,
+      "comboMax": 1
+    },
+    "resultHash": "66aa5d3f3713b64fea35ab11c6788284254942e0e08094a06b063d3925333787",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-83",
+    "score": 0,
+    "breakdown": {
+      "gates": 0,
+      "catch": 53,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -7200,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "35dfbce195e64e29b49c65b539263f5659802d39bf4b9a02cfc02b6f5d3c8d80",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-84",
+    "score": 7891,
+    "breakdown": {
+      "gates": 5160,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 600,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 2
+    },
+    "resultHash": "2ff981754846e5c1969edcb254a773fb0b6c11339e43a58823364179f938c961",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-85",
+    "score": 291,
+    "breakdown": {
+      "gates": 220,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 132,
+      "comboMax": 0
+    },
+    "resultHash": "a278d7c38dd543dae0201c484c56ab3905b09e471fea2853ff937e19255f8be9",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-86",
+    "score": 1230,
+    "breakdown": {
+      "gates": 900,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "742ec6a0bb4ab90b3ef0320d347d722fdb10d38495b7a4f1c67daf4e653af45a",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-87",
+    "score": 6524,
+    "breakdown": {
+      "gates": 4460,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 300,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "e83c8594bedaa809e2e3a045a2d24e42835b861c5190030e6aac66351f80f0dc",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-88",
+    "score": 3021,
+    "breakdown": {
+      "gates": 1780,
+      "catch": 430,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "4bab2e5432d6b9b601a479a6a3697ad9603b4df7b47da7598d47d15aa6127b6b",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-89",
+    "score": 0,
+    "breakdown": {
+      "gates": 0,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "cef635cc0f57b8d8aa5330ee6ab7cd52d113d6f3172ddbdac80ce291922b3b89",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-90",
+    "score": 2223,
+    "breakdown": {
+      "gates": 1340,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 300,
+      "overheat": 0,
+      "slingMultiplierPct": 134,
+      "comboMax": 1
+    },
+    "resultHash": "a4e5b17a1805d26306d933ed5aa10cdc755ae4ed1bc6eff7fc9f9d78fb5f732a",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-91",
+    "score": 1849,
+    "breakdown": {
+      "gates": 1340,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "ac442dd91f03b18cc896026d5837c067e6cdc1752dfcfab1a70252832c0a10e2",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-92",
+    "score": 0,
+    "breakdown": {
+      "gates": 0,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": 0,
+      "slingMultiplierPct": 130,
+      "comboMax": 0
+    },
+    "resultHash": "44d27d7a0a44cbba68ff5efb8e396f9333ab5f4e9b0ee500b506b2f787b001f8",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-93",
+    "score": 8028,
+    "breakdown": {
+      "gates": 12960,
+      "catch": 0,
+      "stabilizeCorridor": 13,
+      "pulseSync": 900,
+      "overheat": -8000,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "55e349787ad6333dedf02b4e85fba5d229bc076d905a4d6e1e8fc4c1ddbac5b8",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-94",
+    "score": 0,
+    "breakdown": {
+      "gates": 1912,
+      "catch": 0,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -7600,
+      "slingMultiplierPct": 136,
+      "comboMax": 1
+    },
+    "resultHash": "5de86e42e144b39d792511f1bf5cafeb5aba3c0d06e75dde4c862e454c4952b3",
+    "ticks": 2710
+  },
+  {
+    "id": "rr-95",
+    "score": 0,
+    "breakdown": {
+      "gates": 0,
+      "catch": 223,
+      "stabilizeCorridor": 0,
+      "pulseSync": 0,
+      "overheat": -7200,
+      "slingMultiplierPct": 136,
+      "comboMax": 0
+    },
+    "resultHash": "a033a0959dee1070903aba6c18c704cd50a9947e3c8af3280fe2f344bb9e59a1",
+    "ticks": 2710
+  }
+]
