@@ -57,8 +57,11 @@ first place the relay is *social*, not solo.
 ### 2.2 Slipstream (traversal) — the spine of the run
 
 The baton auto-flies forward down the route at a speed that rises with your score. One
-input: **hold** banks the baton one way, **release** banks it back. Pure 1D lateral
-control, one thumb, portrait.
+input: **quantized analog horizontal steering** (one thumb, portrait) — where your thumb
+sits along the bottom control zone is where the baton wants to be, mapped through a
+deterministic quantization grid (§7.1). A separate **pressed/released** channel is the
+contextual action (Catch timing, Pulse taps folded into steering intent, Sling charge).
+No control inversion, ever.
 
 The route contains:
 
@@ -76,62 +79,117 @@ The route contains:
 
 ### 2.3 Stabilize (turbulence windows) — 1–2 × ~6 s
 
-The baton hits a storm cell / updraft. For the window: lateral control becomes **noisy
-and partially inverted**, forward speed drops, and a **narrowing safe corridor** appears.
-Input becomes tap-pulse: each tap nudges the baton toward corridor center against the
-noise; over-correcting throws it to the far wall.
+The baton flies through a storm cell / updraft. Turbulence changes **learnable physical
+parameters** of the baton for the window — never the control mapping. Any mix of:
 
-- Hold the corridor to the exit → clean break, combo intact, a small time refund.
-- Spat out → you exit off-line and behind, corridor time counts against you.
+- **higher inertia** — the baton is heavier, responds slower, overshoots more;
+- **lateral drift** — a steady or slowly-oscillating environmental force pushes the baton
+  off your intended line, which you lead and counter-steer against (the force is visible
+  in the world — bent debris, streaked light);
+- **reduced steering strength** — your input authority is throttled, so you must start
+  corrections earlier;
+- **angular instability** — the baton yaws; you damp it by holding a steady line rather
+  than chasing.
 
-Turbulence windows are placed by the seed at points that interrupt a flow state — right
-after a fast clean stretch, or right before a fork.
+A **safe corridor** still narrows toward the exit. Hold it → clean break, combo intact,
+small time refund. Fall out → you exit off-line and behind, corridor time counts against
+you. Every parameter is announced by the world a beat before it bites and is the same on
+every replay — turbulence is a skill you get better at, not a surprise that flips your
+thumb. Seed places the windows to interrupt a flow state (after a fast clean stretch, or
+just before a fork).
 
-### 2.4 Pulse Sync (rhythm sequence) — 1 × ~8 s
+### 2.4 Pulse Sync — a resonance layer *inside* traversal (not a separate screen)
 
-The route enters a resonant stretch. Generated music kicks in; the whole scene pulses
-with the beat; a run of gates **opens and closes on the beat**. Input: tap to pass each
-gate on its open beat.
+There is no rhythm minigame and no stop in traversal. On a **Pulse section** of the route
+the music, the gates and the environment become one system:
 
-- On-beat pass → combo multiplier stacks (`×2 … ×5`), the baton flares with the track.
-- Off-beat / missed → multiplier resets to `×1`.
+- gates on the pulse section **breathe** open/closed on the beat; the ideal racing line
+  through them is a rhythmic weave you steer, not a series of taps;
+- passing a gate **on its open beat** stacks a combo multiplier (`×2 … ×5`) and flares the
+  baton with the track; passing off-beat still gets you through (reduced score), it just
+  doesn't stack;
+- the whole scene pulses with the bed so the section *feels* different while you keep
+  doing the one thing you've been doing — steering the baton.
 
-This is the deliberate juice showcase — the one stretch where the game stops being about
-threading and starts being about *feel*. Tempo shifts once mid-sequence so it can't be
-button-mashed.
+Tempo shifts once mid-section so the weave can't be memorised as a fixed path. This is a
+feel showcase folded into the spine of the game, not a detour.
 
-### 2.5 Redline (emergent state) — latent, whole-run
+### 2.5 Redline (emergent risk state) — latent, whole-run
 
-A **heat meter** fills whenever you are: holding an overdrive, riding a tight fork line,
-or carrying a high combo. It cools when you release / play the wide line / break combo.
+A **heat meter** fills whenever you push: riding a tight fork line, holding an overdrive,
+carrying a high combo. It cools when you play the wide line / drop the overdrive / break
+combo.
 
-- Near the top of the meter, **score gain scales up sharply** (the greedy zone).
-- **Redline it** → the baton overheats: you lose control for ~1 s, the ghost pulls ahead,
-  combo resets, heat dumps to zero.
+- In the **greedy zone** near the top, score gain scales up sharply.
+- **Redline it** (heat hits max) → **Overheat**, a purely in-run consequence: for ~1 s
+  the baton's steering authority is cut hard (it keeps flying forward, you can still nudge
+  it — you never "lose the baton"), the **combo multiplier resets to ×1**, and **heat
+  dumps to zero**. That's the whole failure. The ghost, if ahead of you at that moment,
+  extends its lead because you're slow to correct.
 
-Redline is not a section. It is the **risk/reward decision that runs through every fork,
-every overdrive, every combo streak** — "do I push this line or bank the points I have."
-A skilled player lives at 90% heat; a new player either never uses it or blows up on
-every fork.
+Redline **never** costs, burns, locks, or transfers the holder's NIM. There is no
+monetary consequence anywhere in the run — the baton's value and the player's economic
+rights are untouched by anything that happens in gameplay. Redline is score risk only:
+"push this line for the multiplier, or bank the points I already have."
 
-### 2.6 Sling (final launch + NIM handoff) — last 4–6 s
+A skilled player rides the greedy zone at ~90% heat and dumps it deliberately before a
+turbulence window; a new player either never engages it or overheats on every fork.
 
-The route ends at the destination region. The baton must be **launched** to the next
-runner. Charge-and-release aim: **hold** to build power while your aim sweeps across the
-destination arc; **release** to fire.
+### 2.6 Sling — a two-stage handoff (launch input → wallet → cinematic arrival)
 
-- **Angle + power + timing** accuracy → your final score multiplier (up to ~2×) **and**
-  the difficulty of the next runner's Catch.
-- A perfect Sling: the baton streaks clean into the next runner's hands; they get an easy
-  Catch and a note ("clean pass from {you}").
+The route ends at the destination. The baton must be **launched** to the next runner.
 
-**The Sling release is the NIM transaction.** When the player commits the throw, the
-client fires `sendBasicTransactionWithData` (the handoff intent + tx-data commitment
-already staged server-side per PRD §9.4). The wallet confirmation *is* the launch
-follow-through; the transaction landing on-chain *is* the baton visibly arriving. The
-handoff is the emotional finale of the run, not a detached wallet errand. If the tx
-fails/cancels, the run's score still stands as a solo result but the baton doesn't move
-(reroute — PRD §10.1).
+**Stage 1 — the throw (in-game, deterministic, immutable).** Charge-and-aim: build power
+while your aim sweeps the destination arc; commit. **Angle + power + timing** accuracy is
+recorded into the run trace and **frozen** — this is canonical run input and cannot
+change after this point. It sets your final score multiplier (up to ~2×) and the
+*intended* Catch difficulty for the next runner (§2.7).
+
+**Stage 2 — the launch threshold + wallet confirm.** The baton accelerates to a dramatic
+**launch threshold** and **freezes there**, mid-arc, trailing light. The game hands off to
+**native Nimiq Pay** for transaction confirmation (the handoff intent + tx-data commitment
+were staged server-side before Stage 1 — PRD §9.4). The player confirms in the wallet.
+
+**Stage 3 — resume.** When the app regains control and the transaction has entered the
+appropriate state, the frozen baton **releases** and completes its cinematic launch into
+the next runner's hands. **Canonical baton arrival still requires server-side transaction
+verification** (`verify-transaction.ts`, PRD §9.6) — the cinematic is presentation; the
+relay's canonical holder only advances after the Worker independently confirms the tx.
+If the wallet is cancelled/fails, the run's score stands as a solo result and the baton
+stays put (reroute — PRD §10.1). The player's thrown input is never replayed or re-asked;
+only the transaction step is retried.
+
+This ordering means the skill moment (the throw) is locked *before* any wallet UI, so the
+wallet step can never be blamed for a bad launch, and a slow confirmation can't cost the
+player a good throw.
+
+### 2.7 Leg inheritance — the previous runner shapes your run (non-monetary, capped)
+
+A runner's **canonical, server-verified performance** on their leg generates a small
+bounded **baton carry-state** that seeds the *next* leg. This is the second way the relay
+is social, and it is strictly non-monetary and safety-capped.
+
+| Carry-state | Derived from previous leg | Effect on next leg | Cap |
+|---|---|---|---|
+| `incomingMomentum` | previous final speed & clean-gate ratio | starting forward speed of the Catch/opening | clamped to `[0.85, 1.15]` of baseline |
+| `incomingStability` | previous turbulence-window performance | starting inertia/damping of your baton for the first ~10 s | clamped to `[0.9, 1.1]` of baseline |
+| `incomingTrajectory` | previous Sling angle | the arc the baton flies in on — which side of the field you start Catch from | bounded to on-screen, always catchable |
+| `catchDifficulty` | previous Sling power+timing accuracy | reticle speed / window size of your Catch | clamped so even the worst previous Sling yields a Catch that a first-timer can graze |
+
+**Equations (slice values, tune later):**
+
+```
+momentum_in   = clamp(0.85 + 0.30 * prevCleanGateRatio,           0.85, 1.15)
+stability_in   = clamp(1.10 - 0.20 * prevTurbulenceScoreNorm,       0.90, 1.10)
+catch_window   = clamp(BASE_CATCH_WINDOW * (1.4 - 0.8 * prevSlingAccuracy), 0.45 * BASE, 1.4 * BASE)
+trajectory_in  = quantize(prevSlingAngle, TRAJECTORY_GRID)   // never off-screen
+```
+
+**Hard invariant:** no combination of previous-runner inputs can make a later leg
+impossible or unwinnable. Every carry-state is clamped to a band around baseline, and the
+clamps are part of the deterministic sim (server-reproducible). A disastrous previous run
+makes your run *slightly harder to start*, never unplayable. Inheritance never touches
+score directly — only the physical starting conditions, which a skilled player overcomes.
 
 ---
 
@@ -161,44 +219,67 @@ run."
 
 ---
 
-## 4. Content-generation architecture (no authored levels per route)
+## 4. Content architecture — deterministic composition of authored modules
+
+**Not** unconstrained procedural geometry. A route is assembled by the seed from a
+library of **hand-authored route modules** — the generator chooses *which* modules, in
+*what order*, with *which authored variant and parameters*; it never invents raw geometry.
+The result must feel **art-directed**, because every piece of it was designed by hand and
+only the arrangement is procedural.
 
 ```
-relayRunConfig = generate(
+relayRunConfig = compose(
   relaySeed,        // fixed for the whole life of a relay
-  legNumber,        // which leg — advances difficulty baseline
-  sourceRegionId,   // theming + hazard flavor + partial distance
-  destRegionId,     // theming + hazard flavor + partial distance
-  relayState,       // baton_amount_luna, stranded/rescued history flags
-  echoes            // verified historic moments embedded into this leg (§6)
+  legNumber,        // which leg — advances difficulty baseline & module pool
+  sourceRegionId,   // theme + which authored hazard/environment set
+  destRegionId,     // theme + environment set + partial distance
+  relayState,       // baton_amount_luna (framing only), rescued/stranded flag
+  echoes,           // verified historic placements (§6) slotted into module anchor points
+  carryState        // §2.7 inheritance — starting physical conditions only
 )
 ```
 
-- **`(relaySeed, legNumber)`** seeds the leg's PRNG stream → gate layout, hazard
-  placement, fork positions, turbulence/pulse window timing, difficulty curve, collectible
-  lines. Deterministic and server-reproducible. Every leg of a relay is different; the
-  same leg is byte-identical on every replay forever.
-- **`sourceRegionId` / `destRegionId`** → a **Region Theme**: 1 palette, 1 skybox/ground
-  treatment, 3 hazard reskins (desert → dust devils, ocean → spray + swells, aurora →
-  light curtains, city → thermals + drones, mountain → downdrafts, …), 1 music bed for
-  Pulse Sync. **Same mechanics, different dressing.** The great-circle distance between
-  the two regions scales the run length inside the 45–75 s band.
-- **`relayState`** → `baton_amount_luna` drives framing intensity (a 50-NIM baton gets a
-  more cinematic treatment than a 1-NIM one); leg number raises the difficulty floor
-  (leg 40 ≠ leg 2); a rescued/stranded flag can scar the route visually.
-- **~6–8 Region Themes** × the seeded generator = every route on Earth feels distinct
-  with **zero hand-authored levels**. Adding a theme is a palette + skybox + 3 reskins +
-  a music bed, not a level design pass.
+**Authored module library** (data, versioned with the engine):
 
-The generator is pure and lives in the engine package (deterministic). Region themes are
-a client-side rendering concern (visual only, headless-gated), keyed by id.
+| Module kind | Authored content | Seed picks |
+|---|---|---|
+| **Straight / drift lane** | lane width profile, hazard slots, mote line | which of ~4 variants, hazard fill |
+| **Gate cluster** | gate positions & radii as a designed weave (not random dots) | which of ~6 authored weaves, mirror, spacing scale |
+| **Fork** | the geometry of a wide line + a tight line and their reconnect | which of ~3 authored forks, which side is tight |
+| **Turbulence cell** | the physical-parameter envelope (§2.3) + corridor shape | which of ~3 cells, intensity within an authored band |
+| **Pulse section** | the breathing-gate rhythm pattern + tempo-shift point + music bed ref | which of ~3 patterns, length |
+| **Chicane / set piece** | a signature designed moment (a canyon threading, a ring pass) | which set piece, region dressing |
+| **Approach / Sling arena** | the destination geometry and aim arc | region variant only |
+
+**Composition rules** (deterministic, in the engine):
+- fixed skeleton — `Approach(Catch) → [3–6 modules] → Sling arena`;
+- the module sequence is drawn from a **leg-number-gated pool** (early legs: gentler
+  modules; later legs unlock harder set pieces) with authored adjacency constraints (never
+  two turbulence cells back to back, exactly one Pulse section, at least one Fork);
+- module params (spacing scale, hazard fill, intensity) are drawn from **authored bands**,
+  not open ranges, so no arrangement produces a broken or ugly route;
+- great-circle distance between regions picks the module *count* (3–6) → run length inside
+  the 45–75 s band.
+
+**Region theme** (`sourceRegionId` / `destRegionId`) = 1 palette + 1 skybox/ground
+treatment + an authored environment/hazard *set* (desert → dust devils & mesas, ocean →
+spray & swells, aurora → light curtains, …) + 1 music bed. Same modules, region-authored
+dressing. `relayState.baton_amount_luna` affects **framing/presentation intensity only**,
+never mechanics or score.
+
+The composer + module library are pure and live in the engine package (deterministic,
+server-reproducible). Region dressing is a client rendering concern keyed by id.
 
 ---
 
-## 5. Baton lineage — visible persistent progression
+## 5. Baton lineage — cosmetic / presentation progression only
 
-The baton is a rendered object whose appearance is a **pure function of its verified
-relay history**. Not cosmetics you buy — progression you earn by the baton being carried.
+The baton is a rendered object whose **appearance and presentation** are a pure function
+of its verified relay history. This is **strictly cosmetic**. Baton history **never**
+affects the monetary value of the baton (`baton_amount_luna`), a player's economic
+rights, payouts, qualification math, or the score of any run. A historic baton looks
+grander; it is not worth more and does not make its carrier better off. Progression you
+earn by the baton being carried, not cosmetics you buy.
 
 | Signal | Source (verified) | Visual effect |
 |---|---|---|
@@ -247,20 +328,48 @@ relay**.
 
 - **Engine `1.0.0` and its 200-case corpus stay frozen** (`DECISIONS.md` D-008). The five
   v1 challenges remain replayable forever by their recorded version.
-- **New challenge type `relay-run` at `challengeVersion` `2.0.0`** (or a new engine
-  minor — decide at implementation). Built as **one composite deterministic sim**: Catch →
-  Slipstream (with forks, hazards, Redline heat) → Stabilize windows → Pulse Sync window
-  → Sling, all as **phases of a single fixed-60Hz tick loop** driven by one seed. Same
-  contract as v1: pure `createState` / `step`, integer + Q16.16 fixed-point only, seeded
-  integer PRNG, no DOM/Math/Date/random/IO, `replay()` returns a full-final-state SHA-256
-  `resultHash`.
-- **Input stays binary transitions `[[tMs, 0|1]]`** — one thumb. The *meaning* of
-  hold/release is contextual per phase (bank / pulse-tap / charge); the sim derives it
-  from its phase state. Trace format, the §7.6 validator, and the anti-cheat pipeline are
-  **untouched**.
-- **A fresh committed corpus** for `relay-run`: ≥200 cases across region pairs, seeds,
-  leg numbers, difficulty baselines, and synthetic input patterns; byte-identical in
-  Node / `workerd` / Chromium / WebKit; mutation-tested.
+- **New challenge type `relay-run` under engine/challenge version `2`.** Built as **one
+  composite deterministic sim**: Catch → traversal (forks, hazards, Redline heat,
+  Stabilize turbulence cells, Pulse sections) → Sling, all as **phases of a single
+  fixed-60Hz tick loop** driven by one seed + the composed module list. Same contract as
+  v1: pure `createState` / `step`, integer + Q16.16 fixed-point only, seeded integer PRNG,
+  no DOM/Math/Date/random/IO, `replay()` returns a full-final-state SHA-256 `resultHash`.
+
+### 7.1 Input format — deterministic quantized analog steering
+
+Two channels, one thumb:
+
+- **`steer`** — horizontal intent, **quantized to a fixed integer grid** `STEER_MIN … STEER_MAX`
+  (slice: `-64 … 64`, 7-bit). The client maps thumb-x (or keyboard ramp) to a float in
+  `[-1, 1]`, then `steerQ = round(x * 64)` — the quantization happens **client-side before
+  the value ever enters the trace**, so the sim and the server both consume the exact same
+  integers. The sim treats `steer` as a target the baton accelerates toward (physical
+  steering model), never as a direct position.
+- **`pressed`** — 0/1 contextual action (Catch commit, Sling charge/hold, overdrive hold).
+
+**Replay format — `RelayInputTrace`:** an ordered list of samples
+`[tickDelta, steerQ, pressed]` written **only when `steerQ` or `pressed` changes**, plus a
+**forced keyframe every `KEYFRAME_TICKS` (slice: 30 → 2 Hz)** so a long steady hold still
+bounds gaps and resync is trivial. `tickDelta` is the gap in ticks from the previous
+sample (varint-friendly). Between samples the sim uses **sample-and-hold** (piecewise
+constant) — no interpolation, so it's bit-exact.
+
+- **Bounds:** `MAX_SAMPLES` (slice: 4096) and `MAX_TRACE_BYTES` (slice: 24 KB). A 75 s run
+  at heavy steering ≈ 2000–3000 samples ≈ 12–18 KB. Validator rejects: out-of-order
+  ticks, ticks past run end, `steerQ` outside the grid, `pressed` not 0/1, samples
+  exceeding the caps, a first sample not at tick 0. Never throws — typed error, same as
+  v1's `validateInputTrace`.
+- `steerAtTick(trace, tick)` / `pressedAtTick(trace, tick)` — binary search for the last
+  sample at or before `tick` (same pattern as v1 `inputAtTick`).
+- The v1 binary trace format and its validator are **untouched**; `relay-run` is a
+  separate format used only by version-2 challenges.
+
+- **A fresh committed corpus** for `relay-run`: cases across composed module sequences,
+  seeds, leg numbers, carry-states, and synthetic analog input patterns (steady holds,
+  sweeps, jitter, keyframe-boundary edges); byte-identical in Node / `workerd` /
+  Chromium / WebKit; mutation-tested. (The **Phase 3.6 slice** ships a smaller corpus,
+  Node + `workerd` parity minimum; the full ≥200-case cross-browser corpus is a
+  pre-Phase-5 requirement.)
 - **The ghost is `replay()`** of the previous leg's verified trace against the same
   `relayRunConfig`, stepped alongside — the existing `/play` pattern, unchanged in
   principle.
@@ -315,6 +424,51 @@ Benchmark aggressively. Do not lower the bar because implementation is hard or b
 other phases already exist. The target is not "better than the current `/play`." The
 target is: **if NimJump and Nimiq Space entered this same round unchanged, NIM Relay
 would still deserve first place on product experience.**
+
+---
+
+## 9.5 Phase 3.6 — the instrumented vertical slice (`/lab/relay-run-v2`)
+
+Build **one complete Relay Run** before building the full content system. Isolated lab
+route, not linked from the product. Placeholder handoff completion *inside the lab only* —
+**do not touch or mock the production Nimiq relay protocol; Phase 4's chain work stays
+untouched.**
+
+**The slice must contain, end to end:**
+- cinematic incoming baton + Catch;
+- real spatial traversal with quantized analog one-thumb steering (§7.1);
+- **≥ 1 meaningful route fork** where safe vs risky have distinct, felt consequences;
+- an integrated Stabilize turbulence cell (physical-parameter, no inversion);
+- an integrated Pulse section (resonance layer inside traversal);
+- a Redline risk/reward system live across the whole run;
+- a previous canonical run rendered as a **live race ghost**;
+- a final Sling sequence (Stage 1 throw; Stage 2/3 wallet steps are a labelled lab
+  placeholder);
+- full scoring + a post-run breakdown;
+- **exact deterministic record + server replay of the whole composite run**
+  (`replay()` for `relay-run` v2, a slice corpus, Node + `workerd` parity, the live
+  sim-vs-canonical divergence assert).
+
+**Game-quality instrumentation** (collected client-side, shown in a lab panel + emitted as
+JSON for capture; aggregate in `localStorage`): frame-time distribution (mean / p50 / p95 /
+p99 / worst, draw calls), input latency (event → applied tick), restart rate, run
+completion rate, voluntary replay count, route-choice split, Redline usage (engaged ticks,
+blowouts, greedy-zone time), ghost lead-change count, failure location (tick + module),
+score distribution.
+
+**The slice does not pass because tests pass.** It passes when it can be personally played
+repeatedly and *feels like a commercial mobile game*, and a silent 15-second recording
+visibly communicates movement, danger, control, competition and game state with no
+narration.
+
+**Order of work:** establish control feel → decision-making → mastery → replay desire
+**first**. Do not hide a weak core behind particles, screen shake or cinematic
+transitions. Juice is added only once the core reads as good unjuiced.
+
+**On deploy, stop.** Report: the direct playable URL; the control explanation in ≤ 2
+sentences; instrumentation results; deterministic replay evidence; what remains below the
+quality gate. Do not proceed into full V2 world/content production until the slice is
+played and approved.
 
 ---
 
