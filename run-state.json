@@ -1,8 +1,9 @@
 {
   "product": "NIM Relay",
   "prd": "NIM_RELAY_PRD_v1.md",
-  "updatedAt": "2026-09-06T12:00:00Z",
+  "updatedAt": "2026-09-06T18:00:00Z",
   "currentPhase": 4,
+  "topBlocker": "PRODUCT-QUALITY: the playable layer (5 one-axis gauge challenges) is not competitive with the previous Nimiq Mini App winners. Relay-protocol implementation is STOPPED. docs/GAMEPLAY_BENCHMARK_AUDIT.md (NimJump + Nimiq Space deep audit) and docs/RELAY_GAME_V2.md (one cohesive Relay Run redesign + a 10-point Gameplay Quality Gate) are written. Phase 5 is blocked until that gate passes. The Phase 4 anti-cheat / HMAC issuance / server-replay / auth work is preserved and unchanged.",
   "phases": {
     "0": { "name": "Source-of-truth verification", "status": "PASS", "commit": "fc2f74d" },
     "1": {
@@ -77,9 +78,9 @@
     },
     "4": {
       "name": "Relay protocol",
-      "status": "IN_PROGRESS",
+      "status": "PAUSED",
       "commit": null,
-      "note": "Slice 1 of many: server-issued challenges + server-verified runs. The state machine / DO / handoff / chain-verification / end-to-end TestAlbatross handoff (the gate) are later slices.",
+      "note": "STOPPED 2026-09-06 pending the game redesign (see topBlocker). Slice 1 (server-issued challenges + server-verified runs) is committed and preserved. The state machine / DO / handoff / chain-verification resume only after the V2 gameplay quality gate passes - and will target the relay-run composite, not the 5 standalone challenges.",
       "done": [
         "packages/relay-protocol/src/challenge.ts (+test) - ChallengeFields/IssuedChallenge types, challengeMacMessage (the exact ASCII the MAC covers), isChallengeStartable, isWellFormedChallenge. relay-protocol now depends on @nim-relay/game-engine for ChallengeId.",
         "apps/worker/src/runs/challenge-mac.ts (+covered by routes test) - HMAC-SHA256 sign/verify over challengeMacMessage keyed with RUN_CHALLENGE_SECRET, hex, timing-safe",
@@ -99,7 +100,7 @@
         "Wire /play to optionally submit runs to /api/runs for a server-verified score"
       ]
     },
-    "5": { "name": "Flagship Global and Quick Relay", "status": "NOT_STARTED", "commit": null },
+    "5": { "name": "Flagship Global and Quick Relay", "status": "BLOCKED", "commit": null, "note": "Blocked until the Gameplay Quality Gate in docs/RELAY_GAME_V2.md passes." },
     "6": { "name": "Crew, Rival, Daily, Creator", "status": "NOT_STARTED", "commit": null },
     "7": { "name": "Inbox, season, achievements, rankings, rescue", "status": "NOT_STARTED", "commit": null },
     "8": { "name": "Premium UI polish", "status": "NOT_STARTED", "commit": null },

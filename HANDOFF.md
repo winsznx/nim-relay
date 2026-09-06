@@ -2,6 +2,15 @@
 
 State-of-the-build snapshot for anyone (human or agent) picking this up mid-build. Read this first, then `run-state.json` for machine-readable state, then `docs/phases/PHASE_2_SUMMARY.md` for the latest phase detail. Repo: https://github.com/winsznx/nim-relay
 
+## TOP BLOCKER (2026-09-06) — game redesign, relay-protocol work STOPPED
+
+The 5 one-axis hold/release challenges are not competitive with the previous Nimiq Mini App winners. Relay-protocol implementation is **stopped**. Two design docs are written and are the required reading before any more gameplay code:
+
+- `docs/GAMEPLAY_BENCHMARK_AUDIT.md` — deep audit of `github.com/nimjump/game` and `github.com/harlski/nspace` (full source reads: game scripts, backend models, admin, ops docs), with a ranked gap analysis. Short version: NIM Relay's engine + anti-cheat + wallet integration are at or above the bar; the *game* is far below it.
+- `docs/RELAY_GAME_V2.md` — the redesign: one cohesive **45–75s Relay Run** (Catch → Slipstream traversal → Stabilize turbulence → Pulse Sync rhythm → Redline emergent risk → Sling = the NIM handoff), the previous runner's verified ghost racing alongside, a `(relaySeed, legNumber, sourceRegion, destRegion, relayState, echoes)` content generator, baton lineage as verified-history progression, Relay Echoes, and a **10-point Gameplay Quality Gate**. Engine v1 + corpus stay frozen; V2 is a new `relay-run` composite challenge at `challengeVersion 2.0.0` keeping every determinism/replay guarantee.
+
+**Phase 5 is blocked until that gate passes.** All Phase 0–4 anti-cheat / HMAC issuance / server-replay / auth / Supabase work is preserved and unchanged.
+
 ## Current state (2026-09-06)
 
 Phase 0: **PASS**. Phase 1: **PASS**. Phase 2: **in progress** (auth verified end

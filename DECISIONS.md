@@ -4,6 +4,42 @@ Architectural decisions and rejected alternatives, recorded as they happen. Newe
 
 ---
 
+## D-009 — Playable layer redesigned as one "Relay Run"; relay-protocol work paused behind a gameplay quality gate
+
+**Date:** 2026-09-06 (Phase 4)
+**Status:** Locked — Phase 5 blocked until the gate passes
+
+**Context.** The five deterministic challenges (`stabilize`, `slipstream`, `pulse-sync`,
+`sling`, `redline`) shipped and are correct, but on inspection they are five variations of
+"hold/release one scalar toward a moving target" — no spatial world, no route decisions,
+no second system, a flat skill ceiling. Benchmarked against the two ecosystem projects
+that set the bar (`nimjump/game`, `harlski/nspace`) they are not competitive: those are
+mature live services with dense arcade loops, quests/streaks, staked async 1v1, ghost/
+spectating, persistence, and deep operations. Full audit: `docs/GAMEPLAY_BENCHMARK_AUDIT.md`.
+
+**Decision.**
+1. **Stop relay-protocol implementation** (the Phase 4 state machine / DO / handoff /
+   chain-verification) until the game is fixed. Slice 1 (server-issued challenges +
+   server replay + `game_runs`) is committed and preserved.
+2. **Redesign the playable layer** as one continuous 45–75s **Relay Run** (`docs/RELAY_GAME_V2.md`):
+   the five challenge concepts become integrated *systems* inside a single leg (Catch,
+   Slipstream traversal, Stabilize turbulence, Pulse Sync rhythm, Redline emergent risk,
+   Sling = the NIM handoff itself), with the previous runner's verified trace as a live
+   race ghost, a seed+region+state content generator (no authored levels), baton lineage
+   as verified-history progression, and Relay Echoes.
+3. **Preserve every determinism/anti-cheat guarantee.** Engine `1.0.0` + its corpus stay
+   frozen (D-008). V2 is a new `relay-run` composite challenge at `challengeVersion`
+   `2.0.0` with its own committed cross-runtime corpus. Input stays binary transitions
+   (one thumb). `/api/runs` server replay is unchanged.
+4. **A 10-point Gameplay Quality Gate** (RELAY_GAME_V2.md §9) must pass before Phase 5.
+   The bar: if NimJump and Nimiq Space re-entered this round unchanged, NIM Relay would
+   still deserve first place on product experience.
+
+**Cost.** Discards the *five-standalone-challenges* product framing (not the engine, not
+the anti-cheat, not the schema). The `/play` route stays live as-is until V2 replaces it.
+
+---
+
 ## D-008 — Baton Physics engine built via a delegated agent on a branch, gated on determinism
 
 **Date:** 2026-09-06 (Phase 3)
