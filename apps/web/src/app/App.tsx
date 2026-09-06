@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import { lazy, Suspense, type CSSProperties } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchMe, logout, requestNonce, verifyLogin } from '../lib/auth-api'
 import { connectAccount, deviceIdentifier, isInsideNimiqPay, nimiqPayDeepLink, signMessage } from '../lib/nimiq'
@@ -25,7 +25,16 @@ async function runLogin() {
   return player
 }
 
+const GamePage = lazy(() => import('../game/GamePage').then(module => ({ default: module.GamePage })))
+
 export function App() {
+  if (window.location.pathname === '/play' || window.location.pathname === '/play/') {
+    return <Suspense fallback={<p>Loading solo practice…</p>}><GamePage /></Suspense>
+  }
+  return <LoginApp />
+}
+
+function LoginApp() {
   const queryClient = useQueryClient()
   const me = useQuery({ queryKey: ['me'], queryFn: fetchMe })
 

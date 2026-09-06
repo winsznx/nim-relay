@@ -25,6 +25,7 @@ pnpm test:replay
 pnpm --filter @nim-relay/game-engine exec vitest run --config tests/parity/vitest.config.mts
 node packages/game-engine/tests/mutation-check.mjs
 pnpm --filter @nim-relay/web exec vitest run src/game/controller.test.ts
+pnpm --filter @nim-relay/web exec tsc --noEmit -p tests/tsconfig.json
 pnpm --filter @nim-relay/web exec playwright test --config playwright.game.config.ts
 pnpm --filter @nim-relay/web exec playwright test --config playwright.game.config.ts --browser webkit tests/game-parity.spec.ts
 pnpm dev
@@ -47,3 +48,11 @@ The Pixi renderer caps DPR at 2, uses procedural Graphics without asset textures
 Screenshots: `artifacts/game-{stabilize,slipstream,pulse-sync,sling,redline,results,ghost,mobile-portrait}.png`.
 
 Actual Nimiq Pay iOS WebView/device performance requires hardware verification. The referenced moodboard PNG was absent; DESIGN.md and existing tokens supplied the visual authority.
+
+## Verification recorded 2026-09-06
+
+Node 24.19.0 / pnpm 11.21.0: the exact install → typecheck → lint → test → build gate exited 0 (engine 240, shared 3, protocol 34, Worker 33 tests). Additional engine/client/E2E ESLint, E2E strict TypeScript, and all four client-controller tests passed. The 200-case corpus matched in Node, isolated workerd (201 checks), Chromium and WebKit. PRNG/multiply/scoring mutations failed 199/183/38 corpus cases respectively; every restored copy passed all 201 checks.
+
+All seven distinct browser acceptance cases passed: six in the full run, then desktop/ghost plus parity in a two-test rerun after a development-server reload interrupted that case. Inputs ran for real 20-second sessions. The touch-only test includes simultaneous fingers, release-one/keep-one behavior, cancellation, and final recorded transitions. All eight screenshots above were captured and inspected.
+
+Portrait headless Chromium, 390×844 at DPR 2: 1196 measured frame intervals across 20000.9 ms; mean **16.723 ms** (about **59.8 Hz**), p95 **17.5 ms**, maximum **3 WebGL draw calls/frame**. A separate 180-frame RAF sample averaged 16.667 ms. Actual Nimiq Pay iOS WebView rendering and device 60fps remain **NOT VERIFIED**; browser emulation is not hardware evidence.
