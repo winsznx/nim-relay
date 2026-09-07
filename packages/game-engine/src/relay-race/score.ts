@@ -16,10 +16,8 @@ export interface RaceResult {
 export function scoreRace(state: RaceState): RaceResult {
   const m = state.metrics
   const timeMs = Math.round((state.finishTick / 60) * 1000)
-  const wastedOnOverheat = m.overheatEvents * 42
-  const boostControlPct = m.boostTicks === 0
-    ? 100
-    : Math.max(0, Math.min(100, Math.round(100 * (1 - wastedOnOverheat / m.boostTicks))))
+  // "flow" = average of the flow meter across the run, as a percent
+  const flowPct = state.finishTick > 0 ? Math.max(0, Math.min(100, Math.round((m.flowSum * 100) / (state.finishTick * 65536)))) : 0
 
   // relay score: faster time + clean gates + risk taken, minus hazards. Bounded.
   const timeBonus = Math.max(0, 60000 - timeMs)
@@ -34,7 +32,7 @@ export function scoreRace(state: RaceState): RaceResult {
     perfectGates: m.perfectGates,
     totalGates: m.gatesOnLine,
     shortcuts: state.onShortcut,
-    boostControlPct,
+    boostControlPct: flowPct,
     hazardsHit: m.hazardsHit,
     relayScore,
     finished: state.finished === 1 && state.finishTick < 5400,

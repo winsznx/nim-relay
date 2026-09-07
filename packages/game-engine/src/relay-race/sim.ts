@@ -15,7 +15,7 @@ export interface RaceConfig {
 }
 export interface RaceInput {
   steer: number // -64..64
-  boost: 0 | 1
+  boost: 0 | 1 // retained in the trace format; ignored by the sim (flow is automatic)
 }
 export interface RaceMetrics {
   perfectGates: number
@@ -24,7 +24,7 @@ export interface RaceMetrics {
   gatesOnLine: number
   hazardsHit: number
   boostTicks: number
-  overheatEvents: number
+  flowSum: number
   beatHits: number
 }
 export interface RaceState {
@@ -36,7 +36,7 @@ export interface RaceState {
   vx: number
   speed: number
   heat: number
-  overheatTicks: number
+  flowPct: number
   boosting: 0 | 1
   forkChoice: -1 | 0 | 1
   onShortcut: 0 | 1
@@ -50,16 +50,16 @@ export interface RaceState {
 // forward speed is in Q16.16 units/tick; the route (~49 units) is tuned so a
 // clean safe run lands near ~40s and an aggressive shortcut+boost run near ~30s.
 const SPEED_LERP = Math.floor(ONE * 10 / 100)
-const HEAT_RISE = Math.floor(ONE * 4 / 1000)
-const HEAT_FALL = Math.floor(ONE * 8 / 1000)
-const STEER_AUTH = Math.floor(ONE * 16 / 100)
-const DAMPING = Math.floor(ONE * 80 / 100)
-const OVERHEAT_TICKS = 48
-const GATE_SPEED_BONUS = Math.floor(ONE * 22 / 10000)
-const BEAT_BONUS = Math.floor(ONE * 45 / 10000)
+const STEER_AUTH = Math.floor(ONE * 17 / 100)
+const DAMPING = Math.floor(ONE * 83 / 100)
 const HAZARD_SPEED_MUL = Math.floor(ONE * 45 / 100)
-const OVERHEAT_SPEED_MUL = Math.floor(ONE * 52 / 100)
 const STEER_UNIT = 1024 // 64 * 1024 == ONE
+// flow: clean driving keeps you fast; mistakes cost speed
+const FLOW_DECAY = Math.floor(ONE * 9 / 10000)
+const FLOW_PERFECT = Math.floor(ONE * 22 / 100)
+const FLOW_GRAZE = Math.floor(ONE * 5 / 100)
+const FLOW_MISS = Math.floor(ONE * 16 / 100)
+const FLOW_BEAT = Math.floor(ONE * 8 / 100)
 
 function laneHalfAt(track: Track, dist: number): number {
   const pts = track.laneAt
@@ -105,7 +105,7 @@ export function createRaceState(config: RaceConfig): RaceState {
     vx: 0,
     speed: BASE_SPEED,
     heat: 0,
-    overheatTicks: 0,
+    flowPct: 0,
     boosting: 0,
     forkChoice: 0,
     onShortcut: 0,
@@ -115,7 +115,7 @@ export function createRaceState(config: RaceConfig): RaceState {
     hazIdx: 0,
     metrics: {
       perfectGates: 0, grazeGates: 0, missedGates: 0, gatesOnLine: 0,
-      hazardsHit: 0, boostTicks: 0, overheatEvents: 0, beatHits: 0,
+      hazardsHit: 0, boostTicks: 0, flowSum: 0, beatHits: 0,
     },
   }
 }
@@ -135,7 +135,7 @@ export function stepRace(state: RaceState, input: RaceInput, tick = state.tick):
   const boost: 0 | 1 = input.boost === 1 ? 1 : 0
   const m: RaceMetrics = { ...state.metrics }
 
-  let { dist, x, vx, speed, heat, overheatTicks, forkChoice, onShortcut } = state
+  let { dist, x, vx, speed, heat, forkChoice, onShortcut } = state
 
   // turbulence
   let drift = 0
@@ -147,29 +147,22 @@ export function stepRace(state: RaceState, input: RaceInput, tick = state.tick):
     }
   }
 
-  // speed
-  const boostable = boost === 1 && overheatTicks === 0
-  let targetSpeed = boostable ? BOOST_SPEED : BASE_SPEED
-  if (overheatTicks > 0) targetSpeed = mul(targetSpeed, OVERHEAT_SPEED_MUL)
+  // FLOW — automatic. Builds on clean gate passes, decays slowly, dumps on a
+  // hazard hit. `heat` holds it (0..ONE). The only input is steering.
+  void boost
+  heat = clamp(sub(heat, FLOW_DECAY), 0, ONE)
+  m.boostTicks += heat > Math.floor(ONE * 60 / 100) ? 1 : 0
+  m.flowSum += heat
+
+  // speed = base .. boost, scaled by flow, minus turbulence slow
+  let targetSpeed = add(BASE_SPEED, mul(sub(BOOST_SPEED, BASE_SPEED), heat))
   targetSpeed = mul(targetSpeed, turbSlow)
   speed = add(speed, mul(sub(targetSpeed, speed), SPEED_LERP))
-
-  // heat
-  if (boostable) {
-    m.boostTicks++
-    heat = clamp(add(heat, HEAT_RISE), 0, ONE)
-    if (heat >= ONE) { overheatTicks = OVERHEAT_TICKS; heat = 0; m.overheatEvents++ }
-  } else {
-    heat = clamp(sub(heat, HEAT_FALL), 0, ONE)
-  }
-  if (overheatTicks > 0) overheatTicks--
 
   // steering
   const lane = laneHalfAt(t, dist)
   const targetX = clamp(q * STEER_UNIT, -lane, lane)
-  let authority = STEER_AUTH
-  if (overheatTicks > 0) authority = Math.floor(authority / 2)
-  vx = mul(add(vx, add(mul(sub(targetX, x), authority), drift)), DAMPING)
+  vx = mul(add(vx, add(mul(sub(targetX, x), STEER_AUTH), drift)), DAMPING)
   x = clamp(add(x, vx), -lane, lane)
   if (x === -lane || x === lane) vx = 0
 
@@ -184,7 +177,7 @@ export function stepRace(state: RaceState, input: RaceInput, tick = state.tick):
 
   const onBeat = dist >= t.liveFrom && dist <= t.liveTo && osc(tick, t.beatPeriod) > Math.floor(ONE * 5 / 10)
 
-  // gates
+  // gates — clean passes build flow
   let gi = state.gateIdx
   while (gi < t.gates.length && t.gates[gi]!.dist <= dist) {
     const g = t.gates[gi]!
@@ -194,17 +187,18 @@ export function stepRace(state: RaceState, input: RaceInput, tick = state.tick):
     const err = abs(sub(x, g.x))
     if (err <= g.core) {
       m.perfectGates++
-      speed = add(speed, GATE_SPEED_BONUS)
-      if (g.kind === 'beat' && (onBeat || boostable)) { speed = add(speed, BEAT_BONUS); m.beatHits++ }
+      heat = clamp(add(heat, FLOW_PERFECT), 0, ONE)
+      if (g.kind === 'beat' && onBeat) { heat = clamp(add(heat, FLOW_BEAT), 0, ONE); m.beatHits++ }
     } else if (err <= g.half) {
       m.grazeGates++
-      speed = add(speed, Math.floor(GATE_SPEED_BONUS / 3))
+      heat = clamp(add(heat, FLOW_GRAZE), 0, ONE)
     } else {
       m.missedGates++
+      heat = clamp(sub(heat, FLOW_MISS), 0, ONE)
     }
   }
 
-  // hazards
+  // hazards — a hit dumps most of your flow and knocks your line
   let hi = state.hazIdx
   while (hi < t.hazards.length && t.hazards[hi]!.dist <= dist) {
     const hz = t.hazards[hi]!
@@ -213,7 +207,7 @@ export function stepRace(state: RaceState, input: RaceInput, tick = state.tick):
     if (abs(sub(x, hz.x)) <= hz.half) {
       m.hazardsHit++
       speed = mul(speed, HAZARD_SPEED_MUL)
-      heat = clamp(add(heat, Math.floor(ONE * 3 / 10)), 0, ONE)
+      heat = Math.floor(heat / 5)
       vx = add(vx, x >= hz.x ? Math.floor(ONE * 6 / 100) : -Math.floor(ONE * 6 / 100))
     }
   }
@@ -229,8 +223,9 @@ export function stepRace(state: RaceState, input: RaceInput, tick = state.tick):
   return {
     ...state,
     tick: tick + 1,
-    dist, x, vx, speed, heat, overheatTicks,
-    boosting: boost,
+    dist, x, vx, speed, heat,
+    flowPct: Math.floor((heat * 100) / ONE),
+    boosting: heat > Math.floor(ONE * 55 / 100) ? 1 : 0,
     forkChoice, onShortcut,
     finished, finishTick,
     gateIdx: gi,

@@ -22,7 +22,7 @@ export function onboardingGhost(config: RaceReplayConfig): { trace: RaceInputTra
     while (gi < gates.length && gates[gi]!.dist < st.dist) gi++
     let tx = gates[gi] ? gates[gi]!.x / 65536 : 0
     if (st.dist > track.forkDist && st.dist < track.forkRejoin) tx = -track.shortcutSide * 0.5 // safe line
-    tx += 0.08 // slightly loose
+    tx += 0.05
     const sq = Math.max(-64, Math.min(64, Math.round(tx * 64)))
     const b: 0 | 1 = st.heat < 26000 ? 1 : 0 // cautious boost
     if (sq !== steer || b !== boost || tick - last >= 24) {

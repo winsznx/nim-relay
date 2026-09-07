@@ -31,7 +31,7 @@ function botTrace(seed: string, aggressive: boolean): RaceInputTrace {
       targetX = (aggressive ? track.shortcutSide : -track.shortcutSide) * 0.5
     }
     const sq = Math.max(-64, Math.min(64, Math.round(targetX * 64)))
-    const b: 0 | 1 = (aggressive ? st.heat < 52000 : st.heat < 38000) ? 1 : 0
+    const b: 0 | 1 = 0
     if (sq !== steer || b !== boost || tick - last >= 24) {
       if (tick > 0) out.push([tick - last, sq, b])
       else out[0] = [0, sq, b]

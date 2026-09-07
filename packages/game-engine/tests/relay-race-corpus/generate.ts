@@ -20,8 +20,7 @@ function bot(seed: string, style: number): RaceInputTrace {
     if (st.dist > track.forkDist && st.dist < track.forkRejoin) tx = (style % 2 === 0 ? -1 : 1) * track.shortcutSide * 0.5
     if (style === 3) tx += 0.15 // sloppy line
     const sq = Math.max(-64, Math.min(64, Math.round(tx * 64)))
-    const cap = style === 1 ? 55000 : style === 2 ? 30000 : 40000
-    const b: 0 | 1 = st.heat < cap ? 1 : 0
+    const b: 0 | 1 = 0
     if (sq !== steer || b !== boost || tick - last >= 24) {
       if (tick > 0) out.push([tick - last, sq, b])
       else out[0] = [0, sq, b]

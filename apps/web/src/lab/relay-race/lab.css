@@ -41,8 +41,8 @@
 
 .rc-heat {
   position: absolute;
-  right: 14px;
-  bottom: calc(24% + 30px);
+  right: 16px;
+  bottom: 22%;
   width: 10px; height: 26%;
   border: 1px solid rgba(255,255,255,0.15);
   border-radius: 6px;
@@ -90,11 +90,9 @@
 .rc-results summary { color: #8b93a7; font-size: 11px; cursor: pointer; }
 .rc-results pre { font-size: 10px; color: #8b93a7; background: rgba(0,0,0,0.35); padding: 8px; border-radius: 8px; overflow-x: auto; max-height: 160px; }
 
-.rc-zone {
-  position: absolute; left: 0; right: 0; bottom: 0;
-  height: 24%; min-height: 96px;
-  border-top: 1px solid rgba(255,255,255,0.06);
-  background: linear-gradient(rgba(255,255,255,0.015), rgba(255,255,255,0.05));
-  padding-bottom: env(safe-area-inset-bottom);
+.rc-steer {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  touch-action: none;
 }
-.rc-zone.live { background: linear-gradient(rgba(246,167,35,0.03), rgba(246,167,35,0.11)); }

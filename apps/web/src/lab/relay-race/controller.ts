@@ -175,8 +175,8 @@ export class RaceController {
     this.snap.ghostProgress = Math.min(1, this.snap.ghost.dist / fin)
     this.snap.elapsedSec = Math.round((s.tick / 60) * 100) / 100
     this.snap.heatPct = Math.round((s.heat / 65536) * 100)
-    this.snap.overheating = s.overheatTicks > 0
-    this.snap.boosting = s.boosting === 1 && s.overheatTicks === 0
+    this.snap.overheating = false
+    this.snap.boosting = s.boosting === 1
     // ghost delta in seconds: compare tick at equal progress (approx via distance ratio)
     const gAheadDist = this.snap.ghost.dist - s.dist
     const speedPerTick = Math.max(1, s.speed)
