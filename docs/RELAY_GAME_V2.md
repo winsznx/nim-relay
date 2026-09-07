@@ -1,8 +1,18 @@
-# Relay Game V2 — the playable layer redesign
+# Relay Game V2 — the playable layer redesign  ·  SUPERSEDED / FROZEN
 
-Status: design, not yet implemented. Supersedes the five standalone challenges as the
-player-facing experience. The V2 engine work is **blocked from starting** until this doc
-is reviewed; **Phase 5 is blocked** until the Gameplay Quality Gate (§9) passes.
+> **This design failed the human playability gate (2026-09-06).** The Phase 3.6 slice
+> was built and deployed; a tester played it and could not understand the objective,
+> scoring, or mechanics — six named systems in a 45-second run created cognitive load,
+> not depth. V2 is frozen on branch `experimental/relay-run-v2` (commit `594edbd`) as a
+> regression reference and is not being extended. **The active playable-layer design is
+> `docs/RELAY_GAME_V3.md`.** What carries forward from V2: the deterministic engine
+> contract, the quantized-analog input format, the two-stage handoff model (§2.6), and
+> the anti-cheat / server-replay architecture — nothing about the interaction model or
+> the six-system structure.
+
+---
+
+Status: design, superseded by V3. Retained for the reasoning and the parts V3 reuses.
 
 Companion: `docs/GAMEPLAY_BENCHMARK_AUDIT.md` (why this is necessary).
 
