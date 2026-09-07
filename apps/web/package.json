@@ -22,7 +22,8 @@
     "@nimiq/mini-app-sdk": "0.1.0",
     "@nim-relay/shared": "workspace:*",
     "@nim-relay/relay-protocol": "workspace:*",
-    "@nim-relay/game-engine": "workspace:*"
+    "@nim-relay/game-engine": "workspace:*",
+    "three": "0.171.0"
   },
   "devDependencies": {
     "@types/react": "^19.2.0",
@@ -31,6 +32,7 @@
     "typescript": "5.9.3",
     "vite": "8.2.2",
     "vitest": "^4.1.11",
-    "@playwright/test": "^1.55.0"
+    "@playwright/test": "^1.55.0",
+    "@types/three": "0.171.0"
   }
 }

@@ -1,0 +1,100 @@
+.rc {
+  position: fixed;
+  inset: 0;
+  background: #070b16;
+  color: #f5f7fa;
+  overflow: hidden;
+  font-family: var(--font-display, 'Inter', system-ui, sans-serif);
+  touch-action: none;
+  user-select: none;
+}
+.rc-scene { position: absolute; inset: 0; }
+
+.rc-hud {
+  position: absolute;
+  top: max(env(safe-area-inset-top), 14px);
+  left: 0; right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.6);
+}
+.rc-time { font-size: 40px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.rc-delta { font-size: 15px; font-variant-numeric: tabular-nums; }
+.rc-delta span { color: #9aa7bf; font-size: 12px; margin-left: 4px; }
+.rc-delta.up { color: #28d7ef; }
+.rc-delta.down { color: #ff6b64; }
+
+.rc-progress {
+  position: absolute;
+  left: 16px; right: 16px;
+  bottom: calc(24% + 14px);
+  height: 4px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 3px;
+  pointer-events: none;
+}
+.rc-progress-fill { height: 100%; background: linear-gradient(90deg, #f6a723, #ffd27a); border-radius: 3px; }
+.rc-ghost-pip { position: absolute; top: -3px; width: 3px; height: 10px; background: #7fd7ff; border-radius: 2px; transform: translateX(-50%); }
+
+.rc-heat {
+  position: absolute;
+  right: 14px;
+  bottom: calc(24% + 30px);
+  width: 10px; height: 26%;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex; align-items: flex-end;
+  pointer-events: none;
+}
+.rc-heat-fill { width: 100%; background: linear-gradient(#28d7ef, #f6a723); transition: height 0.08s linear; }
+.rc-heat-fill.hot { background: linear-gradient(#f6a723, #ff6b64); }
+.rc-heat-fill.over { background: #ff4d47; animation: rc-flash 0.2s steps(2) infinite; }
+@keyframes rc-flash { 50% { opacity: 0.4; } }
+
+.rc-over {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 14px; text-align: center; padding: 28px;
+  background: rgba(7,11,22,0.55);
+  backdrop-filter: blur(2px);
+}
+.rc-over > strong { font-size: 84px; font-weight: 800; }
+.rc-over > em { font-style: normal; color: #9aa7bf; letter-spacing: 0.18em; text-transform: uppercase; font-size: 12px; }
+.rc-handoff > strong { color: #f6a723; }
+
+.rc-start h1 { font-size: 34px; margin: 0; }
+.rc-start p { color: #c8cede; max-width: 300px; margin: 0; }
+.rc-start small, .rc-results small { color: #8b93a7; font-size: 11px; }
+.rc-over button {
+  appearance: none; border: none; border-radius: 14px;
+  padding: 15px 40px; font-size: 18px; font-weight: 700;
+  background: #f6a723; color: #201400; cursor: pointer;
+}
+
+.rc-results .rc-final-time { font-size: 60px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.rc-results .rc-verdict { margin: 0; font-size: 17px; }
+.rc-results .rc-verdict.won { color: #28d7ef; }
+.rc-results .rc-verdict.lost { color: #ff6b64; }
+.rc-warn { color: #ff6b64; font-size: 12px; margin: 0; }
+.rc-stats { display: flex; gap: 22px; margin: 6px 0; }
+.rc-stats div { display: flex; flex-direction: column; align-items: center; }
+.rc-stats span { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rc-stats label { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: #8b93a7; }
+.rc-again { margin-top: 4px; }
+.rc-results details { max-width: 320px; width: 100%; text-align: left; }
+.rc-results summary { color: #8b93a7; font-size: 11px; cursor: pointer; }
+.rc-results pre { font-size: 10px; color: #8b93a7; background: rgba(0,0,0,0.35); padding: 8px; border-radius: 8px; overflow-x: auto; max-height: 160px; }
+
+.rc-zone {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  height: 24%; min-height: 96px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  background: linear-gradient(rgba(255,255,255,0.015), rgba(255,255,255,0.05));
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.rc-zone.live { background: linear-gradient(rgba(246,167,35,0.03), rgba(246,167,35,0.11)); }

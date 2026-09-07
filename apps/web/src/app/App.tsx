@@ -27,6 +27,7 @@ async function runLogin() {
 
 const GamePage = lazy(() => import('../game/GamePage').then(module => ({ default: module.GamePage })))
 const RelayRunLab = lazy(() => import('../lab/relay-run/RelayRunLab').then(module => ({ default: module.RelayRunLab })))
+const RelayRaceLab = lazy(() => import('../lab/relay-race/RelayRaceLab').then(module => ({ default: module.RelayRaceLab })))
 
 export function App() {
   const path = window.location.pathname
@@ -35,6 +36,9 @@ export function App() {
   }
   if (path === '/lab/relay-run-v2' || path === '/lab/relay-run-v2/') {
     return <Suspense fallback={<p>Loading lab…</p>}><RelayRunLab /></Suspense>
+  }
+  if (path === '/lab/relay-race-v3' || path === '/lab/relay-race-v3/') {
+    return <Suspense fallback={<p>Loading…</p>}><RelayRaceLab /></Suspense>
   }
   return <LoginApp />
 }

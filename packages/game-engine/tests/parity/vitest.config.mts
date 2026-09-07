@@ -9,5 +9,5 @@ export default defineConfig({
   plugins: [cloudflareTest({
     miniflare: { compatibilityDate: '2026-09-01', compatibilityFlags: ['nodejs_compat'] },
   })],
-  test: { include: ['src/replay/corpus.test.ts', 'src/relay-run/corpus.test.ts'] },
+  test: { include: ['src/replay/corpus.test.ts', 'src/relay-run/corpus.test.ts', 'src/relay-race/corpus.test.ts'] },
 })

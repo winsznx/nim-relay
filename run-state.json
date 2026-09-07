@@ -1,9 +1,9 @@
 {
   "product": "NIM Relay",
   "prd": "NIM_RELAY_PRD_v1.md",
-  "updatedAt": "2026-09-07T00:00:00Z",
+  "updatedAt": "2026-09-07T12:00:00Z",
   "currentPhase": 4,
-  "topBlocker": "PRODUCT-QUALITY / game redesign, iteration 3. V2 (Phase 3.6 slice) FAILED the human playability gate - tester could not understand objective/scoring/mechanics (six named systems in one 45s run). V2 frozen on branch experimental/relay-run-v2 (594edbd). docs/RELAY_GAME_V3.md written: one legible fantasy (Relay Courier racing a NIM baton to a handoff gate), one game (steer -> race -> beat ghost -> reach handoff), 3 controls, the 5 mechanics reinterpreted as invisible systems, a visible courier avatar + cosmetic identity system, Three.js renderer recommended (sim stays canonical + separated), spatial route language, ghost as a visible beatable racer, <=4-element HUD, player-language results, level-design tutorial, Relay Station IA, a 12-point V3 human quality gate. AWAITING approval of RELAY_GAME_V3.md before building the V3 vertical slice at /lab/relay-race-v3. Do NOT build the slice or resume Phase 5 until approved. Preserved: engine v1 + corpus, HMAC issuance, /api/runs server replay, auth, Supabase.",
+  "topBlocker": "V3 slice BUILT + DEPLOYED at /lab/relay-race-v3 (Three.js behind-courier racer: visible courier + baton, chase cam, gold gates / red hazards, safe vs shortcut fork, hold-to-boost heat, visible cyan ghost racer, time-based result, level-design tutorial track, deterministic engine v3 relay-race + 64-case corpus byte-identical Node/workerd, live-sim==canonical-replay assert). AWAITING the user to play it. Do NOT start Relay Station / crews / seasons / other product systems. Engine v1/v2 + all anti-cheat/auth/Supabase preserved.",
   "phases": {
     "0": {
       "name": "Source-of-truth verification",
@@ -169,6 +169,27 @@
       ],
       "frozenAt": "experimental/relay-run-v2 @ 594edbd",
       "note": "Tester played the deployed slice 2026-09-06 and could not understand the game. Hard product failure regardless of 432 passing tests. Deterministic infra / HMAC / replay / server scoring / engine-v1 corpus all preserved. Redesign is docs/RELAY_GAME_V3.md."
+    },
+    "3.7": {
+      "name": "Relay Race V3 slice (Three.js)",
+      "status": "AWAITING_PLAYTEST",
+      "commit": "HEAD",
+      "url": "https://nim-relay.timjosh507.workers.dev/lab/relay-race-v3",
+      "done": [
+        "engine v3 packages/game-engine/src/relay-race (input: quantized steer + boost, keyframed/bounded/validated; track: authored segmented route, integer-only no libm; sim: distance-based race, steer/boost/heat/overheat, gates, hazards, safe/shortcut fork, live-beat stretch, turbulence; score: TIME primary + perfect gates/shortcuts/boost-control; replayRaceRun full-final-state hash)",
+        "64-case corpus byte-identical Node + isolated workerd; 5 unit tests",
+        "apps/web/src/lab/relay-race: Three.js scene (procedural low-poly courier+baton, chase cam w/ boost FOV, gate/hazard pools, cyan ghost courier, dusk sky, trail/streaks, ~3050 tris / ~40 draw calls), controller (fixed-tick, trace record, live-vs-canonical assert, ghost step, instrumentation), HUD (time / progress+ghost pip / ghost delta / heat), results (TIME + 'beat Mariana by' + perfect gates + shortcuts + boost control), onboarding beatable ghost, placeholder handoff cinematic",
+        "dep three@0.171; route /lab/relay-race-v3; Playwright smoke passes (full race, no divergence); DEPLOYED"
+      ],
+      "belowGate": [
+        "FEEL unplaytested - user must play",
+        "player courier figure reads dark/murky (board glows, rider needs brighter material / rim light)",
+        "far-horizon gate+hazard render as tiny artifacts at the vanishing point",
+        "boost-zone gold strip still a large wedge",
+        "real-device 60fps NOT VERIFIED (headless frame-time contaminated by test pacing; 3050 tris/40 draws is lean, promising)",
+        "onboarding ghost time ~24s; may need tuning so a first-timer wins",
+        "no audio yet (beat stretch is visual only)"
+      ]
     }
   },
   "lastPassingCommit": "76ce4e7",
