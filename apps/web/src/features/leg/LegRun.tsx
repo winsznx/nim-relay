@@ -6,7 +6,7 @@ import { HandoffCeremony } from '../handoff/HandoffCeremony'
 import type { CeremonySceneState } from '../handoff/copy'
 import { handoffDeps } from '../handoff/deps'
 import { HandoffOrchestrator, type HandoffStage } from '../handoff/machine'
-import { RaceScreen, type CeremonyState, type RaceCue } from '../race/RaceScreen'
+import { RaceScreen, type CeremonyState, type RaceCue, type RaceFrame } from '../race/RaceScreen'
 import * as api from '../relays/api'
 import { trackShare } from '../relays/data'
 import { playArrival } from '../world/globe-bridge'
@@ -113,6 +113,14 @@ export function LegRun({ setup, snapshot, playerId, onExit, onReissue, onRefresh
     }
   }
 
+  // Keeps race music on the simulation clock and the FLOW, speed and rail layers in step with the courier.
+  const onFrame = (frame: RaceFrame) => {
+    director.syncRace(frame.tick + frame.alpha, frame.running)
+    director.setFlow(frame.flow)
+    director.setSpeed(frame.speed01)
+    director.setRailing(frame.railing)
+  }
+
   const onSceneState = useCallback(
     (state: CeremonySceneState) => {
       setCeremonyState(state)
@@ -216,6 +224,7 @@ export function LegRun({ setup, snapshot, playerId, onExit, onReissue, onRefresh
       ceremony={ceremony}
       ceremonyState={ceremonyState}
       onCue={onCue}
+      onFrame={onFrame}
       playback={setup.playback}
       autopilot={e2eAutopilot}
     />

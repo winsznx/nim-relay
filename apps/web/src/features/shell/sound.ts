@@ -1,46 +1,17 @@
-import { useSyncExternalStore } from 'react'
+import { getAudioDirector } from '../audio/director'
+import { useAudio } from '../audio/useAudio'
 
-const STORAGE_KEY = 'nim-relay-sound'
-const listeners = new Set<() => void>()
-
-function read(): boolean {
-  try {
-    return localStorage.getItem(STORAGE_KEY) !== 'off'
-  } catch {
-    // Storage can be blocked; sound then stays on for this visit.
-    return true
-  }
-}
-
-let enabled = typeof window === 'undefined' ? true : read()
-
+/** Sound preference for the whole app. The audio director owns and persists it. */
 export function soundEnabled(): boolean {
-  return enabled
-}
-
-/** Returns false when storage is blocked; the choice then lasts until the app closes. */
-function persist(next: boolean): boolean {
-  try {
-    localStorage.setItem(STORAGE_KEY, next ? 'on' : 'off')
-    return true
-  } catch {
-    return false
-  }
+  return !getAudioDirector().muted
 }
 
 export function setSoundEnabled(next: boolean): void {
-  enabled = next
-  persist(next)
-  for (const listener of listeners) listener()
+  const director = getAudioDirector()
+  director.setMuted(!next)
+  if (next) void director.unlock()
 }
 
 export function useSoundEnabled(): boolean {
-  return useSyncExternalStore(
-    listener => {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
-    },
-    soundEnabled,
-    soundEnabled,
-  )
+  return !useAudio().muted
 }

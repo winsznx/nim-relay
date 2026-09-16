@@ -2,7 +2,7 @@
 import './ui/tokens.css'
 import './ui/ui.css'
 import './shell.css'
-import { lazy, Suspense, type ReactElement } from 'react'
+import { lazy, Suspense, type ReactElement, useEffect } from 'react'
 import { AnimatePresence } from 'motion/react'
 import { useForegroundHeartbeat, useLiveUpdates, useRelays } from '../relays/data'
 import { ChronicleScreen } from '../relays/ChronicleScreen'
@@ -27,6 +27,7 @@ import { SIGN_IN_OVERLAY, useSession } from './session'
 import { SignInSheet } from './SignInSheet'
 import { ToastViewport } from './ui/overlays'
 import { DepartureBanner } from '../leg/DepartureBanner'
+import { getAudioDirector } from '../audio/director'
 
 const LegHost = lazy(() => import('./LegHost').then(module => ({ default: module.LegHost })))
 const StationScreen = lazy(() => import('./StationScreen').then(module => ({ default: module.StationScreen })))
@@ -99,6 +100,7 @@ export function AppShell() {
   useForegroundHeartbeat(player !== null)
 
   const racing = route.name === 'leg'
+  useAudioScene(racing ? null : route.name === 'station' ? 'station' : 'world')
   // The race and the station each draw their own 3D scene, so the globe pauses behind them.
   const globeActive = !racing && route.name !== 'station'
   const code = selectedCode(route)
@@ -130,4 +132,11 @@ export function AppShell() {
       <ToastViewport />
     </div>
   )
+}
+
+/** World and station beds follow the route; a leg drives its own race audio. */
+function useAudioScene(scene: 'world' | 'station' | null): void {
+  useEffect(() => {
+    if (scene) getAudioDirector().scene(scene)
+  }, [scene])
 }
