@@ -1,0 +1,302 @@
+.relay-station {
+  --rs-sign: 'DIN Condensed', 'Roboto Condensed', 'Arial Narrow', sans-serif-condensed, sans-serif;
+  --rs-text: var(--font-display, -apple-system, BlinkMacSystemFont, 'SF Pro Text', Inter, sans-serif);
+  --rs-gold: var(--color-gold-500, #f5a623);
+  --rs-gold-deep: var(--color-gold-600, #e8890a);
+  --rs-cyan: var(--color-cyan-400, #22d3ee);
+  --rs-ink: var(--color-text-primary, #f5f7fa);
+  --rs-mist: #9aa3b8;
+  --rs-line: rgba(206, 220, 255, 0.1);
+  --rs-glass: rgba(9, 13, 24, 0.82);
+  --rs-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Shells with a bottom navigation can raise the dock by overriding this. */
+  --relay-station-bottom-inset: env(safe-area-inset-bottom, 0px);
+
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 100dvh;
+  overflow: hidden;
+  isolation: isolate;
+  color: var(--rs-ink);
+  font-family: var(--rs-text);
+  background: radial-gradient(120% 70% at 50% 18%, #131b33 0%, #0a0e1a 60%, #05070d 100%);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.relay-station button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.relay-station :focus-visible {
+  outline: 2px solid var(--rs-ink);
+  outline-offset: 3px;
+}
+
+.relay-station-scene {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.relay-station-plate {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: calc(env(safe-area-inset-top, 0px) + 14px) 16px 36px;
+  background: linear-gradient(180deg, rgba(3, 5, 11, 0.7) 0%, rgba(3, 5, 11, 0) 100%);
+  pointer-events: none;
+}
+
+.relay-station-plate > * {
+  pointer-events: auto;
+}
+
+.relay-station[data-focused] .relay-station-plate {
+  background: linear-gradient(180deg, rgba(3, 5, 11, 0.9) 0%, rgba(3, 5, 11, 0.6) 55%, rgba(3, 5, 11, 0) 100%);
+}
+
+.relay-station-name {
+  margin: 0;
+  font: 700 27px/1 var(--rs-sign);
+  letter-spacing: 0.015em;
+  color: var(--rs-ink);
+}
+
+.relay-station-network {
+  margin: 5px 0 0;
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--rs-mist);
+}
+
+.relay-station-join {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid rgba(245, 166, 35, 0.5);
+  border-radius: 999px;
+  background: rgba(245, 166, 35, 0.1);
+  color: var(--rs-gold);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.relay-station-index {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.relay-station-index:focus-within,
+.relay-station[data-scene-failed] .relay-station-index {
+  z-index: 3;
+  inset: calc(env(safe-area-inset-top, 0px) + 78px) 12px auto;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+  white-space: normal;
+}
+
+.relay-station-index ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.relay-station-index button {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--rs-line);
+  border-radius: 12px;
+  background: var(--rs-glass);
+  color: var(--rs-ink);
+  font: 700 19px/1 var(--rs-sign);
+}
+
+.relay-station-index button[aria-pressed='true'] {
+  border-color: rgba(245, 166, 35, 0.6);
+  color: var(--rs-gold);
+}
+
+.relay-station-fallback {
+  max-width: 34ch;
+  margin: 0 0 12px;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--rs-mist);
+}
+
+.relay-station-dock {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  padding: 0 12px calc(var(--relay-station-bottom-inset) + 12px);
+  pointer-events: none;
+}
+
+.relay-station-hint {
+  margin: 0 0 8px;
+  padding: 10px 16px 9px;
+  border-radius: 999px;
+  background: rgba(3, 5, 11, 0.5);
+  font: 700 17px/1 var(--rs-sign);
+  letter-spacing: 0.03em;
+  color: rgba(245, 247, 250, 0.74);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.relay-station-card {
+  width: 100%;
+  max-width: 440px;
+  padding: 16px 16px 16px 20px;
+  border: 1px solid var(--rs-line);
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(18, 24, 40, 0.9) 0%, rgba(7, 10, 19, 0.96) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(245, 166, 35, 0.24),
+    0 28px 64px -28px rgba(0, 0, 0, 0.85);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  backdrop-filter: blur(18px) saturate(1.2);
+  pointer-events: auto;
+  animation: relay-station-rise 300ms var(--rs-ease) both;
+}
+
+.relay-station-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.relay-station-card-title {
+  margin: 0;
+  padding-top: 5px;
+  font: 700 31px/0.95 var(--rs-sign);
+  letter-spacing: 0.01em;
+  color: var(--rs-ink);
+}
+
+.relay-station-card-controls {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
+
+.relay-station-icon-button {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid var(--rs-line);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--rs-ink);
+}
+
+.relay-station-icon-button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.relay-station-facts {
+  display: grid;
+  gap: 9px;
+  margin: 14px 4px 16px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.relay-station-fact {
+  position: relative;
+  padding-left: 18px;
+  font-size: 15px;
+  line-height: 1.42;
+  color: rgba(245, 247, 250, 0.86);
+  font-variant-numeric: tabular-nums;
+}
+
+.relay-station-fact::before {
+  content: '';
+  position: absolute;
+  top: 0.52em;
+  left: 1px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #5b6376;
+}
+
+.relay-station-fact[data-tone='opportunity']::before {
+  background: var(--rs-gold);
+  box-shadow: 0 0 10px rgba(245, 166, 35, 0.65);
+}
+
+.relay-station-fact[data-tone='live']::before {
+  background: var(--rs-cyan);
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.65);
+}
+
+.relay-station-action {
+  width: 100%;
+  min-height: 52px;
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f8b646 0%, var(--rs-gold) 46%, var(--rs-gold-deep) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 12px 28px -14px rgba(245, 166, 35, 0.75);
+  color: #1d1203;
+  font-weight: 650;
+  font-size: 16px;
+  letter-spacing: 0.005em;
+  transition:
+    transform 140ms var(--rs-ease),
+    filter 140ms var(--rs-ease);
+}
+
+.relay-station-action:active {
+  transform: scale(0.985);
+  filter: brightness(0.95);
+}
+
+@keyframes relay-station-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .relay-station-card {
+    animation: none;
+  }
+
+  .relay-station-action {
+    transition: none;
+  }
+}

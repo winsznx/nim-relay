@@ -1,40 +1,25 @@
-import { lazy, Suspense, type CSSProperties } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchMe, logout, requestNonce, verifyLogin } from '../lib/auth-api'
-import { connectAccount, deviceIdentifier, isInsideNimiqPay, nimiqPayDeepLink, signMessage } from '../lib/nimiq'
+import { lazy, Suspense } from 'react'
 
-/**
- * Phase 2 auth harness. Real product screens (PRD sections 20-22) land
- * Phase 5-8; this screen exists to exercise the Nimiq Pay login flow on a
- * real device: connect -> sign the server challenge -> session cookie.
- */
-
-const DEVICE_ID_REASON = 'Sign in to NIM Relay'
-
-async function runLogin() {
-  await connectAccount()
-  const deviceId = await deviceIdentifier(DEVICE_ID_REASON)
-  const { nonce, message } = await requestNonce()
-  const { publicKeyHex, signatureHex } = await signMessage(message)
-  const { player } = await verifyLogin({
-    nonce,
-    publicKeyHex,
-    signatureHex,
-    ...(deviceId ? { deviceId } : {}),
-  })
-  return player
-}
-
-const NetworkApp = lazy(() => import('../network/NetworkApp').then(module => ({ default: module.NetworkApp })))
+const AppShell = lazy(() => import('../features/shell/AppShell').then(module => ({ default: module.AppShell })))
 const StationApp = lazy(() => import('../station/StationApp').then(module => ({ default: module.StationApp })))
 const GamePage = lazy(() => import('../game/GamePage').then(module => ({ default: module.GamePage })))
 const RelayRunLab = lazy(() => import('../lab/relay-run/RelayRunLab').then(module => ({ default: module.RelayRunLab })))
 const RelayRaceLab = lazy(() => import('../lab/relay-race/RelayRaceLab').then(module => ({ default: module.RelayRaceLab })))
 
+const LegLab = lazy(() => import('../features/race/dev/LegLab').then(module => ({ default: module.LegLab })))
+const StationLab = lazy(() => import('../features/relay-station/dev/StationLab').then(module => ({ default: module.StationLab })))
+
+/**
+ * Standalone development and legacy surfaces keep their own entry points.
+ * Every other path belongs to the relay product shell, which routes in-app.
+ */
 export function App() {
   const path = window.location.pathname
-  if (path === '/' || path === '/play' || /^\/(relay|r|journey|invite|proof|daily|crews|inbox|profile|vault|create|rivals|home|privacy)(\/|$)/.test(path)) {
-    return <Suspense fallback={<p>Opening the relay world…</p>}><NetworkApp /></Suspense>
+  if (path === '/dev/leg') {
+    return <Suspense fallback={null}><LegLab /></Suspense>
+  }
+  if (path === '/dev/station') {
+    return <Suspense fallback={null}><StationLab /></Suspense>
   }
   if (path === '/station-v4') {
     return <Suspense fallback={<p>Preparing your departure…</p>}><StationApp /></Suspense>
@@ -48,120 +33,14 @@ export function App() {
   if (path === '/lab/relay-race-v3' || path === '/lab/relay-race-v3/') {
     return <Suspense fallback={<p>Loading…</p>}><RelayRaceLab /></Suspense>
   }
-  return <LoginApp />
+  return <Suspense fallback={<ShellLoading />}><AppShell /></Suspense>
 }
 
-function LoginApp() {
-  const queryClient = useQueryClient()
-  const me = useQuery({ queryKey: ['me'], queryFn: fetchMe })
-
-  const login = useMutation({
-    mutationFn: runLogin,
-    onSuccess: (player) => queryClient.setQueryData(['me'], player),
-  })
-  const signOut = useMutation({
-    mutationFn: logout,
-    onSuccess: () => queryClient.setQueryData(['me'], null),
-  })
-
-  const insideNimiqPay = isInsideNimiqPay()
-  const origin = typeof window !== 'undefined' ? window.location.origin : ''
-
+/** Shown while the world loads; plain inline styles because the shell's stylesheets arrive with it. */
+function ShellLoading() {
   return (
-    <main style={styles.main}>
-      <header style={styles.header}>
-        <h1 style={styles.title}>
-          <span style={{ color: 'var(--color-text-primary)' }}>NIM</span>{' '}
-          <span style={{ color: 'var(--color-gold-500)' }}>Relay</span>
-        </h1>
-        <p style={styles.tagline}>How far can one NIM travel? Real NIM is the turn.</p>
-      </header>
-
-      {me.isLoading ? (
-        <p style={styles.muted}>Checking session…</p>
-      ) : me.data ? (
-        <section style={styles.card}>
-          <p style={styles.muted}>Signed in</p>
-          <p style={styles.handle}>{me.data.handle}</p>
-          <p style={styles.wallet}>{me.data.walletAddress}</p>
-          <button
-            type="button"
-            style={styles.buttonSecondary}
-            onClick={() => signOut.mutate()}
-            disabled={signOut.isPending}
-          >
-            {signOut.isPending ? 'Signing out…' : 'Sign out'}
-          </button>
-        </section>
-      ) : insideNimiqPay ? (
-        <section style={styles.card}>
-          <button
-            type="button"
-            style={styles.buttonPrimary}
-            onClick={() => login.mutate()}
-            disabled={login.isPending}
-          >
-            {login.isPending ? 'Waiting for Nimiq Pay…' : 'Connect with Nimiq Pay'}
-          </button>
-          {login.isError ? <p style={styles.error}>{(login.error as Error).message}</p> : null}
-        </section>
-      ) : (
-        <section style={styles.card}>
-          <p style={styles.muted}>Open NIM Relay inside Nimiq Pay to sign in.</p>
-          <a style={styles.buttonPrimary} href={nimiqPayDeepLink(origin)}>
-            Open in Nimiq Pay
-          </a>
-        </section>
-      )}
-    </main>
+    <div role="status" style={{ position: 'fixed', inset: 0, display: 'grid', placeItems: 'center', background: '#04060d', color: '#9aa3b8', font: '700 13px/1 var(--font-display)', letterSpacing: '0.24em' }}>
+      NIM RELAY
+    </div>
   )
-}
-
-const styles: Record<string, CSSProperties> = {
-  main: {
-    minHeight: '100dvh',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 24,
-    padding: 'max(env(safe-area-inset-top), 24px) 24px max(env(safe-area-inset-bottom), 24px)',
-    textAlign: 'center',
-  },
-  header: { display: 'flex', flexDirection: 'column', gap: 8 },
-  title: { fontSize: 32, margin: 0 },
-  tagline: { color: 'var(--color-text-muted)', margin: 0, maxWidth: 320 },
-  card: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 12,
-    alignItems: 'center',
-    minWidth: 260,
-  },
-  muted: { color: 'var(--color-text-muted)', margin: 0, fontSize: 14 },
-  handle: { margin: 0, fontSize: 22, color: 'var(--color-text-primary)' },
-  wallet: { margin: 0, fontSize: 12, color: 'var(--color-text-muted)', wordBreak: 'break-all' },
-  buttonPrimary: {
-    appearance: 'none',
-    border: 'none',
-    borderRadius: 12,
-    padding: '14px 20px',
-    fontSize: 16,
-    fontWeight: 600,
-    background: 'var(--color-gold-500)',
-    color: '#1a1400',
-    cursor: 'pointer',
-    textDecoration: 'none',
-  },
-  buttonSecondary: {
-    appearance: 'none',
-    border: '1px solid var(--color-text-muted)',
-    borderRadius: 12,
-    padding: '10px 18px',
-    fontSize: 14,
-    background: 'transparent',
-    color: 'var(--color-text-primary)',
-    cursor: 'pointer',
-  },
-  error: { color: '#ff6b6b', fontSize: 13, margin: 0, maxWidth: 280 },
 }
