@@ -14,9 +14,21 @@ export interface TestRunner {
   cookie: string
 }
 
-export async function runner(sessionMs = 7 * 86_400_000): Promise<TestRunner> {
+export function runner(sessionMs = 7 * 86_400_000): Promise<TestRunner> {
+  return signedIn(`NQ${crypto.randomUUID().replaceAll('-', '')}`, sessionMs)
+}
+
+/** The handle OPS_PLAYERS lists in vitest.config.ts. No random hex wallet can end in these characters. */
+export const TEST_OPERATOR_HANDLE = 'runner-0ps0ps'
+
+/** The operator: the in-memory store names a runner after the last six characters of their wallet. */
+export function operator(): Promise<TestRunner> {
+  return signedIn('NQ00TESTOPERATOR0PS0PS', 7 * 86_400_000)
+}
+
+async function signedIn(walletAddress: string, sessionMs: number): Promise<TestRunner> {
   const store = getAuthStore(undefined)
-  const p = await store.createPlayer({ walletAddress: `NQ${crypto.randomUUID().replaceAll('-', '')}`, walletPublicKey: '00'.repeat(32) })
+  const p = await store.createPlayer({ walletAddress, walletPublicKey: '00'.repeat(32) })
   const session = await store.createSession({ playerId: p.id, deviceHash: null, expiresAt: Date.now() + sessionMs })
   const token = await createSessionToken({ SESSION_SECRET: 'test-session-secret' } as Env, { sessionId: session.id, playerId: p.id })
   return { p, cookie: `nr_session=${token}` }

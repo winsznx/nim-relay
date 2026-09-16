@@ -7,6 +7,7 @@ import type {
   NetworkHandoffIntent,
   NetworkInvite,
   NetworkSnapshot,
+  OpsReport,
   RaceMode,
   RaceTrace,
   RunnerProfile,
@@ -74,3 +75,5 @@ export const markNotificationRead = (id: string) => request<NetworkSnapshot>('/i
 export const setCountryConsent = (consent: boolean) => request<NetworkSnapshot>('/consent', { consent })
 export const networkHeartbeat = (seconds: number) => request<{ ok: true }>('/heartbeat', { seconds })
 export const loadVerifiedReplay = (runId: string) => request<CanonicalGhost>(`/replays/${encodeURIComponent(runId)}`)
+/** Operators listed in the Worker's OPS_PLAYERS only; everyone else gets 403 `operators_only`. */
+export const loadOpsReport = () => request<OpsReport>('/ops')

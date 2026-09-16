@@ -16,4 +16,6 @@ export interface Env {
   NIMIQ_NETWORK: 'TestAlbatross' | 'MainAlbatross'
   NIMIQ_RPC_URL: string
   APP_ORIGIN: string
+  /** Comma-separated player ids or handles allowed to read the operator report. Unset or empty allows nobody. */
+  OPS_PLAYERS?: string
 }

@@ -1,4 +1,4 @@
-import type { NetworkHandoffIntent, TrackEventResult } from '@nim-relay/shared'
+import type { NetworkHandoffIntent, OpsReport, TrackEventResult } from '@nim-relay/shared'
 import { z } from 'zod'
 import type { Env } from '../../env'
 import { ApiError, type Profile, type Run, type State } from '../model'
@@ -11,6 +11,8 @@ import { settleDailies } from './daily'
 import { loadGhost } from './ghosts'
 import { attemptHandoff, awaitsAcceptance, cancelHandoff, confirmHandoff, prepareHandoff, releaseLapsedReservation, strandIdleBaton, submitHandoffTransaction, type TransactionLookup } from './handoff'
 import { findBaton, isOpenIntent } from './lookups'
+import { opsReport } from './ops'
+import { countRun, noteArchived, noteUnarchivedChange, opsLedgerKey, readOpsLedger, writeOpsLedger } from './ops-ledger'
 import { runnerProfile } from './profile'
 import { issueRace, recordRun } from './races'
 import { touchMember } from './runners'
@@ -56,11 +58,13 @@ export class RelayNetworkService {
   }
 
   static async load(storage: DurableObjectStorage, env: Env, product: State): Promise<RelayNetworkService> {
+    const now = Date.now()
     const key = networkStateKey(env.NIMIQ_NETWORK)
     const stored = await readNetworkState(storage, key)
     const state = stored ? normalizeNetworkState(stored) : freshNetworkState()
-    const traffic = await readTraffic(storage, trafficStateKey(key))
-    return new RelayNetworkService({ storage, env, product, state, traffic }, key)
+    const traffic = await readTraffic(storage, trafficStateKey(key), now)
+    const ops = await readOpsLedger(storage, opsLedgerKey(key), now)
+    return new RelayNetworkService({ storage, env, product, state, traffic, ops }, key)
   }
 
   /** Signed-out routes never rewrite network state; only their traffic counters are stored, on their own key. */
@@ -145,19 +149,40 @@ export class RelayNetworkService {
     }
   }
 
-  /** Called by /submit after replay, before the run is stored. Throws when the run no longer fits its leg. */
+  /**
+   * Called by /submit after replay, before the run is stored. Throws when the run no longer fits its leg; that refusal
+   * is counted on the ledger alone, and a recorded run is counted when /submit writes it.
+   */
   async onRun(run: Run, profile: Profile): Promise<void> {
-    recordRun(this.context, run, profile)
+    const now = Date.now()
+    try {
+      recordRun(this.context, run, profile)
+    } catch (error) {
+      if (error instanceof ApiError) {
+        countRun(this.context.ops, 'refused', now)
+        await this.saveOpsLedger()
+      }
+      throw error
+    }
+    countRun(this.context.ops, 'verified', now)
   }
 
+  /** The operator report. A read: it never writes state, traffic or the ledger. */
+  opsReport(now: number): OpsReport {
+    return opsReport(this.context, now)
+  }
+
+  /** Network state and the ops ledger always commit together. */
   async writeTo(transaction: DurableObjectTransaction): Promise<void> {
     await writeNetworkState(transaction, this.key, this.state)
+    await writeOpsLedger(transaction, opsLedgerKey(this.key), this.context.ops)
   }
 
   /** Writes network and product state atomically and marks the network for archiving. */
   async persist(schedule = true): Promise<void> {
     this.state.version++
     this.state.dirty = true
+    noteUnarchivedChange(this.context.ops, Date.now())
     await this.context.storage.transaction(async transaction => {
       await this.writeTo(transaction)
       await transaction.put('state', this.context.product)
@@ -195,8 +220,14 @@ export class RelayNetworkService {
     return archiveNetwork(this.context.env, this.state)
   }
 
-  /** Clears the archive flag without counting a new version. */
-  async markArchived(): Promise<void> {
+  /**
+   * Records a successful archive of `archivedVersion`. The archive flag clears, without counting a new version,
+   * only when nothing was written after that snapshot; otherwise only the ledger notes the archive.
+   */
+  async markArchived(archivedVersion: number): Promise<void> {
+    const caughtUp = this.state.version === archivedVersion
+    noteArchived(this.context.ops, Date.now(), caughtUp)
+    if (!caughtUp) return this.saveOpsLedger()
     this.state.dirty = false
     await this.context.storage.transaction(transaction => this.writeTo(transaction))
   }
@@ -220,13 +251,17 @@ export class RelayNetworkService {
     const input = trackBody.parse(body)
     const anonymous = actorId === null
     const actorKey = actorId ? `runner:${actorId}` : `visitor:${input.visitor ? await sha256Hex(input.visitor) : 'unidentified'}`
-    const counted = countShare(this.context.traffic, actorKey, anonymous, now)
+    const counted = countShare(this.context.traffic, { actorKey, anonymous, surface: input.surface }, now)
     if (counted) await this.saveTraffic()
     return { counted }
   }
 
   private async saveTraffic(): Promise<void> {
     await writeTraffic(this.context.storage, trafficStateKey(this.key), this.context.traffic)
+  }
+
+  private async saveOpsLedger(): Promise<void> {
+    await writeOpsLedger(this.context.storage, opsLedgerKey(this.key), this.context.ops)
   }
 }
 

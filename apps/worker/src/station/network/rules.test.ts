@@ -338,7 +338,7 @@ describe('stored network state', () => {
 })
 
 describe('public traffic counters', () => {
-  const traffic = (): TrafficState => ({ day: '', chronicleViews: 0, inviteOpens: 0, shares: 0, openedInvites: [], sharesToday: {} })
+  const traffic = (): TrafficState => ({ day: '', chronicleViews: 0, inviteOpens: 0, shares: 0, openedInvites: [], sharesToday: {}, shareTalliesSince: NOW, sharesBySurface: {}, sharesByDay: {} })
 
   it('count an invitation link once per UTC day', () => {
     // #given one link opened twice today and again tomorrow
@@ -351,8 +351,8 @@ describe('public traffic counters', () => {
   it('cap shares per actor and anonymous shares across the network', () => {
     // #given a runner sharing 25 times and 250 anonymous devices sharing once each
     const counters = traffic()
-    const runnerCounted = Array.from({ length: 25 }, () => countShare(counters, 'runner:a', false, NOW)).filter(Boolean).length
-    const anonymousCounted = Array.from({ length: 250 }, (_, index) => countShare(counters, `visitor:${index}`, true, NOW)).filter(Boolean).length
+    const runnerCounted = Array.from({ length: 25 }, () => countShare(counters, { actorKey: 'runner:a', anonymous: false, surface: 'result' }, NOW)).filter(Boolean).length
+    const anonymousCounted = Array.from({ length: 250 }, (_, index) => countShare(counters, { actorKey: `visitor:${index}`, anonymous: true, surface: 'chronicle' }, NOW)).filter(Boolean).length
     // #then both caps hold
     expect({ runnerCounted, anonymousCounted, shares: counters.shares }).toEqual({ runnerCounted: 20, anonymousCounted: 200, shares: 220 })
   })

@@ -1,14 +1,32 @@
-# NIM Relay: complete social relay network
+# NIM Relay rebuild (brief of 2026-09-16)
 
-- [x] Read current build brief, PRD, design/relay documents, deployed foundations and specialist repository audits.
-- [ ] Extend persistent baton lineage, immutable handoff, incoming turns, reconciliation and relational archive.
-- [x] Build interactive Earth journey home, truthful country routes and transfer/arrival presentation.
-- [x] Complete Quick best-of matches, crews/streaks, rival teams, daily, invites and return-session inbox.
-- [ ] Integrate canonical race ghosts, historic replay viewing, native approval and durable recovery.
-- [x] Publish journey artifacts, transaction/replay proof, accurate network-separated metrics and share links.
-- [ ] Verify adversarial lifecycle, browsers, local Worker, migrations and deployed flows.
-- [ ] Update public docs/evidence and deploy finished software; identify only actual wallet/device gates.
+Goal: a living global relay game where a real NIM baton passes human to human; the race is one leg.
 
-Status: implementing from existing Station v4, auth, protocol, Durable Objects and Supabase. No engine reset. No fabricated activity. September13 brief supersedes prior race-as-product scope. Official current rubric confirmed 45/25/15/10/5.
+## Done (committed)
+- [x] Checkpoint of Sept 8/13 station and network work (1dbac24)
+- [x] Relay Leg v5 deterministic engine: authored world modules, safe/risk fork, earned FLOW, rhythm-intercept pulse gates on a 144 BPM tick grid, 200-leg golden corpus in Node and workerd
+- [x] Backend: v5 issuance and replay, route sectors and ghost lineage, serials, echoes, achievements and artifacts, chronicles, runner profiles, machine reason codes, reservation timeout, crew code privacy
+- [x] Handoff ceremony state machine (throw locks intent, Nimiq Pay, verification, decline, insufficient, ambiguous recovery, rejection, duplicates, resume)
+- [x] Routed shell, living globe home, journey, Chronicle, proof, social screens
+- [x] Relay Station 3D home with diegetic surfaces
+- [x] Audio: CC0 music and SFX, race music locked to the sim clock, ceremony score
+- [x] Race presentation: courier, ghost courier, five worlds, set pieces, camera and juice
+- [x] Identicons, share cards, profile, crew streaks, rivals, Daily ranks
+- [x] v5 leg flow wired end to end; RPC fetch fix for Workers (no handoff could verify before)
+- [x] Local two-runner lifecycle E2E with mocked Nimiq Pay and mock RPC
 
-Current checkpoint: mainnet deployment verified in a live mobile browser. Testnet deployment underway for the user’s funded test-NIM wallets. Native approvals and real handoff archive readback are pending; do not mark the entire task complete. Latest automated suite: 722 passing tests plus live browser journey test.
+## In progress
+- [ ] Ops analytics view with alerts (agent)
+- [ ] Testnet deploy of the integrated build, then live smoke
+- [ ] Real two-wallet handoff on iPhone in Nimiq Pay (user-owned)
+
+## Next
+- [ ] Relay Echoes rendered in the race world from issued echoes
+- [ ] Live spectating status for an active leg
+- [ ] Physical iPhone profiling and adaptive quality tuning from measurements
+- [ ] Mainnet deploy after testnet handoff is verified
+- [ ] Docs and evidence refresh (README, CLAIMS, evidence/production)
+- [ ] Competition submission assets (cycle choice pending from user)
+
+## Decisions
+- Cycle II closes 2026-09-18; Cycle III 2026-10-30. User has not chosen yet.

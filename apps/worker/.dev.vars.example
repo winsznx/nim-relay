@@ -6,3 +6,6 @@ SESSION_SECRET=<random 32+ byte hex>
 DEVICE_HASH_SECRET=<random 32+ byte hex>
 RUN_CHALLENGE_SECRET=<random 32+ byte hex>
 APP_ORIGIN=http://localhost:5173
+# Optional. Comma-separated player ids or handles (e.g. runner-abc123) allowed to open /ops, the operator
+# report. Unset or empty means nobody can open it. Keep real values out of the repository.
+OPS_PLAYERS=

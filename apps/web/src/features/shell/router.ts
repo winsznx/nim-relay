@@ -23,6 +23,7 @@ const ROUTES = {
   privacy: '/privacy',
   station: '/station',
   leg: '/leg/:code',
+  ops: '/ops',
 } as const
 
 export type RouteName = keyof typeof ROUTES

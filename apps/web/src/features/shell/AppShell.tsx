@@ -4,6 +4,7 @@ import './ui/ui.css'
 import './shell.css'
 import { lazy, Suspense, type ReactElement, useEffect } from 'react'
 import { AnimatePresence } from 'motion/react'
+import { OpsScreen } from '../ops/OpsScreen'
 import { useForegroundHeartbeat, useLiveUpdates, useRelays } from '../relays/data'
 import { ChronicleScreen } from '../relays/ChronicleScreen'
 import { JourneyScreen } from '../relays/JourneyScreen'
@@ -65,6 +66,8 @@ function screenFor(route: RouteMatch, location: AppLocation): ReactElement | nul
       return <StartRelayScreen key={entry} entryKey={entry} />
     case 'privacy':
       return <PrivacyScreen key={entry} entryKey={entry} />
+    case 'ops':
+      return <OpsScreen key={entry} entryKey={entry} />
     case 'notFound':
       return <NotFoundScreen key={entry} entryKey={entry} />
   }

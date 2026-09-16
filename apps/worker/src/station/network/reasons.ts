@@ -1,5 +1,5 @@
 import type { TxVerificationFailure } from '@nim-relay/relay-protocol'
-import type { HandoffReasonCode } from '@nim-relay/shared'
+import type { HandoffReasonCode, HandoffRejectionReason } from '@nim-relay/shared'
 
 const VERIFIER_REASONS: Record<TxVerificationFailure, HandoffReasonCode> = {
   SENDER_MISMATCH: 'SENDER_MISMATCH',
@@ -40,9 +40,11 @@ export function verifierReason(failure: TxVerificationFailure): HandoffReasonCod
 }
 
 /** Transient outcomes: the same transaction may still verify later. */
-export function isPendingReason(reason: HandoffReasonCode): boolean {
+export function isPendingReason(reason: HandoffReasonCode): reason is Exclude<HandoffReasonCode, HandoffRejectionReason> {
   return reason === 'NOT_INCLUDED' || reason === 'INSUFFICIENT_CONFIRMATIONS' || reason === 'RPC_UNAVAILABLE'
 }
+
+export const REJECTION_REASONS: readonly HandoffRejectionReason[] = REASON_CODES.filter((code): code is HandoffRejectionReason => !isPendingReason(code))
 
 /** Earlier releases stored free-form failure text; anything unrecognised was an unavailable lookup. */
 export function storedReason(failure: string | null): HandoffReasonCode | null {

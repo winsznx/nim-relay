@@ -1,4 +1,5 @@
 export const MINUTE_MS = 60_000
+export const HOUR_MS = 3_600_000
 export const DAY_MS = 86_400_000
 
 /** One NIM. */
@@ -41,3 +42,15 @@ export const DAILY_TOP_SHARE_MIN_ENTRIES = 10
 
 export const SHARES_PER_ACTOR_PER_DAY = 20
 export const ANONYMOUS_SHARES_PER_DAY = 200
+
+/** UTC days in the operator report, today included. The ledger keeps exactly these days. */
+export const OPS_WINDOW_DAYS = 30
+/** Hourly buckets behind the rolling 24-hour alerts: the current hour and the 23 before it. */
+export const OPS_WINDOW_HOURS = 24
+export const MAX_FLAGGED_RUNS = 50
+
+export const OPS_REJECTION_RATE_LIMIT = 0.2
+export const OPS_RPC_ALERT_MS = HOUR_MS
+export const OPS_STUCK_HANDOFF_MS = 30 * MINUTE_MS
+export const OPS_ARCHIVE_LAG_MS = 10 * MINUTE_MS
+export const OPS_QUIET_NETWORK_MS = DAY_MS

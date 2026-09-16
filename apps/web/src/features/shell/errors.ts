@@ -54,6 +54,7 @@ const API_COPY: Record<string, string> = {
   not_reserved_for_you: 'This baton isn’t reserved for you anymore. Ask the holder to pass it to you again.',
   official_daily_already_started: 'You’ve used today’s official Daily attempt. Practice is still open.',
   only_current_holder_can_pass: 'Only the current holder can carry this leg.',
+  operators_only: 'This page is for NIM Relay operators.',
   origin_mismatch: 'Open NIM Relay from its official link to do this.',
   pass_to_match_opponent: 'In a match, the baton goes to your opponent.',
   recipient_reserved: 'This baton is reserved for the runner who accepted the invite.',

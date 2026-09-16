@@ -24,6 +24,8 @@ export default defineConfig({
           DEVICE_HASH_SECRET: 'test-device-hash-secret',
           RUN_CHALLENGE_SECRET: 'test-run-challenge-secret',
           APP_ORIGIN: 'http://localhost:5173',
+          // A test-only handle; see `operator()` in src/station/network/testing.ts.
+          OPS_PLAYERS: 'runner-0ps0ps',
         },
       },
     }),

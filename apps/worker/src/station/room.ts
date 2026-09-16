@@ -2,12 +2,14 @@ import { DurableObject } from 'cloudflare:workers'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
 import { deriveCommitment, encodeTxData, paymentAddress, NimiqRpcClient, verifyHandoffTransaction } from '@nim-relay/relay-protocol'
-import type { CanonicalGhost, HandoffIntent, IssuedRace, StationProfile, StationSnapshot, SubmittedRace } from '@nim-relay/shared'
+import type { CanonicalGhost, HandoffIntent, IssuedRace, OpsReport, StationProfile, StationSnapshot, SubmittedRace } from '@nim-relay/shared'
 import type { Env } from '../env'
 import type { PlayerRecord } from '../auth/store'
 import { ApiError, type Profile, type Run, type State } from './model'
 import { RECONCILE_INTERVAL_MS } from './network/constants'
 import { lookupTransaction, type TransactionLookup } from './network/handoff'
+import { isOperator } from './network/ops'
+import { recordRefusedSubmission, type SubmissionRefusal } from './network/ops-ledger'
 import { isPublicNetworkPath, RelayNetworkService } from './network/service'
 import { canonicalGhost, replayRace } from './race-engines'
 import { mac, signedFields, timingSafeEqual } from './signing'
@@ -55,6 +57,7 @@ export class StationRoom extends DurableObject<Env> {
   }
 
   private async handleNetwork(state: State, networkPath: string, envelope: StationEnvelope): Promise<Response> {
+    if (networkPath === '/ops') return Response.json(await this.opsReport(state, envelope.player), { headers: { 'Cache-Control': 'no-store' } })
     const network = await RelayNetworkService.load(this.ctx.storage, this.env, state)
     if (isPublicNetworkPath(networkPath)) return Response.json(await network.handlePublic(networkPath, envelope.body, envelope.actorId ?? null))
     if (!envelope.player) throw new ApiError('sign_in_to_join', 401)
@@ -63,6 +66,14 @@ export class StationRoom extends DurableObject<Env> {
     await network.persist()
     if (!QUIET_NETWORK_PATHS.includes(networkPath)) this.broadcastNetworkVersion(network.state.version)
     return Response.json(response)
+  }
+
+  /** Operators listed in OPS_PLAYERS only, checked before any network state loads. Reads without writing anything. */
+  private async opsReport(state: State, player: PlayerRecord | undefined): Promise<OpsReport> {
+    if (!player) throw new ApiError('sign_in_to_join', 401)
+    if (!isOperator(this.env.OPS_PLAYERS, player)) throw new ApiError('operators_only', 403)
+    const network = await RelayNetworkService.load(this.ctx.storage, this.env, state)
+    return network.opsReport(Date.now())
   }
 
   private broadcastNetworkVersion(version: number): void {
@@ -172,14 +183,14 @@ export class StationRoom extends DurableObject<Env> {
     const input = z.object({ issued: z.object({ runId: z.string(), mac: z.string() }).passthrough(), inputTrace: z.unknown() }).parse(body)
     const issued = await this.ctx.storage.get<IssuedRace>(`issue:${input.issued.runId}`)
     if (!issued || issued.playerId !== profile.id) throw new ApiError('run_not_found', 404)
-    if (!timingSafeEqual(input.issued.mac, issued.mac) || !timingSafeEqual(await mac(this.env.RUN_CHALLENGE_SECRET, signedFields(issued)), issued.mac)) throw new ApiError('bad_mac', 401)
+    if (!timingSafeEqual(input.issued.mac, issued.mac) || !timingSafeEqual(await mac(this.env.RUN_CHALLENGE_SECRET, signedFields(issued)), issued.mac)) { await this.countRefusal(issued, profile, 'MAC_MISMATCH'); throw new ApiError('bad_mac', 401) }
     // Every client-supplied signed field must be identical; the stored configuration is replay authority.
-    for (const key of ['networkRace', 'batonId', 'practice', 'relayLeg', 'playerId', 'mode', 'config', 'expiresAt', 'target'] as const) if (JSON.stringify(input.issued[key]) !== JSON.stringify(issued[key])) throw new ApiError('bad_mac', 401)
+    for (const key of ['networkRace', 'batonId', 'practice', 'relayLeg', 'playerId', 'mode', 'config', 'expiresAt', 'target'] as const) if (JSON.stringify(input.issued[key]) !== JSON.stringify(issued[key])) { await this.countRefusal(issued, profile, 'MAC_MISMATCH'); throw new ApiError('bad_mac', 401) }
     const previous = await this.ctx.storage.get<Run>(`run:${issued.runId}`)
     if (previous) return { runId: issued.runId, result: previous.result, created: false, xpEarned: 0, profile: publicProfile(profile), qualifiedHandoff: this.qualified(state, profile, previous) }
-    if (Date.now() > issued.expiresAt) throw new ApiError('run_expired', 410)
+    if (Date.now() > issued.expiresAt) { await this.countRefusal(issued, profile, 'EXPIRED'); throw new ApiError('run_expired', 410) }
     const replayed = replayRace(issued.config, input.inputTrace)
-    if (!replayed) throw new ApiError('invalid_trace')
+    if (!replayed) { await this.countRefusal(issued, profile, 'INVALID_TRACE'); throw new ApiError('invalid_trace') }
     const { result } = replayed
     const run: Run = { issued, result, inputTrace: replayed.inputTrace, at: Date.now() }
     const networkService = issued.networkRace ? await RelayNetworkService.load(this.ctx.storage, this.env, state) : null
@@ -199,6 +210,11 @@ export class StationRoom extends DurableObject<Env> {
     await this.ctx.storage.transaction(async storage => { await storage.put(`run:${issued.runId}`, run); await storage.put('state', state); await storage.put(`archive:${issued.runId}`, run); if (networkService) await networkService.writeTo(storage) })
     await this.ctx.storage.setAlarm(Date.now() + 1000)
     return { runId: issued.runId, result, created: true, xpEarned, profile: publicProfile(profile), qualifiedHandoff: this.qualified(state, profile, run) }
+  }
+
+  /** Relay-network submissions refused before replay are counted for operators; the refusal itself is unchanged. */
+  private async countRefusal(issued: IssuedRace, profile: Profile, reason: SubmissionRefusal): Promise<void> {
+    if (issued.networkRace) await recordRefusedSubmission(this.ctx.storage, this.env.NIMIQ_NETWORK, { issued, handle: profile.handle, reason }, Date.now())
   }
 
   /**
@@ -246,7 +262,7 @@ export class StationRoom extends DurableObject<Env> {
     const archived = snapshot.state.dirty && await snapshot.archive()
     return this.exclusively(async () => {
       const current = await this.loadNetwork()
-      if (archived && current.state.version === snapshot.state.version) await current.markArchived()
+      if (archived) await current.markArchived(snapshot.state.version)
       return current.hasPendingWork()
     })
   }

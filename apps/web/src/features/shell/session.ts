@@ -20,7 +20,7 @@ export function useSession(): Session {
 }
 
 /** Queries that only make sense for the signed-in runner. */
-const ACCOUNT_QUERIES = [['network'], ['station'], ['baton']] as const
+const ACCOUNT_QUERIES = [['network'], ['station'], ['baton'], ['ops-report']] as const
 
 let ceremony: Promise<Player> | null = null
 

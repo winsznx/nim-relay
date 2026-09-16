@@ -1,5 +1,5 @@
 import { deriveCommitment, encodeTxData, NimiqRpcClient, paymentAddress, TransactionNotFoundError, verifyHandoffTransaction, type NimiqTransaction } from '@nim-relay/relay-protocol'
-import type { HandoffReasonCode, NetworkConfirmation, NetworkHandoffIntent } from '@nim-relay/shared'
+import type { HandoffReasonCode, HandoffRejectionReason, NetworkConfirmation, NetworkHandoffIntent } from '@nim-relay/shared'
 import { z } from 'zod'
 import type { Env } from '../../env'
 import { ApiError, type Profile } from '../model'
@@ -8,6 +8,7 @@ import { presentBaton } from './batons'
 import { INTENT_PREPARED_TTL_MS, MIN_CONFIRMATIONS, RECONCILE_RETRY_MS, RESERVATION_ACCEPT_MS } from './constants'
 import { applyVerifiedHandoff } from './custody'
 import { assertHolder, findBaton, handoffsOf, loadRun, notify, openIntentFor } from './lookups'
+import { countHashSubmission, countRejection, noteRpcUnavailable } from './ops-ledger'
 import { isPendingReason, verifierReason } from './reasons'
 import { findCourier, sameWallet } from './runners'
 import type { BatonRecord, NetworkContext, NetworkState } from './types'
@@ -117,8 +118,14 @@ export async function submitHandoffTransaction(context: NetworkContext, profile:
   const txHash = input.txHash.toLowerCase()
   const intent = ownIntent(context, input.id, profile)
   if (intent.txHash && intent.txHash !== txHash) throw new ApiError('different_transaction', 409)
-  if (intent.state === 'expired' || intent.state === 'cancelled') return { status: 'rejected', reason: intent.failure ?? 'INTENT_EXPIRED', intent }
+  // Confirming the hash already bound is a re-check; operators count only newly sent hashes.
+  const newHash = intent.txHash === null
+  if (intent.state === 'expired' || intent.state === 'cancelled') {
+    if (newHash) countRejectedSubmission(context, 'INTENT_EXPIRED')
+    return { status: 'rejected', reason: intent.failure ?? 'INTENT_EXPIRED', intent }
+  }
   if (intent.state === 'prepared') throw new ApiError('handoff_not_attempted', 409)
+  if (newHash) countHashSubmission(context.ops, Date.now())
   intent.txHash = txHash
   if (intent.state !== 'verified') intent.state = 'submitted'
   await persist()
@@ -137,10 +144,11 @@ export async function confirmHandoff(context: NetworkContext, intent: NetworkHan
   const txHash = intent.txHash
 
   const usedBy = context.product.usedTx[txHash]
-  if (usedBy && usedBy !== intent.id) return reject(intent, 'DUPLICATE_TRANSACTION')
+  if (usedBy && usedBy !== intent.id) return reject(context, intent, 'DUPLICATE_TRANSACTION')
   if (baton.handoffCount + 1 !== intent.leg || baton.holder.wallet !== intent.sender) {
     intent.state = 'expired'
     intent.failure = 'CUSTODY_CHANGED'
+    countRejection(context.ops, 'CUSTODY_CHANGED', Date.now())
     return { status: 'rejected', reason: 'CUSTODY_CHANGED', intent }
   }
 
@@ -158,7 +166,7 @@ export async function confirmHandoff(context: NetworkContext, intent: NetworkHan
   })
   if (!proof.ok) {
     const reason = verifierReason(proof.reason)
-    return isPendingReason(reason) ? waitForNetwork(context, intent, reason) : reject(intent, reason)
+    return isPendingReason(reason) ? waitForNetwork(context, intent, reason) : reject(context, intent, reason)
   }
 
   const run = await loadRun(context.storage, intent.runId)
@@ -177,16 +185,25 @@ function verified(context: NetworkContext, intent: NetworkHandoffIntent, baton: 
 
 async function waitForNetwork(context: NetworkContext, intent: NetworkHandoffIntent, reason: HandoffReasonCode): Promise<NetworkConfirmation> {
   intent.failure = reason
+  if (reason === 'RPC_UNAVAILABLE') noteRpcUnavailable(context.ops, Date.now())
   await context.storage.setAlarm(Date.now() + RECONCILE_RETRY_MS)
   return { status: 'pending', reason, intent }
 }
 
 /** The bound hash can never verify this intent: free the binding and wait for the hash of the correct transfer. */
-function reject(intent: NetworkHandoffIntent, reason: HandoffReasonCode): NetworkConfirmation {
+function reject(context: NetworkContext, intent: NetworkHandoffIntent, reason: HandoffRejectionReason): NetworkConfirmation {
   intent.failure = reason
   intent.txHash = null
   intent.state = 'attempting'
+  countRejection(context.ops, reason, Date.now())
   return { status: 'rejected', reason, intent }
+}
+
+/** A hash sent for an intent that can no longer be sent: counted as submitted and rejected at once. */
+function countRejectedSubmission(context: NetworkContext, reason: HandoffRejectionReason): void {
+  const now = Date.now()
+  countHashSubmission(context.ops, now)
+  countRejection(context.ops, reason, now)
 }
 
 /** Chain lookup by hash. Never throws: an unknown hash is not yet included, any other failure is an unavailable RPC. */

@@ -243,3 +243,84 @@ export type ShareSurface = 'chronicle' | 'result' | 'daily' | 'crew' | 'handoff'
 /** POST /network/track. `visitor` is an opaque per-device key for signed-out shares; never an IP address. */
 export interface TrackEventInput { kind: 'share'; surface: ShareSurface; visitor?: string }
 export interface TrackEventResult { counted: boolean }
+
+/** Reasons a submitted transaction can never verify its intent. The others only mean "check again later". */
+export type HandoffRejectionReason = Exclude<HandoffReasonCode, 'NOT_INCLUDED' | 'INSUFFICIENT_CONFIRMATIONS' | 'RPC_UNAVAILABLE'>
+/** Why a signed relay-network race submission was rejected and flagged for operators. */
+export type OpsFlagReason = 'INVALID_TRACE' | 'MAC_MISMATCH'
+
+export interface OpsTotals {
+  linkedWallets: number
+  transactingWallets: number
+  qualifiedHandoffs: number
+  batons: { active: number; stranded: number; completed: number }
+  crews: number
+  rivals: number
+  invites: { created: number; opened: number; converted: number }
+  /** `unattributed` shares were counted before per-surface tallies started. */
+  shares: { total: number; bySurface: Record<ShareSurface, number>; unattributed: number }
+  chronicleViews: number
+  returningWallets: number
+  foregroundSeconds: number
+  evidence: { mainnetHandoffs: number; testnetHandoffs: number; controlledHandoffs: number; controlledWallets: number }
+}
+
+/** One UTC day of activity. Null means that counter was not recorded yet on that day. */
+export interface OpsDay {
+  date: string
+  newWallets: number
+  activeWallets: number
+  qualifiedHandoffs: number
+  dailyAttempts: number
+  /** Verified, rejected and refused together. */
+  runsSubmitted: number | null
+  runsVerified: number | null
+  /** Invalid input trace or MAC mismatch. */
+  runsRejected: number | null
+  /** Valid ticket that expired, or whose leg no longer fit, before the run was recorded. */
+  runsRefused: number | null
+  shares: number | null
+}
+
+/**
+ * Handoff intents prepared on the report's UTC days, counted by the furthest stage each reached and its state now.
+ * `rejections` are verification outcomes recorded on those days, one per submitted transaction hash.
+ */
+export interface OpsFunnel {
+  prepared: number
+  attempted: number
+  submitted: number
+  verified: number
+  cancelled: number
+  expired: number
+  open: number
+  rejections: Record<HandoffRejectionReason, number>
+  medianAttemptToVerifiedMs: number | null
+}
+
+/** A rejected submission, with repeated submissions of the same run folded into `attempts`. `at` is the latest. */
+export interface OpsFlaggedRun { handle: string; reason: OpsFlagReason; mode: RaceMode; practice: boolean; at: number; attempts: number }
+export interface OpsNimFlow { network: RelayNetwork; handoffs: number; luna: number; nim: number }
+
+export type OpsAlertId = 'verification_rejections' | 'rpc_unavailable' | 'archive_lagging' | 'stuck_handoffs' | 'stranded_batons' | 'no_handoffs' | 'archive_not_configured'
+/** `critical` alerts need action now; `warning` alerts need a look. `condition` states exactly what was measured. */
+export interface OpsAlert { id: OpsAlertId; severity: 'critical' | 'warning'; title: string; condition: string }
+
+/** GET /network/ops, operators only. Handles, never wallets, sessions or device data. */
+export interface OpsReport {
+  network: RelayNetwork
+  generatedAt: number
+  /** UTC days in `days` and in the funnel window, today included. */
+  windowDays: number
+  /** When run and rejection counters, and per-day share tallies, started. Earlier days were never recorded. */
+  countingSince: { runs: number; shares: number }
+  /** Critical first. */
+  alerts: OpsAlert[]
+  totals: OpsTotals
+  /** Oldest first, ending today (UTC). */
+  days: OpsDay[]
+  funnel: OpsFunnel
+  /** Newest first, at most 50. */
+  flaggedRuns: OpsFlaggedRun[]
+  nimFlow: OpsNimFlow[]
+}
