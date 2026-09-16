@@ -42,7 +42,7 @@ function handoffsAlong(record: NetworkBaton, path: readonly NetworkRunner[], leg
 }
 
 function detailOf(record: NetworkBaton, handoffs: BatonHandoff[]): BatonDetail {
-  return { baton: record, handoffs, ghost: null, pendingHandoff: null, notableRuns: handoffs.map(item => ({ runId: item.runId, name: item.from.name, score: item.race?.score ?? 0, resultHash: item.resultHash })), echoes: [] }
+  return { baton: record, handoffs, ghost: null, pendingHandoff: null, notableRuns: handoffs.map(item => ({ runId: item.runId, name: item.from.name, score: item.race?.score ?? 0, resultHash: item.resultHash })), echoes: [], live: null }
 }
 
 /** A verified v5 replay whose metrics give 14 of 16 perfect gates and 87% flow control. */

@@ -3,8 +3,8 @@ import { TICK_MS, type RenderSnapshot } from './controller'
 
 /**
  * The race clock as it is on screen this frame, for systems that follow the race
- * in real time (music sync, ambience). The scene reuses one object per mount, so
- * copy any field that must outlive the callback.
+ * in real time (music sync, ambience, live progress). The scene reuses one object
+ * per mount, so copy any field that must outlive the callback.
  */
 export interface RaceFrame {
   /** Race tick on screen. Negative through the opening, counting up to 0 at the start. */
@@ -19,6 +19,12 @@ export interface RaceFrame {
   speed01: number
   /** The courier is grinding a rail. */
   railing: boolean
+  /** Route position of the simulation state behind this frame (Q16.16 metres), with its finish and the path it is on. */
+  dist: number
+  finishDist: number
+  path: relayLeg.Path
+  /** Seconds the ghost is ahead at the courier's position, negative when the courier leads; null without a ghost. */
+  ghostDelta: number | null
 }
 
 const Q = 65536
@@ -26,7 +32,7 @@ const STUMBLE_MPS = (relayLeg.STUMBLE_SPEED / Q) * relayLeg.TICK_RATE
 const TOP_MPS = ((relayLeg.BASE_SPEED + relayLeg.FLOW_SPEED + relayLeg.RAIL_SPEED + relayLeg.PAD_SPEED) / Q) * relayLeg.TICK_RATE
 
 export function createRaceFrame(): RaceFrame {
-  return { tick: 0, alpha: 0, running: false, flow: 0, speed01: 0, railing: false }
+  return { tick: 0, alpha: 0, running: false, flow: 0, speed01: 0, railing: false, dist: 0, finishDist: 0, path: 'main', ghostDelta: null }
 }
 
 /** Maps metres per second onto the engine's stumble..top speed range. */
@@ -53,5 +59,9 @@ export function writeRaceFrame(out: RaceFrame, snapshot: RenderSnapshot, speedMp
   out.flow = (previous.flow + (state.flow - previous.flow) * alpha) / Q
   out.speed01 = paused ? 0 : normalizedSpeed(speedMps)
   out.railing = !paused && phase === 'racing' && state.railing === 1
+  out.dist = state.dist
+  out.finishDist = state.track.finishDist
+  out.path = state.path
+  out.ghostDelta = snapshot.ghostDelta
   return out
 }

@@ -87,6 +87,50 @@ export interface NetworkBaton {
   transactingWallets: number
   /** Ordered country stops for globe routes: origin, then each recipient. Included in snapshots and baton pages. */
   stops?: BatonStop[]
+  /** The leg the holder is racing right now, or null. Included in snapshots and baton pages. */
+  live?: BatonLive | null
+}
+
+/** A live leg drops out of snapshots and baton pages once its latest progress report is this old. */
+export const LIVE_LEG_WINDOW_MS = 8_000
+
+/** Mirrors `relayLeg.Path`: the main route, or the safe or risk side of the fork. */
+export type RelayLegPath = 'main' | 'safe' | 'risk'
+
+/**
+ * POST /network/leg/progress, sent by the holder's client while it races an issued baton leg. `dist` and
+ * `finishDist` are Q16.16 route metres from the leg's own simulation state. `ghostDeltaMs` is how far the ghost
+ * was ahead at `dist`, negative when the runner led, and null without a ghost.
+ */
+export interface LegProgressInput {
+  runId: string
+  tick: number
+  dist: number
+  finishDist: number
+  ghostDeltaMs: number | null
+  path: RelayLegPath
+}
+/** False when the report came too soon after the run's previous one. It was ignored, not refused. */
+export interface LegProgressResult {
+  accepted: boolean
+}
+
+/**
+ * The holder's leg as they race it, straight from their latest progress report. Present only while that report is
+ * under LIVE_LEG_WINDOW_MS old; the server never extrapolates it.
+ */
+export interface BatonLive {
+  runnerName: string
+  runnerHandle: string
+  /** 0..1 of the route at the latest report. */
+  progress: number
+  /** Milliseconds the ghost was ahead at the latest report, negative when the runner led. Null without a ghost. */
+  ghostDeltaMs: number | null
+  world: StationWorld
+  sector: number
+  updatedAt: number
+  /** Age of the report when this response was built, so clients can time the live window on their own clock. */
+  ageMs: number
 }
 
 export type HandoffReasonCode =
@@ -162,6 +206,8 @@ export interface BatonDetail {
   notableRuns: { runId: string; name: string; score: number; resultHash: string }[]
   /** Latest echo per kind per sector, newest first, at most 12. */
   echoes: RelayEcho[]
+  /** Same as `baton.live`. */
+  live: BatonLive | null
 }
 
 export type AchievementId =

@@ -95,6 +95,8 @@ export interface RelayEcho {
   /** Q16.16 route distance where the echo belongs in the world, or null when it spans the leg. */
   dist: number | null
   at: number
+  /** ghost-record only: the record leg's verified time. Records left before it was kept have none. */
+  timeMs?: number
 }
 
 /** Route sector of a baton leg. The first leg of a sector has no ghost to race. */

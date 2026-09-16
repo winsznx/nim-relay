@@ -103,6 +103,15 @@ describe('writeRaceFrame courier state', () => {
     expect(frame).toMatchObject({ tick: 120, alpha: 0.5, running: true, flow: 0.5, railing: true })
   })
 
+  it('carries the simulation position and ghost gap behind the frame', () => {
+    // #given a courier on the risk path with the ghost 0.25 s ahead
+    const snapshot = { ...racingSnapshot({ dist: 700 * 65536, path: 'risk' }, 'racing'), ghostDelta: 0.25 }
+    // #when the frame is written
+    const frame = writeRaceFrame(createRaceFrame(), snapshot, 40)
+    // #then it reports exactly that state
+    expect(frame).toMatchObject({ tick: 120, dist: 700 * 65536, finishDist: snapshot.state.track.finishDist, path: 'risk', ghostDelta: 0.25 })
+  })
+
   it('drops the grind while paused so held sounds can stop', () => {
     // #given the same grind, paused
     const snapshot = racingSnapshot({ railing: 1 }, 'paused')

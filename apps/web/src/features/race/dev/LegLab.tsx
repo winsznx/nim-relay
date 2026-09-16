@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { relayLeg } from '@nim-relay/game-engine'
+import type { RelayEcho } from '@nim-relay/shared'
 import type { GhostRun, RaceMode } from '../controller'
 import { RaceScreen, type CeremonyState } from '../RaceScreen'
 import type { SceneStats } from '../scene'
 import type { QualityTier } from '../scene/quality'
 import { createBot, playBotLeg } from './bot'
 import { CourierPreview } from './CourierPreview'
+import { labEchoes } from './lab-echoes'
 
 /**
  * Development route /dev/leg. No login, no backend: builds a leg from query
@@ -18,12 +20,15 @@ import { CourierPreview } from './CourierPreview'
  *   ceremony=none|approach|armed|frozen|launch|departed   (applied after the finish)
  *   quality=low|medium|high   (locks the tier)
  *   sheet=1         stand-in handoff sheet after a relay finish, to check the results header layout
+ *   echoes=1        stand-in Relay Echoes beside the track and in the arrival
  *   preview=courier  lineup of courier poses under the world's lighting
  */
 
 declare global {
   interface Window {
     __legStats?: SceneStats
+    /** Courier distance into the leg in metres, as last rendered. */
+    __legDist?: number
   }
 }
 
@@ -41,6 +46,7 @@ interface LabSetup {
   autopilot: ((state: relayLeg.State) => relayLeg.Input) | null
   ceremony: CeremonyState
   quality: QualityTier | 'auto'
+  echoes: RelayEcho[]
 }
 
 function pick<T extends string>(value: string | null, allowed: readonly T[], fallback: T): T {
@@ -77,6 +83,7 @@ function readSetup(search: string): LabSetup {
     autopilot: params.get('bot') === '1' ? createBot({ fork: 'risk', bias: 8 }) : null,
     ceremony: pick(params.get('ceremony'), CEREMONY_STATES, 'none'),
     quality: pick<QualityTier | 'auto'>(params.get('quality'), [...QUALITY_TIERS, 'auto'], 'auto'),
+    echoes: params.get('echoes') === '1' ? labEchoes(config) : [],
   }
 }
 
@@ -111,6 +118,7 @@ export function LegLab() {
       mode={setup.mode}
       sender={setup.sender}
       baton={{ handoffCount: 112, ageMs: 70 * 86_400_000, countries: 9, ghostWins: 14, milestones: ['rescue'] }}
+      echoes={setup.echoes}
       autopilot={setup.autopilot}
       quality={setup.quality}
       lockQuality={setup.quality !== 'auto'}
@@ -120,6 +128,9 @@ export function LegLab() {
       onExit={() => window.location.reload()}
       onStats={stats => {
         window.__legStats = stats
+      }}
+      onFrame={frame => {
+        window.__legDist = frame.dist / 65_536
       }}
     />
   )

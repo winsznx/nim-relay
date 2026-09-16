@@ -2,15 +2,19 @@ import { DurableObject } from 'cloudflare:workers'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
 import { deriveCommitment, encodeTxData, paymentAddress, NimiqRpcClient, verifyHandoffTransaction } from '@nim-relay/relay-protocol'
-import type { CanonicalGhost, HandoffIntent, IssuedRace, OpsReport, StationProfile, StationSnapshot, SubmittedRace } from '@nim-relay/shared'
+import type { CanonicalGhost, HandoffIntent, IssuedRace, LegProgressResult, OpsReport, StationProfile, StationSnapshot, SubmittedRace } from '@nim-relay/shared'
 import type { Env } from '../env'
 import type { PlayerRecord } from '../auth/store'
 import { ApiError, type Profile, type Run, type State } from './model'
 import { RECONCILE_INTERVAL_MS } from './network/constants'
 import { lookupTransaction, type TransactionLookup } from './network/handoff'
+import { LiveLegs, liveKeyPrefix } from './network/live'
+import { LiveUpdates } from './network/live-updates'
 import { isOperator } from './network/ops'
 import { recordRefusedSubmission, type SubmissionRefusal } from './network/ops-ledger'
+import { LEG_PROGRESS_PATH } from './network/progress'
 import { isPublicNetworkPath, RelayNetworkService } from './network/service'
+import { networkStateKey } from './network/state'
 import { canonicalGhost, replayRace } from './race-engines'
 import { mac, signedFields, timingSafeEqual } from './signing'
 
@@ -21,6 +25,9 @@ interface StationEnvelope {
   country?: string
   actorId?: string | null
 }
+
+/** Asks open clients to refetch. `live` marks a change to legs in progress only, which leaves the network version as it was. */
+type NetworkBroadcast = { type: 'network_updated'; version: number } | { type: 'network_updated'; live: true }
 
 const worlds = ['coast', 'alpine', 'metro', 'solar', 'ocean'] as const
 const cosmetics: StationSnapshot['cosmetics'] = [
@@ -37,6 +44,9 @@ const recipientSchema = z.object({ recipient: z.string().min(1).max(80) })
 const publicProfile = ({ wallet: _wallet, rivals: _rivals, best: _best, bestRunId: _bestRunId, dailyBest: _dailyBest, ...profile }: Profile): StationProfile => profile
 
 export class StationRoom extends DurableObject<Env> {
+  private readonly live = new LiveLegs(this.ctx.storage, liveKeyPrefix(networkStateKey(this.env.NIMIQ_NETWORK)))
+  private readonly liveUpdates = new LiveUpdates(() => this.broadcast({ type: 'network_updated', live: true }))
+
   override async fetch(request: Request): Promise<Response> {
     if (request.headers.get('Upgrade') === 'websocket') { const pair = new WebSocketPair(); this.ctx.acceptWebSocket(pair[1]); return new Response(null, { status: 101, webSocket: pair[0] }) }
     return this.ctx.blockConcurrencyWhile(async () => {
@@ -58,28 +68,36 @@ export class StationRoom extends DurableObject<Env> {
 
   private async handleNetwork(state: State, networkPath: string, envelope: StationEnvelope): Promise<Response> {
     if (networkPath === '/ops') return Response.json(await this.opsReport(state, envelope.player), { headers: { 'Cache-Control': 'no-store' } })
-    const network = await RelayNetworkService.load(this.ctx.storage, this.env, state)
+    const network = await RelayNetworkService.load(this.ctx.storage, this.env, state, this.live)
     if (isPublicNetworkPath(networkPath)) return Response.json(await network.handlePublic(networkPath, envelope.body, envelope.actorId ?? null))
     if (!envelope.player) throw new ApiError('sign_in_to_join', 401)
     const profile = this.profileFor(state, envelope.player)
+    if (networkPath === LEG_PROGRESS_PATH) return Response.json(await this.reportLegProgress(network, profile, envelope.body))
     const response = await network.handle(networkPath, envelope.body, profile, envelope.country)
     await network.persist()
-    if (!QUIET_NETWORK_PATHS.includes(networkPath)) this.broadcastNetworkVersion(network.state.version)
+    if (!QUIET_NETWORK_PATHS.includes(networkPath)) this.broadcast({ type: 'network_updated', version: network.state.version })
     return Response.json(response)
+  }
+
+  /** Live progress never persists network or product state; clients learn of it through throttled live broadcasts. */
+  private async reportLegProgress(network: RelayNetworkService, profile: Profile, body: unknown): Promise<LegProgressResult> {
+    const result = await network.reportProgress(profile, body)
+    if (result.accepted) this.liveUpdates.changed(Date.now())
+    return result
   }
 
   /** Operators listed in OPS_PLAYERS only, checked before any network state loads. Reads without writing anything. */
   private async opsReport(state: State, player: PlayerRecord | undefined): Promise<OpsReport> {
     if (!player) throw new ApiError('sign_in_to_join', 401)
     if (!isOperator(this.env.OPS_PLAYERS, player)) throw new ApiError('operators_only', 403)
-    const network = await RelayNetworkService.load(this.ctx.storage, this.env, state)
+    const network = await RelayNetworkService.load(this.ctx.storage, this.env, state, this.live)
     return network.opsReport(Date.now())
   }
 
-  private broadcastNetworkVersion(version: number): void {
+  private broadcast(message: NetworkBroadcast): void {
     for (const socket of this.ctx.getWebSockets()) {
       try {
-        socket.send(JSON.stringify({ type: 'network_updated', version }))
+        socket.send(JSON.stringify(message))
       } catch {
         socket.close(1011, 'Reconnect')
       }
@@ -193,7 +211,7 @@ export class StationRoom extends DurableObject<Env> {
     if (!replayed) { await this.countRefusal(issued, profile, 'INVALID_TRACE'); throw new ApiError('invalid_trace') }
     const { result } = replayed
     const run: Run = { issued, result, inputTrace: replayed.inputTrace, at: Date.now() }
-    const networkService = issued.networkRace ? await RelayNetworkService.load(this.ctx.storage, this.env, state) : null
+    const networkService = issued.networkRace ? await RelayNetworkService.load(this.ctx.storage, this.env, state, this.live) : null
     if (networkService) await networkService.onRun(run, profile)
     const xpEarned = issued.practice ? 0 : result.completed ? 100 + Math.min(150, Math.floor(result.score / 100)) : 20
     if (!issued.practice) {
@@ -208,6 +226,7 @@ export class StationRoom extends DurableObject<Env> {
       state.chronicles.push({ id: issued.runId, kind: 'run', name: profile.name, at: run.at, world: issued.config.world, score: result.score, leg: state.global.leg }); state.chronicles = state.chronicles.slice(-100)
     }
     await this.ctx.storage.transaction(async storage => { await storage.put(`run:${issued.runId}`, run); await storage.put('state', state); await storage.put(`archive:${issued.runId}`, run); if (networkService) await networkService.writeTo(storage) })
+    if (issued.batonId && (await this.live.end(issued.batonId, issued.runId))) this.liveUpdates.changed(Date.now())
     await this.ctx.storage.setAlarm(Date.now() + 1000)
     return { runId: issued.runId, result, created: true, xpEarned, profile: publicProfile(profile), qualifiedHandoff: this.qualified(state, profile, run) }
   }
@@ -226,6 +245,7 @@ export class StationRoom extends DurableObject<Env> {
     await this.exclusively(async () => {
       const network = await this.loadNetwork()
       await network.reconcile(lookups)
+      await this.live.prune(Date.now())
     })
     if (await this.archiveNetworkState()) await this.ctx.storage.setAlarm(Date.now() + RECONCILE_INTERVAL_MS)
     await this.archiveStationRaces()
@@ -246,7 +266,7 @@ export class StationRoom extends DurableObject<Env> {
 
   private async loadNetwork(): Promise<RelayNetworkService> {
     const product = await this.ctx.storage.get<State>('state') ?? initial()
-    return RelayNetworkService.load(this.ctx.storage, this.env, product)
+    return RelayNetworkService.load(this.ctx.storage, this.env, product, this.live)
   }
 
   private async lookUpSubmittedTransfers(): Promise<Map<string, TransactionLookup>> {

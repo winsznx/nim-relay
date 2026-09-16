@@ -1,5 +1,5 @@
 import { relayLeg } from '@nim-relay/game-engine'
-import type { BatonAppearance, BatonDetail, BatonHandoff, BatonMode, BatonStop, NetworkBaton } from '@nim-relay/shared'
+import type { BatonAppearance, BatonDetail, BatonHandoff, BatonLive, BatonMode, BatonStop, NetworkBaton } from '@nim-relay/shared'
 import { ApiError, type Profile } from '../model'
 import { BATON_HOLD_MS, BATON_VALUE_LUNA, HANDOFF_MILESTONES, MAX_ACTIVE_ORIGIN_BATONS, MAX_NOTABLE_RUNS } from './constants'
 import { batonEchoes } from './echoes'
@@ -88,10 +88,13 @@ export function presentBaton(baton: BatonRecord, handoffs: readonly BatonHandoff
   return { ...baton, appearance: batonAppearance(baton, now), aliveMs, transactingWallets: transactingWallets(handoffs) }
 }
 
-/** Presented baton with its ordered globe stops: origin, then every recipient, as recorded with consent at the time. */
-export function presentBatonWithStops(baton: BatonRecord, handoffs: readonly BatonHandoff[], now: number): NetworkBaton {
+/**
+ * Presented baton with its ordered globe stops (origin, then every recipient, as recorded with consent at the time)
+ * and the leg its holder is racing, as snapshots and baton pages show it.
+ */
+export function presentBatonWithStops(baton: BatonRecord, handoffs: readonly BatonHandoff[], now: number, live: BatonLive | null): NetworkBaton {
   const stops: BatonStop[] = [{ countryCode: baton.origin.country }, ...handoffs.map(handoff => ({ countryCode: handoff.to.country }))]
-  return { ...presentBaton(baton, handoffs, now), stops }
+  return { ...presentBaton(baton, handoffs, now), stops, live }
 }
 
 function batonAppearance(baton: BatonRecord, now: number): BatonAppearance {
@@ -111,13 +114,16 @@ export function transactingWallets(handoffs: readonly BatonHandoff[]): number {
 export async function batonDetail(context: NetworkContext, baton: BatonRecord, profile: Profile | null): Promise<BatonDetail> {
   const handoffs = handoffsOf(context.state, baton.id)
   const previousRun = await loadRun(context.storage, baton.previousRunId)
+  const now = Date.now()
+  const live = context.live.liveFor(baton, now)
   return {
-    baton: presentBatonWithStops(baton, handoffs, Date.now()),
+    baton: presentBatonWithStops(baton, handoffs, now, live),
     handoffs,
     ghost: sectorGhost(context, baton, previousRun),
     pendingHandoff: profile?.id === baton.holder.id ? openIntentFor(context.state, baton.id) : null,
     notableRuns: await notableRuns(context, handoffs),
     echoes: batonEchoes(context.state, baton.id),
+    live,
   }
 }
 

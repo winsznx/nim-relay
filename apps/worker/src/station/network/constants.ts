@@ -11,6 +11,10 @@ export const INTENT_PREPARED_TTL_MS = 5 * MINUTE_MS
 export const RESERVATION_ACCEPT_MS = DAY_MS
 export const INVITE_TTL_MS = DAY_MS
 export const RACE_ISSUE_TTL_MS = 10 * MINUTE_MS
+/** A run's live progress reports are accepted at most this often; extras are ignored. */
+export const LIVE_REPORT_INTERVAL_MS = 1_500
+/** Live progress changes reach open clients as `network_updated` at most this often. */
+export const LIVE_BROADCAST_INTERVAL_MS = 3_000
 export const RIVALRY_MS = 7 * DAY_MS
 
 export const MIN_CONFIRMATIONS = 2

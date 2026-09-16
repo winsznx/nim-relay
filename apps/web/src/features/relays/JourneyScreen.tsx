@@ -18,6 +18,8 @@ import { BatonHero } from './BatonHero'
 import { useNetwork, useNow, useRefreshNetwork, useRelay } from './data'
 import { countryName, formatCount, formatDuration, formatNim, formatSince, networkLabel } from './format'
 import { JourneyRecords, JourneyRoute } from './JourneyRoute'
+import { useFreshLive } from './live'
+import { LiveLegPanel } from './LiveLegPanel'
 import { practicePath } from './paths'
 import { journeyHeadline, type RelayView } from './model'
 import { PendingPass } from '../handoff/PendingPass'
@@ -132,6 +134,7 @@ export function JourneyScreen({ code, entryKey }: { code: string; entryKey: stri
   const refresh = useRefreshNetwork()
   const showDeparture = useDeparture(state => state.show)
   const now = useNow()
+  const live = useFreshLive(detail?.live, query.dataUpdatedAt)
   const relayId = relay?.id ?? null
 
   useEffect(() => {
@@ -198,6 +201,8 @@ export function JourneyScreen({ code, entryKey }: { code: string; entryKey: stri
           </p>
         </div>
       </div>
+
+      {live && <LiveLegPanel live={live} ghostName={detail?.ghost?.name ?? null} />}
 
       <StatRow columns={3} label="Journey statistics">
         <Stat value={formatCount(relay.handoffCount)} label="verified handoffs" gold />

@@ -17,7 +17,7 @@ export function networkSnapshot(context: NetworkContext, profile: Profile | null
   const handoffsByBaton = groupByBaton(state.handoffs)
   const batons = Object.values(state.batons)
     .sort((a, b) => b.updatedAt - a.updatedAt)
-    .map(baton => presentBatonWithStops(baton, handoffsByBaton.get(baton.id) ?? [], now))
+    .map(baton => presentBatonWithStops(baton, handoffsByBaton.get(baton.id) ?? [], now, context.live.liveFor(baton, now)))
   const runners = Object.keys(state.members).flatMap(playerId => {
     const player = product.players[playerId]
     return player ? [networkRunner(state, player)] : []

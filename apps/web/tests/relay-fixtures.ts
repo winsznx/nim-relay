@@ -1,5 +1,5 @@
 import type { Page, Route } from '@playwright/test'
-import type { BatonChronicle, BatonDetail, BatonHandoff, CanonicalGhost, NetworkBaton, NetworkMetrics, NetworkRunner, NetworkSnapshot, RunnerProfile, StationSnapshot } from '@nim-relay/shared'
+import type { BatonChronicle, BatonDetail, BatonHandoff, BatonLive, CanonicalGhost, NetworkBaton, NetworkMetrics, NetworkRunner, NetworkSnapshot, RunnerProfile, StationSnapshot } from '@nim-relay/shared'
 
 /**
  * Test-only relay network fixtures shaped like the Worker's responses. They
@@ -162,9 +162,53 @@ export function populatedNetwork(now = Date.now()): { snapshot: NetworkSnapshot;
       pendingHandoff: null,
       notableRuns: handoffs.map(item => ({ runId: item.runId, name: item.from.name, score: item.race?.score ?? 0, resultHash: item.resultHash })),
       echoes: [{ id: 'echo-1', batonId: global.id, kind: 'ghost-record', runner: { id: mei.id, name: mei.name }, leg: 3, runId: handoffs[2]?.runId ?? '', sector: 0, dist: null, at: now - 14 * HOUR }],
+      live: null,
     },
   }
   return { snapshot, details }
+}
+
+/** Mirrors LIVE_LEG_WINDOW_MS: the Worker stops presenting a live leg once its latest report is this old. */
+const LIVE_WINDOW_MS = 8_000
+
+/**
+ * Mateo racing leg 5 of Global Relay #001 against Mei Tan's ghost, 62% along and 0.31 s behind it. The same report
+ * object is set on the snapshot baton and its detail, so moving `updatedAt` moves both.
+ */
+export function raceLive(network: { snapshot: NetworkSnapshot; details: Record<string, BatonDetail> }, reportedAt: number): BatonLive {
+  const live: BatonLive = { runnerName: RUNNERS.mateo.name, runnerHandle: RUNNERS.mateo.handle, progress: 0.6249, ghostDeltaMs: 310, world: 'coast', sector: 0, updatedAt: reportedAt, ageMs: 0 }
+  const baton = network.snapshot.batons.find(item => item.code === 'G7K2M9Q4XA')
+  const detail = network.details['G7K2M9Q4XA']
+  if (!baton || !detail) throw new Error('Global Relay #001 is missing from the fixture')
+  const handoff = detail.handoffs.at(-1)
+  baton.live = live
+  detail.live = live
+  detail.ghost = {
+    runId: handoff?.runId ?? 'run-ghost',
+    name: RUNNERS.mei.name,
+    runner: { name: RUNNERS.mei.name, country: RUNNERS.mei.country },
+    timeMs: 60_370,
+    config: { engineVersion: '5', challenge: 'relay-leg', challengeVersion: '5', seed: baton.route.seed, world: 'coast', tier: 0, openingFlow: 0 },
+    inputTrace: [],
+    result: { score: 18_400, resultHash: hash(90), completed: true, ticks: 3_622, timeMs: 60_370, metrics: { perfectGates: 12, totalGates: 16, pulseHits: 6, nearMisses: 3, hits: 1, falls: 0, jumps: 5, cleanLandings: 4, slides: 2, railTicks: 80, boostPadTicks: 30, riskRoutes: 1, flowSum: 0, flowPeak: 0 } },
+    verified: true,
+  }
+  return live
+}
+
+/** A live leg as the Worker presents it when answering at `now`: aged, or gone once its report is too old. */
+function presentLive(live: BatonLive | null | undefined, now: number): BatonLive | null {
+  if (!live || now - live.updatedAt >= LIVE_WINDOW_MS) return null
+  return { ...live, ageMs: now - live.updatedAt }
+}
+
+function presentSnapshot(snapshot: NetworkSnapshot, now: number): NetworkSnapshot {
+  return { ...snapshot, batons: snapshot.batons.map(item => (item.live ? { ...item, live: presentLive(item.live, now) } : item)) }
+}
+
+function presentDetail(detail: BatonDetail, now: number): BatonDetail {
+  const live = presentLive(detail.live, now)
+  return { ...detail, baton: { ...detail.baton, live }, live }
 }
 
 const ref = (item: NetworkRunner) => ({ id: item.id, handle: item.handle, name: item.name })
@@ -272,14 +316,14 @@ export async function mockRelayApi(page: Page, network: MockNetwork, account?: R
     const url = new URL(route.request().url())
     const path = url.pathname
     if (path === '/api/auth/me') return account ? json(route, 200, { player: account.player }) : json(route, 401, { error: 'no_session' })
-    if (path === '/api/station/network/public') return json(route, 200, network.snapshot)
-    if (account && path === '/api/station/network') return json(route, 200, account.snapshot)
+    if (path === '/api/station/network/public') return json(route, 200, presentSnapshot(network.snapshot, Date.now()))
+    if (account && path === '/api/station/network') return json(route, 200, presentSnapshot(account.snapshot, Date.now()))
     if (account && path === '/api/station') return json(route, 200, account.station)
     const batonMatch = path.match(/^\/api\/station\/network\/(batons|chronicles)\/([^/]+)$/)
     if (batonMatch) {
       const detail = network.details?.[decodeURIComponent(batonMatch[2] ?? '')]
       if (!detail) return json(route, 404, { error: 'journey_not_found' })
-      return json(route, 200, batonMatch[1] === 'chronicles' ? chronicleOf(detail) : detail)
+      return json(route, 200, batonMatch[1] === 'chronicles' ? chronicleOf(detail) : presentDetail(detail, Date.now()))
     }
     const runnerMatch = path.match(/^\/api\/station\/network\/runners\/([^/]+)$/)
     if (runnerMatch) {

@@ -22,7 +22,8 @@ export interface GhostRun {
 }
 
 export type RaceCueKind = 'catch' | 'go' | 'approach' | 'overtake' | 'overtaken' | 'finish'
-export type RaceCue = { kind: 'events'; tick: number; events: number } | { kind: RaceCueKind; tick: number }
+/** The scene adds `echo` when the courier passes a Relay Echo standing on its path. */
+export type RaceCue = { kind: 'events'; tick: number; events: number } | { kind: 'echo'; tick: number; echoId: string } | { kind: RaceCueKind; tick: number }
 
 export interface RaceSnapshot {
   phase: RacePhase

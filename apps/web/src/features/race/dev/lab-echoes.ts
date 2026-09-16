@@ -1,0 +1,26 @@
+import { relayLeg } from '@nim-relay/game-engine'
+import type { RelayEcho, RelayEchoKind } from '@nim-relay/shared'
+
+/** Metres into the leg where the lab's first echo stands: early enough to capture long before the finish. */
+const LAB_ECHO_METRES = 150
+
+const ONE = 65_536
+
+function labEcho(kind: RelayEchoKind, name: string, dist: number | null, extra: Partial<RelayEcho> = {}): RelayEcho {
+  return { id: `lab-${kind}`, batonId: 'lab-baton', kind, runner: { id: `lab-${name.toLowerCase()}`, name }, leg: 49, runId: `lab-run-${kind}`, sector: 4, dist, at: 0, ...extra }
+}
+
+/**
+ * Stand-in Relay Echoes for /dev/leg?echoes=1: a timed ghost record early on the main route, the risk pioneer where
+ * the fork opens, a rescue late in the leg, and two echoes that span the leg for the arrival.
+ */
+export function labEchoes(config: relayLeg.Config): RelayEcho[] {
+  const track = relayLeg.buildTrack(config)
+  return [
+    labEcho('ghost-record', 'Tim', LAB_ECHO_METRES * ONE, { timeMs: 38_420 }),
+    labEcho('risk-pioneer', 'Ada', track.fork.from),
+    labEcho('rescue', 'Marco', Math.round(track.finishDist * 0.75)),
+    labEcho('near-miss-legend', 'Yuki', null),
+    labEcho('milestone', 'Lena', null, { leg: 50 }),
+  ]
+}

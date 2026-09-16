@@ -39,6 +39,7 @@ function echoOf(handoff: RacedHandoff, kind: RelayEchoKind, dist: number | null)
     sector: handoff.sector,
     dist,
     at: handoff.at,
+    ...(kind === 'ghost-record' ? { timeMs: handoff.race.timeMs } : {}),
   }
 }
 

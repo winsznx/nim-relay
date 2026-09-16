@@ -6,6 +6,7 @@ import type { Player } from '../../lib/auth-api'
 import { acceptReservation, markNotificationRead } from '../relays/api'
 import { useAction } from '../shell/use-action'
 import { useBatonDetail, useLiveStatus, useNow, useRefreshNetwork, useStationProfile, type NetworkState } from '../relays/data'
+import { useFreshLive } from '../relays/live'
 import { tickerMoments, toRelayView, type RelayView } from '../relays/model'
 import { linkProps, navigate, pathFor } from '../shell/router'
 import { useRequireRunner } from '../shell/session'
@@ -131,7 +132,9 @@ function PersonalBanner({ player, relays, snapshot }: { player: Player; relays: 
 export function WorldHome({ player, relays, featured, network }: WorldHomeProps) {
   const reduced = useReducedMotion()
   const now = useNow()
-  const detail = useBatonDetail(featured?.code ?? null).data
+  const featuredDetail = useBatonDetail(featured?.code ?? null)
+  const detail = featuredDetail.data
+  const live = useFreshLive(featured && detail?.baton.id === featured.id ? detail.live : null, featuredDetail.dataUpdatedAt)
   const snapshot = network.snapshot
   const hero = featured && detail?.baton.id === featured.id ? toRelayView(detail.baton, { runners: snapshot?.runners ?? [], rivals: snapshot?.rivals ?? [], detail, now }) : featured
   const moments = tickerMoments(relays, featured, detail)
@@ -142,7 +145,7 @@ export function WorldHome({ player, relays, featured, network }: WorldHomeProps)
       {player && <PersonalBanner player={player} relays={relays} snapshot={snapshot} />}
       <div className="nr-home__bottom">
         {hero ? (
-          <RelayHero relay={hero} playerId={player?.id ?? null} latestReplay={latestReplay} moments={moments} now={now} />
+          <RelayHero relay={hero} playerId={player?.id ?? null} latestReplay={latestReplay} moments={moments} now={now} live={live} />
         ) : network.loading ? (
           <div className="nr-hero nr-hero--status" role="status">
             <p className="nr-hero__identity">Finding live relays</p>

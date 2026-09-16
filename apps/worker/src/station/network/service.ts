@@ -1,4 +1,4 @@
-import type { NetworkHandoffIntent, OpsReport, TrackEventResult } from '@nim-relay/shared'
+import type { LegProgressResult, NetworkHandoffIntent, OpsReport, TrackEventResult } from '@nim-relay/shared'
 import { z } from 'zod'
 import type { Env } from '../../env'
 import { ApiError, type Profile, type Run, type State } from '../model'
@@ -10,10 +10,12 @@ import { RECONCILE_RETRY_MS } from './constants'
 import { settleDailies } from './daily'
 import { loadGhost } from './ghosts'
 import { attemptHandoff, awaitsAcceptance, cancelHandoff, confirmHandoff, prepareHandoff, releaseLapsedReservation, strandIdleBaton, submitHandoffTransaction, type TransactionLookup } from './handoff'
+import type { LiveLegs } from './live'
 import { findBaton, isOpenIntent } from './lookups'
 import { opsReport } from './ops'
 import { countRun, noteArchived, noteUnarchivedChange, opsLedgerKey, readOpsLedger, writeOpsLedger } from './ops-ledger'
 import { runnerProfile } from './profile'
+import { reportLegProgress } from './progress'
 import { issueRace, recordRun } from './races'
 import { touchMember } from './runners'
 import { networkSnapshot } from './snapshot'
@@ -57,14 +59,15 @@ export class RelayNetworkService {
     return this.context.state
   }
 
-  static async load(storage: DurableObjectStorage, env: Env, product: State): Promise<RelayNetworkService> {
+  static async load(storage: DurableObjectStorage, env: Env, product: State, live: LiveLegs): Promise<RelayNetworkService> {
     const now = Date.now()
     const key = networkStateKey(env.NIMIQ_NETWORK)
     const stored = await readNetworkState(storage, key)
     const state = stored ? normalizeNetworkState(stored) : freshNetworkState()
     const traffic = await readTraffic(storage, trafficStateKey(key), now)
     const ops = await readOpsLedger(storage, opsLedgerKey(key), now)
-    return new RelayNetworkService({ storage, env, product, state, traffic, ops }, key)
+    await live.ready()
+    return new RelayNetworkService({ storage, env, product, state, traffic, ops, live }, key)
   }
 
   /** Signed-out routes never rewrite network state; only their traffic counters are stored, on their own key. */
@@ -165,6 +168,11 @@ export class RelayNetworkService {
       throw error
     }
     countRun(this.context.ops, 'verified', now)
+  }
+
+  /** The holder's progress on their own baton leg. Network state is only read, so callers must not persist it. */
+  reportProgress(profile: Profile, body: unknown): Promise<LegProgressResult> {
+    return reportLegProgress(this.context, profile, body, Date.now())
   }
 
   /** The operator report. A read: it never writes state, traffic or the ledger. */

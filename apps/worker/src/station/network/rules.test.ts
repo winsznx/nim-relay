@@ -221,8 +221,8 @@ describe('relay echoes', () => {
     state.handoffs = [handoff(1, 'a', { race: race({ timeMs: 45_000 }) }), latest]
     // #when the latest leg leaves its echoes
     recordLegEchoes(state, latest, relayRun({}))
-    // #then it holds the sector's ghost record
-    expect(state.echoes['baton-1']?.map(echo => [echo.kind, echo.leg, echo.sector])).toEqual([['ghost-record', 2, 0]])
+    // #then it holds the sector's ghost record, with the record time
+    expect(state.echoes['baton-1']?.map(echo => [echo.kind, echo.leg, echo.sector, echo.timeMs])).toEqual([['ghost-record', 2, 0, 41_000]])
   })
 
   it('place the first risk-route finisher at the fork once per sector', () => {

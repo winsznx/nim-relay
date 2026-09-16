@@ -3,6 +3,8 @@ import type {
   BatonDetail,
   CanonicalGhost,
   IssuedRace,
+  LegProgressInput,
+  LegProgressResult,
   NetworkConfirmation,
   NetworkHandoffIntent,
   NetworkInvite,
@@ -74,6 +76,8 @@ export const createNetworkRival = (input: { title: string; opponent: string; tar
 export const markNotificationRead = (id: string) => request<NetworkSnapshot>('/inbox/read', { id })
 export const setCountryConsent = (consent: boolean) => request<NetworkSnapshot>('/consent', { consent })
 export const networkHeartbeat = (seconds: number) => request<{ ok: true }>('/heartbeat', { seconds })
+/** The holder's progress on the baton leg they are racing, for spectators. */
+export const reportLegProgress = (input: LegProgressInput) => request<LegProgressResult>('/leg/progress', input)
 export const loadVerifiedReplay = (runId: string) => request<CanonicalGhost>(`/replays/${encodeURIComponent(runId)}`)
 /** Operators listed in the Worker's OPS_PLAYERS only; everyone else gets 403 `operators_only`. */
 export const loadOpsReport = () => request<OpsReport>('/ops')

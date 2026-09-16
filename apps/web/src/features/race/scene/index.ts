@@ -1,11 +1,13 @@
 import * as THREE from 'three'
 import { relayLeg } from '@nim-relay/game-engine'
+import type { RelayEcho } from '@nim-relay/shared'
 import { FRESH_BATON, type BatonAppearance } from '../../baton/baton-appearance'
 import type { RaceCue, RenderSnapshot } from '../controller'
 import { createRaceFrame, writeRaceFrame, type RaceFrame } from '../race-frame'
 import { BatonFlight } from './baton-flight'
 import { CameraRig, type CameraShot } from './camera'
 import { createCourier, type Courier, type CourierAct, type CourierCosmetics } from './courier'
+import { EchoField } from './echoes'
 import { Particles, SpeedLines, Trail, createRandom } from './effects'
 import { GateField, type GateFlash } from './gates'
 import { HazardField } from './hazards'
@@ -53,6 +55,8 @@ export interface RelayLegSceneOptions {
   cosmetics?: CourierCosmetics
   baton?: BatonAppearance
   ghostName?: string | null
+  /** Relay Echoes of the leg's sector. Those with a route distance stand beside the track. */
+  echoes?: readonly RelayEcho[]
   onStats?: (stats: SceneStats) => void
   /** Called once per rendered frame with the race clock on screen. The object is reused between frames. */
   onFrame?: (frame: RaceFrame) => void
@@ -106,6 +110,8 @@ export function mountRelayLeg(host: HTMLElement, options: RelayLegSceneOptions):
   scene.add(gates.group)
   const hazards = new HazardField(route, raceRenderer.settings.tier !== 'low')
   scene.add(hazards.group)
+  const echoes = new EchoField(route, options.echoes ?? [])
+  scene.add(echoes.group)
 
   const rim = new THREE.Color(style.lighting.courierRim).multiplyScalar(0.55)
   const baton = options.baton ?? FRESH_BATON
@@ -358,6 +364,9 @@ export function mountRelayLeg(host: HTMLElement, options: RelayLegSceneOptions):
     gates.update(gateState, snapshot.frameEvents, dt, flashes)
     for (const flash of flashes) emitBurst(flash.position, flash.pulse ? 16 : 10, flash.pulse ? WHITE : GOLD.bright, flash.pulse ? 7 : 4.5, 0.22, 0.4)
     hazards.update(view.dist, raceRenderer.settings.drawDistance, gateState.tick, snapshot.alpha, time, rig.camera.position)
+    for (const echoId of echoes.update({ state: gateState, viewDist: view.dist, camera: rig.camera, dt, drawDistance: raceRenderer.settings.drawDistance })) {
+      for (const listener of cueListeners) listener({ kind: 'echo', tick: gateState.tick, echoId })
+    }
     const beat = relayLeg.onBeat(gateState.track, gateState.tick) ? 1 : 0
     materials.update(time, beat)
     track.update(view.dist)
@@ -449,6 +458,7 @@ export function mountRelayLeg(host: HTMLElement, options: RelayLegSceneOptions):
       handoffGate.dispose()
       gates.dispose()
       hazards.dispose()
+      echoes.dispose()
       courier.dispose()
       ghost?.dispose()
       for (const mesh of [shadow, hoverGlow]) {

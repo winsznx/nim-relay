@@ -4,6 +4,7 @@ import type { BatonDetail, NetworkSnapshot, ShareSurface } from '@nim-relay/shar
 import * as station from '../../station/api'
 import { useSession } from '../shell/session'
 import * as api from './api'
+import { isLiveUpdate } from './live'
 import { featuredRelay, relayViews, toRelayView, type RelayView } from './model'
 
 export const relayKeys = {
@@ -29,6 +30,8 @@ export function useNow(intervalMs = 30_000): number {
 
 export interface NetworkState {
   snapshot: NetworkSnapshot | undefined
+  /** When `snapshot` arrived, on this client's clock. */
+  receivedAt: number
   /** No snapshot has loaded yet. */
   loading: boolean
   /** The latest refresh failed; `snapshot` may still hold earlier data. */
@@ -42,10 +45,12 @@ export function useNetwork(): NetworkState {
   const account = useQuery({ queryKey: relayKeys.network, queryFn: api.loadNetwork, enabled: !!player, refetchInterval: 20_000, retry: 1 })
   const showPublic = !player || (account.isError && !account.data)
   const publicNetwork = useQuery({ queryKey: relayKeys.publicNetwork, queryFn: api.loadPublicNetwork, enabled: showPublic, refetchInterval: 30_000, retry: 1 })
-  const snapshot = (player ? account.data : undefined) ?? publicNetwork.data
+  const accountSnapshot = player ? account.data : undefined
+  const snapshot = accountSnapshot ?? publicNetwork.data
   const active = showPublic ? publicNetwork : account
   return {
     snapshot,
+    receivedAt: accountSnapshot ? account.dataUpdatedAt : publicNetwork.dataUpdatedAt,
     loading: !snapshot && (active.isPending || active.isFetching),
     failed: active.isError,
     retry: () => void active.refetch(),
@@ -119,10 +124,12 @@ export function useRunnerProfile(handle: string | null) {
   return useQuery({ queryKey: relayKeys.runner(handle ?? ''), queryFn: () => api.loadRunnerProfile(handle ?? ''), enabled: !!handle, retry: retryUnlessRefused })
 }
 
-function refreshNetwork(client: QueryClient): void {
+/** `liveOnly` when only legs in progress changed, which leaves the station profile as it was. */
+function refreshNetwork(client: QueryClient, liveOnly = false): void {
   // Chronicles are left out on purpose: every Chronicle load is counted as a view.
-  for (const queryKey of [relayKeys.network, relayKeys.publicNetwork, ['baton'], relayKeys.station]) void client.invalidateQueries({ queryKey })
+  for (const queryKey of [relayKeys.network, relayKeys.publicNetwork, ['baton'], ...(liveOnly ? [] : [relayKeys.station])]) void client.invalidateQueries({ queryKey })
 }
+
 
 export function useRefreshNetwork(): () => void {
   const client = useQueryClient()
@@ -164,7 +171,7 @@ export function useLiveUpdates(): void {
         attempts = 0
         setLiveStatus('live')
       }
-      socket.onmessage = () => refreshNetwork(client)
+      socket.onmessage = event => refreshNetwork(client, isLiveUpdate(event.data))
       socket.onclose = () => {
         if (closed) return
         setLiveStatus('offline')

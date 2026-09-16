@@ -1,5 +1,5 @@
 import { relayLeg, stationRace } from '@nim-relay/game-engine'
-import type { GhostRunner, CanonicalGhost, RaceConfig, RaceResult, RaceTrace, RelayLegConfig, RelayLegMetrics, RelayLegTrace } from '@nim-relay/shared'
+import type { GhostRunner, CanonicalGhost, RaceConfig, RaceResult, RaceTrace, RelayLegConfig, RelayLegMetrics, RelayLegPath, RelayLegTrace } from '@nim-relay/shared'
 import type { Run } from './model'
 
 /** Shared mirrors the engine contract by hand; these fail to compile when the two drift apart. */
@@ -9,6 +9,7 @@ export type RelayLegContractMirror = [
   Assert<Exact<RelayLegConfig, relayLeg.Config>>,
   Assert<Exact<RelayLegTrace, relayLeg.InputTrace>>,
   Assert<Exact<RelayLegMetrics, relayLeg.Metrics>>,
+  Assert<Exact<RelayLegPath, relayLeg.Path>>,
 ]
 
 export interface VerifiedReplay {

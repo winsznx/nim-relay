@@ -255,6 +255,7 @@
   inset: 0;
   pointer-events: none;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: 1fr auto;
   padding: calc(var(--leg-top) + 64px) 24px calc(var(--leg-bottom) + 96px);
   text-align: center;
@@ -296,6 +297,19 @@
   font-size: 12px;
   letter-spacing: 0.2em;
   color: var(--leg-muted);
+}
+
+.leg-arrival__echoes {
+  margin: 20px 0 0;
+  overflow: hidden;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--leg-gold-light);
+  text-shadow: 0 0 14px rgba(245, 166, 35, 0.5), 0 1px 3px rgba(0, 0, 0, 0.8);
+  animation: leg-rise 700ms 500ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 .leg-arrival__ghost {

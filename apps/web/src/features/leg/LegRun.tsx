@@ -6,7 +6,7 @@ import { HandoffCeremony } from '../handoff/HandoffCeremony'
 import type { CeremonySceneState } from '../handoff/copy'
 import { handoffDeps } from '../handoff/deps'
 import { HandoffOrchestrator, type HandoffStage } from '../handoff/machine'
-import { RaceScreen, type CeremonyState, type RaceCue, type RaceFrame } from '../race/RaceScreen'
+import { RaceScreen, type CeremonyState, type RaceCue, type RaceFrame, type RaceMode } from '../race/RaceScreen'
 import * as api from '../relays/api'
 import { trackShare } from '../relays/data'
 import { playArrival } from '../world/globe-bridge'
@@ -16,6 +16,7 @@ import { shareLink } from '../shell/share'
 import { showToast } from '../shell/toast'
 import { useDeparture } from './departure'
 import type { LegSetup } from './prepare'
+import { LegProgressReporter } from './progress-reporter'
 import { runnerGroups } from './runner-groups'
 import './leg.css'
 
@@ -60,6 +61,8 @@ export function LegRun({ setup, snapshot, playerId, onExit, onReissue, onRefresh
   const showDeparture = useDeparture(state => state.show)
   const director = getAudioDirector()
   const baton = setup.baton
+  // Spectators follow a real baton leg live; practice, the Daily and replays are never reported.
+  const [progress] = useState(() => (setup.mode === 'relay' && setup.issued?.batonId ? new LegProgressReporter(setup.issued.runId, api.reportLegProgress) : null))
 
   useEffect(() => {
     director.scene('race')
@@ -108,17 +111,21 @@ export function LegRun({ setup, snapshot, playerId, onExit, onReissue, onRefresh
       case 'approach':
         director.cueNamed(cue.kind)
         return
+      case 'echo':
+        director.cueNamed('arrival')
+        return
       default:
         return
     }
   }
 
   // Keeps race music on the simulation clock and the FLOW, speed and rail layers in step with the courier.
-  const onFrame = (frame: RaceFrame) => {
+  const onFrame = (frame: RaceFrame, mode: RaceMode) => {
     director.syncRace(frame.tick + frame.alpha, frame.running)
     director.setFlow(frame.flow)
     director.setSpeed(frame.speed01)
     director.setRailing(frame.railing)
+    if (mode === 'relay') progress?.frame(frame, performance.now())
   }
 
   const onSceneState = useCallback(
@@ -220,6 +227,7 @@ export function LegRun({ setup, snapshot, playerId, onExit, onReissue, onRefresh
       mode={setup.mode}
       sender={setup.sender}
       {...(setup.appearance ? { baton: setup.appearance } : {})}
+      echoes={setup.echoes}
       onFinished={onFinished}
       onExit={onExit}
       ceremony={ceremony}

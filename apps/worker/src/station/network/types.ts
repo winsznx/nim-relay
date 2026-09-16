@@ -1,6 +1,7 @@
 import type { AchievementId, BatonHandoff, BatonMode, HandoffRejectionReason, NetworkBaton, NetworkHandoffIntent, NetworkInvite, NetworkNotification, NetworkRival, OpsFlagReason, RaceMode, RelayArtifact, RelayEcho, ShareSurface } from '@nim-relay/shared'
 import type { Env } from '../../env'
 import type { State } from '../model'
+import type { LiveLegs } from './live'
 
 export interface Member {
   consent: boolean
@@ -32,8 +33,8 @@ export interface DailyBest {
   timeMs: number
 }
 
-/** Stored baton. Values derived from the clock or from handoffs are added when presenting it. */
-export type BatonRecord = Omit<NetworkBaton, 'appearance' | 'aliveMs' | 'transactingWallets' | 'stops'>
+/** Stored baton. Values derived from the clock, from handoffs or from live progress are added when presenting it. */
+export type BatonRecord = Omit<NetworkBaton, 'appearance' | 'aliveMs' | 'transactingWallets' | 'stops' | 'live'>
 
 export interface RunnerAwards {
   unlocked: Partial<Record<AchievementId, number>>
@@ -137,4 +138,6 @@ export interface NetworkContext {
   readonly state: NetworkState
   readonly traffic: TrafficState
   readonly ops: OpsLedger
+  /** Legs being raced right now. Kept in memory and small keys of their own, never in `state`. */
+  readonly live: LiveLegs
 }

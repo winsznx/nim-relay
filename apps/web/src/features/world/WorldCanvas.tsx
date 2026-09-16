@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useNetwork } from '../relays/data'
+import { useLiveBatonIds } from '../relays/live'
 import { navigate, pathFor } from '../shell/router'
 import type { RelayView } from '../relays/model'
 import { mountGlobe, type Framing, type GlobeHandle, type GlobeRelay } from './globe'
@@ -44,8 +46,8 @@ interface WorldCanvasProps {
   active: boolean
 }
 
-function toGlobeRelay(relay: RelayView): GlobeRelay {
-  return { id: relay.id, mode: relay.mode, team: relay.team, crewKey: relay.crewId, status: relay.status, stops: relay.stops.map(stop => stop.countryCode) }
+function toGlobeRelay(relay: RelayView, live: boolean): GlobeRelay {
+  return { id: relay.id, mode: relay.mode, team: relay.team, crewKey: relay.crewId, status: relay.status, live, stops: relay.stops.map(stop => stop.countryCode) }
 }
 
 /** The persistent Earth behind every screen. Mounted once by the app shell. */
@@ -79,7 +81,9 @@ export function WorldCanvas({ relays, featuredId, selectedId, framing, active }:
     }
   }, [])
 
-  const globeRelays = useMemo(() => relays.map(toGlobeRelay), [relays])
+  const { snapshot, receivedAt } = useNetwork()
+  const liveIds = useLiveBatonIds(snapshot?.batons, receivedAt)
+  const globeRelays = useMemo(() => relays.map(relay => toGlobeRelay(relay, liveIds.has(relay.id))), [relays, liveIds])
   useEffect(() => {
     globe?.update({ relays: globeRelays, featuredId, selectedId })
   }, [globe, globeRelays, featuredId, selectedId])

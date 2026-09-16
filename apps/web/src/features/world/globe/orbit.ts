@@ -140,7 +140,8 @@ export function createUnlocatedOrbit(pointMaterial: THREE.ShaderMaterial): Unloc
         const flashAt = flashes.get(relay.id)
         const flash = flashAt === undefined ? 0 : Math.max(0, 1 - (time - flashAt) / 2.2)
         const active = relay.status === 'active'
-        writePoint(cloud.buffers, index, local, relayColor(relay), 22 + flash * 34, active ? 1 : 0, index * 0.29, active ? 0.9 : 0.4)
+        const kind = active ? (relay.live ? 4 : 1) : 0
+        writePoint(cloud.buffers, index, local, relayColor(relay), 22 + flash * 34, kind, index * 0.29, active ? 0.9 : 0.4)
       })
       markDirty(cloud.geometry, relays.length)
     },

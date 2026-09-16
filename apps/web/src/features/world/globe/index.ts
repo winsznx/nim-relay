@@ -118,7 +118,7 @@ export function mountGlobe(host: HTMLElement, options: GlobeOptions): GlobeHandl
   function rebuild(): void {
     // Until geography loads every stop would look unlocated; wait rather than show that.
     if (!geographyLoaded) return
-    const next = JSON.stringify([state.relays.map(relay => [relay.id, relay.mode, relay.team, relay.crewKey, relay.status, relay.stops]), state.featuredId, state.selectedId])
+    const next = JSON.stringify([state.relays.map(relay => [relay.id, relay.mode, relay.team, relay.crewKey, relay.status, relay.live, relay.stops]), state.featuredId, state.selectedId])
     if (next === signature && routes) return
     signature = next
     routes?.dispose()

@@ -11,6 +11,8 @@ export interface GlobeRelay {
   team: 'gold' | 'cyan' | null
   crewKey: string | null
   status: 'active' | 'completed' | 'stranded'
+  /** Its holder is racing a leg right now. */
+  live: boolean
   /** Consented country codes in route order; null where the runner did not share one. */
   stops: readonly (string | null)[]
 }
@@ -93,7 +95,7 @@ const pointVertex = /* glsl */ `
   }
 `
 
-/** kind 0: route stop, 1: current holder with a pulse ring, 2: comet particle, 3: arrival burst. */
+/** kind 0: route stop, 1: current holder with a pulse ring, 2: comet particle, 3: arrival burst, 4: holder racing a leg now. */
 const pointFragment = /* glsl */ `
   uniform float uTime;
   uniform float uMotion;
@@ -108,9 +110,10 @@ const pointFragment = /* glsl */ `
     float strength;
     if (vKind < 0.5) {
       strength = smoothstep(1.0, 0.15, d) * 0.85;
-    } else if (vKind < 1.5) {
+    } else if (vKind < 1.5 || vKind > 3.5) {
       float core = smoothstep(0.3, 0.1, d);
-      float cycle = fract(uTime * 0.42 * uMotion + vPhase);
+      float pulsesPerSecond = vKind > 3.5 ? 1.35 : 0.42;
+      float cycle = fract(uTime * pulsesPerSecond * uMotion + vPhase);
       float radius = mix(0.28, 0.98, cycle);
       float ring = smoothstep(0.07, 0.0, abs(d - radius)) * (1.0 - cycle) * 0.9;
       strength = core + smoothstep(1.0, 0.0, d) * 0.12 + ring;
@@ -289,8 +292,9 @@ export function buildRoutes(relays: readonly GlobeRelay[], locate: (code: string
       const isHolder = index === relay.stops.length - 1 && relay.holder !== null && stop === relay.holder
       const highlighted = relay.relay.id === emphasis.selectedId || relay.relay.id === emphasis.featuredId
       const size = isHolder ? (highlighted ? 38 : 30) : 7
-      const alpha = relay.relay.status === 'active' ? 1 : 0.45
-      writePoint(nodes.buffers, cursor++, stop, relay.color, size, isHolder && relay.relay.status === 'active' ? 1 : 0, relay.phase, alpha)
+      const active = relay.relay.status === 'active'
+      const kind = isHolder && active ? (relay.relay.live ? 4 : 1) : 0
+      writePoint(nodes.buffers, cursor++, stop, relay.color, size, kind, relay.phase, active ? 1 : 0.45)
     })
   }
   markDirty(nodes.geometry, cursor)

@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { expect, test, type Page } from '@playwright/test'
 import type { NetworkSnapshot } from '@nim-relay/shared'
-import { RUNNERS, emptySnapshot, mockRelayApi, populatedNetwork, signedInAs } from './relay-fixtures'
+import { RUNNERS, emptySnapshot, mockRelayApi, populatedNetwork, raceLive, signedInAs } from './relay-fixtures'
 import { socialNetwork } from './social-fixtures'
 
 const SHOTS = '/tmp/nim-relay-world/shots'
@@ -146,6 +146,56 @@ test('a live network: world, journey and Chronicle, then the runner’s inbox an
   await page.waitForTimeout(600)
   await page.screenshot({ path: `${SHOTS}/profile.png` })
   expect(problems).toEqual([])
+})
+
+test('a leg raced right now shows live on the world and the journey, and goes quiet with its reports', async ({ page }) => {
+  // #given Mateo racing Global Relay #001, reporting every second while the relay room announces live changes
+  const problems = collectProblems(page)
+  const network = populatedNetwork()
+  const live = raceLive(network, Date.now())
+  let reporting = true
+  const reports = setInterval(() => {
+    if (reporting) live.updatedAt = Date.now() - 300
+  }, 1_000)
+  await mockRelayApi(page, network)
+  await page.routeWebSocket(/\/ws\/network$/, socket => {
+    const announcements = setInterval(() => {
+      if (reporting) socket.send(JSON.stringify({ type: 'network_updated', live: true }))
+    }, 1_500)
+    socket.onClose(() => clearInterval(announcements))
+  })
+
+  try {
+    // #when a spectator opens the world
+    await page.goto('/')
+    await expect(page.locator(GLOBE)).toHaveAttribute('data-map-ready', 'true', { timeout: 20_000 })
+    // #then the featured relay carries a live line
+    await expect(page.getByRole('link', { name: 'MATEO SILVA IS CARRYING THE BATON NOW, 62% · +0.31s' })).toBeVisible()
+    await page.waitForTimeout(1_000)
+    await page.screenshot({ path: `${SHOTS}/world-live.png` })
+
+    // #when they open the journey
+    await page.getByRole('link', { name: 'View journey' }).click()
+    // #then the live panel names the runner, progress, ghost gap and world, and its bar reports 62%
+    const panel = page.getByRole('region', { name: 'MATEO SILVA IS CARRYING THE BATON NOW' })
+    await expect(panel).toBeVisible()
+    await expect(panel.getByText('62% · +0.31s vs MEI TAN · Sunbreak Coast')).toBeVisible()
+    await expect(panel.getByRole('progressbar', { name: 'Mateo Silva’s leg' })).toHaveAttribute('aria-valuenow', '62')
+    await page.waitForTimeout(1_600)
+    await page.screenshot({ path: `${SHOTS}/journey-live.png` })
+
+    // #when the reports stop
+    reporting = false
+    const stoppedAt = Date.now()
+    // #then the panel holds while the last report is fresh and disappears once it is 8 s old, with no refetch needed
+    await page.waitForTimeout(4_000)
+    await expect(panel).toBeVisible()
+    await expect(panel).toBeHidden({ timeout: 8_000 })
+    expect(Date.now() - stoppedAt).toBeLessThan(8_000 + 2_500)
+    expect(problems).toEqual([])
+  } finally {
+    clearInterval(reports)
+  }
 })
 
 test('the local Worker serves the world and its not-found answers', async ({ page, request }) => {

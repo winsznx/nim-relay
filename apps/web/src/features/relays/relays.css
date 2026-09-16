@@ -374,3 +374,70 @@ a.nr-hash {
   color: var(--nr-mist);
   font-size: 12px;
 }
+
+/* Live leg: the holder's race as spectators follow it. Cyan marks it live; the bar only moves with real reports. */
+.nr-live {
+  margin: 0 0 var(--nr-space-5);
+  padding: 14px var(--nr-space-4) var(--nr-space-4);
+  border-radius: var(--nr-radius-lg);
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  background: linear-gradient(180deg, rgba(34, 211, 238, 0.09), rgba(34, 211, 238, 0.02));
+  box-shadow: 0 18px 40px -28px rgba(34, 211, 238, 0.55);
+}
+.nr-live__status {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  color: var(--nr-cyan);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.nr-live__dot {
+  position: relative;
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--nr-cyan);
+}
+.nr-live__dot::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1px solid var(--nr-cyan);
+  animation: nr-live 1.4s var(--nr-ease-out) infinite;
+}
+.nr-live__title {
+  margin: 9px 0 3px;
+  font-size: var(--nr-text-lg);
+  font-weight: 780;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+}
+.nr-live__facts {
+  margin: 0;
+  color: var(--nr-ink-soft);
+  font-size: var(--nr-text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.nr-live__bar {
+  position: relative;
+  height: 6px;
+  margin-top: 12px;
+  overflow: hidden;
+  border-radius: var(--nr-radius-pill);
+  background: rgba(214, 226, 255, 0.1);
+}
+.nr-live__fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  transform-origin: left center;
+  transform: scaleX(var(--nr-live-progress, 0));
+  background: linear-gradient(90deg, rgba(34, 211, 238, 0.4), var(--nr-cyan));
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.45);
+}

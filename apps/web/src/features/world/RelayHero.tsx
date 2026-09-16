@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import type { RelayNetwork } from '@nim-relay/shared'
+import type { BatonLive, RelayNetwork } from '@nim-relay/shared'
 import { countryName, formatAgo, formatCount, formatDuration, formatNim } from '../relays/format'
+import { carryingLine, liveNumbers } from '../relays/live'
 import { journeyHeadline, type Moment, type RelayView } from '../relays/model'
 import { linkProps, navigate, pathFor } from '../shell/router'
 import { useRequireRunner } from '../shell/session'
@@ -49,10 +50,12 @@ interface RelayHeroProps {
   latestReplay: string | null
   moments: readonly Moment[]
   now: number
+  /** The leg its holder is racing right now, while fresh. */
+  live: BatonLive | null
 }
 
 /** The featured relay, framed like a boarding pass for one NIM. */
-export function RelayHero({ relay, playerId, latestReplay, moments, now }: RelayHeroProps) {
+export function RelayHero({ relay, playerId, latestReplay, moments, now, live }: RelayHeroProps) {
   const requireRunner = useRequireRunner()
   const [watching, setWatching] = useState(false)
   const isHolder = playerId === relay.holder.id
@@ -80,6 +83,13 @@ export function RelayHero({ relay, playerId, latestReplay, moments, now }: Relay
         {journeyHeadline(relay)}
       </a>
       {relay.name !== relay.identity && <p className="nr-hero__name">{relay.name}</p>}
+      {live && (
+        <a className="nr-hero__live" {...linkProps(journey)} aria-label={`${carryingLine(live)}, ${liveNumbers(live)}`}>
+          <span className="nr-hero__live-dot" aria-hidden="true" />
+          <span className="nr-hero__live-text">{carryingLine(live)}</span>
+          <span className="nr-hero__live-numbers">{liveNumbers(live)}</span>
+        </a>
+      )}
       <StatRow label="Relay statistics" relay>
         <Stat value={<span className="nr-num">{formatCount(relay.handoffCount)}</span>} label="verified handoffs" />
         <Stat value={<span className="nr-num">{formatCount(relay.transactingWallets)}</span>} label="transacting wallets" />

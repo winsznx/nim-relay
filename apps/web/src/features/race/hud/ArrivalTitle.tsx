@@ -8,6 +8,8 @@ interface ArrivalTitleProps {
   sender: { name: string; country?: string | null } | null
   ghost: { name: string; timeMs: number } | null
   worldName: string
+  /** Labels of the echoes that span this sector's leg, most meaningful first. */
+  remembered: readonly string[]
 }
 
 function openingCopy(mode: RaceMode, sender: ArrivalTitleProps['sender'], worldName: string): { kicker: string; title: string } {
@@ -19,7 +21,7 @@ function openingCopy(mode: RaceMode, sender: ArrivalTitleProps['sender'], worldN
 }
 
 /** The opening lockup: who the baton comes from, then whose ghost you are chasing. */
-export function ArrivalTitle({ mode, stage, sender, ghost, worldName }: ArrivalTitleProps) {
+export function ArrivalTitle({ mode, stage, sender, ghost, worldName, remembered }: ArrivalTitleProps) {
   const copy = openingCopy(mode, sender, worldName)
   return (
     <div className="leg-arrival" data-stage={stage} aria-live="polite">
@@ -28,6 +30,7 @@ export function ArrivalTitle({ mode, stage, sender, ghost, worldName }: ArrivalT
           <p className="leg-arrival__kicker">{copy.kicker}</p>
           <h1 className="leg-arrival__title">{copy.title}</h1>
           {mode === 'relay' && sender?.country && <p className="leg-arrival__place">{sender.country}</p>}
+          {remembered.length > 0 && <p className="leg-arrival__echoes">THIS SECTOR REMEMBERS: {remembered.join(', ')}</p>}
         </div>
       )}
       {stage !== 'arrival' && ghost && (

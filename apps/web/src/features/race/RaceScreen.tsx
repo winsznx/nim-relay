@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent, type ReactNode } from 'react'
 import type { relayLeg } from '@nim-relay/game-engine'
+import type { RelayEcho } from '@nim-relay/shared'
 import { FRESH_BATON, batonAppearance, type BatonAppearanceInput } from '../baton/baton-appearance'
 import { RelayControls, fullLockForWidth } from './controls'
 import { RelayLegController, type GhostRun, type RaceCue, type RaceMode } from './controller'
 import { vibrateForEvents } from './haptics'
 import type { RaceFrame } from './race-frame'
+import { echoLabel, legEchoes } from './relay-echoes'
 import { ArrivalTitle } from './hud/ArrivalTitle'
 import { FirstRunHint } from './hud/FirstRunHint'
 import { FlowMeter } from './hud/FlowMeter'
@@ -27,6 +29,8 @@ export interface RaceScreenProps {
   sender?: { name: string; country?: string | null } | null
   baton?: BatonAppearanceInput
   cosmetics?: CourierCosmetics
+  /** Relay Echoes of the leg's sector: placed ones stand beside the track, the rest are named in the arrival. */
+  echoes?: readonly RelayEcho[]
   onFinished(result: relayLeg.Result, trace: relayLeg.InputTrace): void
   onExit(): void
   /**
@@ -47,9 +51,9 @@ export interface RaceScreenProps {
   /**
    * Called once per rendered frame with the race clock on screen: negative ticks count up to 0
    * through the opening, `running` is false while paused and after the finish. The object is
-   * reused between frames.
+   * reused between frames. `mode` is the run on screen, so replays arrive as 'watch'.
    */
-  onFrame?(frame: RaceFrame): void
+  onFrame?(frame: RaceFrame, mode: RaceMode): void
 }
 
 export const WORLD_NAMES: Readonly<Record<relayLeg.World, string>> = {
@@ -196,8 +200,9 @@ function RaceView(props: RaceViewProps) {
         cosmetics: latest.current.cosmetics ?? {},
         baton: latest.current.baton ? batonAppearance(latest.current.baton) : FRESH_BATON,
         ghostName,
+        echoes: latest.current.echoes ?? [],
         onStats: stats => latest.current.onStats?.(stats),
-        onFrame: frame => latest.current.onFrame?.(frame),
+        onFrame: frame => latest.current.onFrame?.(frame, mode),
       })
     } catch {
       setSceneFailed(true)
@@ -265,6 +270,7 @@ function RaceView(props: RaceViewProps) {
   const showArrival = opening || (racing && snapshot.tick < 80)
   const showHint = !hintSeen && !watching && phase === 'racing' && snapshot.tick < HINT_TICKS
   const ghostInfo = ghostRun ? { name: ghostRun.name, timeMs: ghostRun.timeMs } : null
+  const remembered = legEchoes(props.echoes ?? []).map(echoLabel)
 
   function pointerDown(event: PointerEvent<HTMLDivElement>) {
     if (activePhase === 'arrival') controller.skipOpening()
@@ -308,7 +314,7 @@ function RaceView(props: RaceViewProps) {
         </>
       )}
 
-      {showArrival && <ArrivalTitle mode={mode} stage={arrivalStage} sender={props.sender ?? null} ghost={ghostInfo} worldName={WORLD_NAMES[props.config.world]} />}
+      {showArrival && <ArrivalTitle mode={mode} stage={arrivalStage} sender={props.sender ?? null} ghost={ghostInfo} worldName={WORLD_NAMES[props.config.world]} remembered={remembered} />}
       {showHint && <FirstRunHint />}
 
       {phase === 'paused' && (
