@@ -14,17 +14,27 @@ async function player() {
 }
 function api(cookie: string, path = '', body?: unknown) { return SELF.fetch(`https://example.com/api/station${path}`, { method: body === undefined ? 'GET' : 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }) }
 describe('relay network custody', () => {
+  it('shows a crew join code only to its members', async () => {
+    const owner = await player(), outsider = await player()
+    const created = await (await api(owner.cookie, '/network/crew/create', { name: 'Invite secret crew' })).json() as NetworkSnapshot
+    const own = created.crews.find(crew => crew.name === 'Invite secret crew')
+    expect(own?.code).toMatch(/^[A-Z0-9]+$/)
+    const publicView = await (await api('', '/network/public')).json() as NetworkSnapshot
+    expect(publicView.crews.find(crew => crew.id === own?.id)?.code).toBeNull()
+    const outsiderView = await (await api(outsider.cookie, '/network')).json() as NetworkSnapshot
+    expect(outsiderView.crews.find(crew => crew.id === own?.id)?.code).toBeNull()
+  })
   it('keeps practice out of records and limits official Daily issuance', async () => {
     const a = await player()
     const before = await (await api(a.cookie)).json() as StationSnapshot
     const practice = await (await api(a.cookie, '/network/issue', { daily: true, practice: true })).json() as IssuedRace
-    const result = await (await api(a.cookie, '/submit', { issued: practice, inputTrace: [[0, 0, 0, 0]] })).json() as SubmittedRace
+    const result = await (await api(a.cookie, '/submit', { issued: practice, inputTrace: [[0, 0, 0]] })).json() as SubmittedRace
     expect(result.profile.xp).toBe(before.profile.xp)
     expect(result.profile.runs).toBe(before.profile.runs)
     const official = await (await api(a.cookie, '/network/issue', { daily: true })).json() as IssuedRace
     expect(official.config).toEqual(practice.config)
     expect((await api(a.cookie, '/network/issue', { daily: true })).status).toBe(409)
-    expect((await api(a.cookie, '/submit', { issued: {...practice, practice: false}, inputTrace: [[0, 0, 0, 0]] })).status).toBe(401)
+    expect((await api(a.cookie, '/submit', { issued: {...practice, practice: false}, inputTrace: [[0, 0, 0]] })).status).toBe(401)
   })
   it('moves custody once, binds the next ghost, and protects attempted transfers', async () => {
     const a = await player(), b = await player()
@@ -33,7 +43,7 @@ describe('relay network custody', () => {
     expect(journey.baton.holder.id).toBe(a.p.id)
     expect((await api(b.cookie, '/network/issue', {batonId:journey.baton.id})).status).toBe(403)
     const issued = await (await api(a.cookie, '/network/issue', {batonId:journey.baton.id})).json() as IssuedRace
-    expect((await api(a.cookie, '/submit', {issued,inputTrace:[[0,0,0,0]]})).status).toBe(200)
+    expect((await api(a.cookie, '/submit', {issued,inputTrace:[[0,0,0]]})).status).toBe(200)
     const intent = await (await api(a.cookie, '/network/handoff/prepare', {runId:issued.runId,recipient:b.p.id})).json() as NetworkHandoffIntent
     expect(intent.data).toContain(journey.baton.code)
     expect((await api(b.cookie, '/network/handoff/attempt', {id:intent.id})).status).toBe(404)
@@ -58,7 +68,8 @@ describe('relay network custody', () => {
       expect(after.handoffs).toHaveLength(1)
       expect(after.ghost?.runId).toBe(issued.runId)
       const next = await (await api(b.cookie, '/network/issue', {batonId:journey.baton.id})).json() as IssuedRace
-      expect(next.config).toEqual(issued.config)
+      // v5 legs share the sector course; opening FLOW is inherited from the previous run, so only it may differ.
+      expect({...next.config, openingFlow: 0}).toEqual({...issued.config, openingFlow: 0})
       expect(next.ghost?.runId).toBe(issued.runId)
       const inbox = await (await api(b.cookie, '/network')).json() as NetworkSnapshot
       expect(inbox.inbox.some(n=>n.type==='incoming_baton'&&n.batonId===journey.baton.id)).toBe(true)
@@ -77,28 +88,38 @@ describe('relay network custody', () => {
     expect((await api(b.cookie,'/network/invite/claim',{token:invite.token})).status).toBe(200)
     expect((await api(c.cookie,'/network/invite/claim',{token:invite.token})).status).toBe(409)
   })
-  it('returns a tied best-of-three baton to its origin without inventing a winner', async () => {
+  // v5 legs inherit opening FLOW from the previous run, so identical traces no longer guarantee tied rounds.
+  // Round outcomes come from the server-replayed scores; the tie rule itself is covered in network/rules.test.ts.
+  it('settles a best-of-three from verified round scores and returns the baton to its origin', async () => {
     const a=await player(),b=await player();await api(b.cookie,'/network')
     const journey=await (await api(a.cookie,'/network/create',{mode:'quick',title:'Three fair rounds',recipient:b.p.id,bestOf:3})).json() as BatonDetail
     const lookup=vi.spyOn(NimiqRpcClient.prototype,'getTransactionByHash')
+    const wins={[a.p.id]:0,[b.p.id]:0}
+    let rounds=0,openingScore=0,leg=0
     try {
-      for(let leg=0;leg<6;leg++){
+      while(rounds<3&&wins[a.p.id]!<2&&wins[b.p.id]!<2){
         const from=leg%2===0?a:b,to=leg%2===0?b:a
         const issued=await (await api(from.cookie,'/network/issue',{batonId:journey.baton.id})).json() as IssuedRace
-        expect((await api(from.cookie,'/submit',{issued,inputTrace:[[0,0,0,0]]})).status).toBe(200)
+        const submitted=await api(from.cookie,'/submit',{issued,inputTrace:[[0,0,0]]})
+        expect(submitted.status).toBe(200)
+        const {result}=await submitted.json() as SubmittedRace
         const intent=await (await api(from.cookie,'/network/handoff/prepare',{runId:issued.runId,recipient:to.p.id})).json() as NetworkHandoffIntent
         await api(from.cookie,'/network/handoff/attempt',{id:intent.id})
         const hash=(leg+1).toString(16).repeat(64)
         lookup.mockResolvedValue({hash,sender:intent.sender,recipient:intent.recipient,value:'100000',data:intent.data,network:'TestAlbatross',blockNumber:100+leg,confirmations:2,executionResult:true})
-        const result=await (await api(from.cookie,'/network/handoff/confirm',{id:intent.id,txHash:hash})).json() as {status:string}
-        expect(result.status).toBe('verified')
+        const confirmation=await (await api(from.cookie,'/network/handoff/confirm',{id:intent.id,txHash:hash})).json() as {status:string}
+        expect(confirmation.status).toBe('verified')
+        if(leg%2===0)openingScore=result.score
+        else{rounds++;if(openingScore>result.score)wins[a.p.id]!++;else if(result.score>openingScore)wins[b.p.id]!++}
+        leg++
       }
+      const expectedWinner=wins[a.p.id]===wins[b.p.id]?null:wins[a.p.id]!>wins[b.p.id]!?a.p.id:b.p.id
       const final=await (await api('',`/network/batons/${journey.baton.id}`)).json() as BatonDetail
       expect(final.baton.status).toBe('completed')
       expect(final.baton.holder.id).toBe(a.p.id)
-      expect(final.baton.quick?.rounds).toBe(3)
-      expect(final.baton.quick?.winnerId).toBeNull()
-      expect(final.handoffs).toHaveLength(6)
+      expect(final.baton.quick?.rounds).toBe(rounds)
+      expect(final.baton.quick?.winnerId).toBe(expectedWinner)
+      expect(final.handoffs).toHaveLength(rounds*2)
     }finally{lookup.mockRestore()}
   })
 
@@ -113,7 +134,7 @@ describe('relay network custody', () => {
     let number=80
     async function pass(batonId:string,from:Awaited<ReturnType<typeof player>>,to:Awaited<ReturnType<typeof player>>) {
       const issued=await (await api(from.cookie,'/network/issue',{batonId})).json() as IssuedRace
-      await api(from.cookie,'/submit',{issued,inputTrace:[[0,0,0,0]]})
+      await api(from.cookie,'/submit',{issued,inputTrace:[[0,0,0]]})
       if(batonId===journey.baton.id)expect((await api(from.cookie,'/network/handoff/prepare',{runId:issued.runId,recipient:outsider.p.id})).status).toBe(400)
       const intent=await (await api(from.cookie,'/network/handoff/prepare',{runId:issued.runId,recipient:to.p.id})).json() as NetworkHandoffIntent
       await api(from.cookie,'/network/handoff/attempt',{id:intent.id})
