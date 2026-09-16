@@ -1,0 +1,80 @@
+/* The v4 race keeps its own look; these adjust it for the relay product frame. */
+.nr-app .station-app {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+}
+.race-modal .station-secondary,
+.race-modal .station-primary {
+  margin: 8px 6px 0 0;
+}
+.race-modal input,
+.race-modal select {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  background: #14263d;
+  color: #fff;
+  border: 1px solid #ffffff30;
+}
+.race-modal label {
+  display: block;
+  margin: 12px 0;
+}
+.race-modal label input {
+  display: block;
+  width: 100%;
+}
+.race-hud {
+  top: calc(12px + env(safe-area-inset-top));
+}
+.race-hud .station-topbar {
+  padding: 12px 0;
+}
+.race-controls {
+  background: none;
+  touch-action: none;
+  user-select: none;
+}
+.race-controls span {
+  font-size: 11px;
+  padding: 10px;
+  background: #091526b8;
+  border-radius: 8px;
+  color: #e3eaf3;
+}
+.heat-meter {
+  width: 110px;
+}
+
+.nr-leg-message {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: calc(var(--nr-safe-top) + 24px) var(--nr-gutter) calc(var(--nr-safe-bottom) + 24px);
+  background: radial-gradient(120% 80% at 50% 20%, #111a33 0%, var(--nr-night-1000) 70%);
+}
+.nr-leg-message__card {
+  width: min(420px, 100%);
+  padding: var(--nr-space-6);
+  border-radius: var(--nr-radius-xl);
+  border: 1px solid var(--nr-line-strong);
+  background: var(--nr-glass-strong);
+}
+.nr-leg-message__card h1 {
+  margin: 0 0 var(--nr-space-2);
+  font-size: var(--nr-text-2xl);
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+.nr-leg-message__card p {
+  margin: 0;
+  color: var(--nr-ink-soft);
+}
+.nr-leg-message__loading {
+  margin: 0;
+  color: var(--nr-mist);
+}

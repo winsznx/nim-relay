@@ -1,0 +1,75 @@
+/*
+ * Design tokens v2. Extends styles/tokens.css; DESIGN.md is the authority.
+ * Gold marks value in motion (the baton, primary actions, the holder).
+ * Cyan marks live or verified state and nothing else.
+ */
+:root {
+  --nr-night-1000: #04060d;
+  --nr-night-950: #070b16;
+  --nr-night-900: var(--color-bg-void);
+  --nr-night-850: #0e1425;
+  --nr-night-800: #131a2e;
+  --nr-night-700: #1c2439;
+
+  --nr-line: rgba(206, 220, 255, 0.08);
+  --nr-line-strong: rgba(206, 220, 255, 0.15);
+
+  --nr-ink: var(--color-text-primary);
+  --nr-ink-soft: #c9d0de;
+  --nr-mist: #9aa3b8;
+  --nr-mist-dim: #737c92;
+
+  --nr-gold: var(--color-gold-500);
+  --nr-gold-deep: var(--color-gold-600);
+  --nr-gold-light: #ffd48c;
+  --nr-gold-ink: #1d1203;
+  --nr-gold-wash: rgba(245, 166, 35, 0.12);
+  --nr-gold-glow: rgba(245, 166, 35, 0.34);
+
+  --nr-cyan: var(--color-cyan-400);
+  --nr-cyan-wash: rgba(34, 211, 238, 0.12);
+
+  --nr-danger: #ff9f8f;
+  --nr-danger-wash: rgba(255, 120, 100, 0.12);
+
+  --nr-glass: rgba(12, 17, 32, 0.78);
+  --nr-glass-strong: rgba(9, 13, 25, 0.94);
+  --nr-blur: blur(18px) saturate(1.25);
+
+  --nr-font: var(--font-display);
+  --nr-font-mono: ui-monospace, 'SF Mono', 'Roboto Mono', Menlo, monospace;
+
+  /* Type scale, 1.2 ratio anchored at 15px body. */
+  --nr-text-xs: 11px;
+  --nr-text-sm: 13px;
+  --nr-text-md: 15px;
+  --nr-text-lg: 17px;
+  --nr-text-xl: 21px;
+  --nr-text-2xl: 26px;
+  --nr-text-3xl: 32px;
+  --nr-text-4xl: 42px;
+
+  --nr-space-1: 4px;
+  --nr-space-2: 8px;
+  --nr-space-3: 12px;
+  --nr-space-4: 16px;
+  --nr-space-5: 20px;
+  --nr-space-6: 24px;
+  --nr-space-8: 32px;
+  --nr-space-10: 40px;
+
+  --nr-radius-sm: 10px;
+  --nr-radius-md: 14px;
+  --nr-radius-lg: 20px;
+  --nr-radius-xl: 26px;
+  --nr-radius-pill: var(--radius-pill);
+
+  --nr-safe-top: env(safe-area-inset-top, 0px);
+  --nr-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --nr-nav-height: 64px;
+  --nr-nav-space: calc(var(--nr-nav-height) + var(--nr-safe-bottom) + 14px);
+  --nr-gutter: 18px;
+
+  --nr-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --nr-shadow-float: 0 18px 48px -18px rgba(0, 0, 0, 0.7);
+}

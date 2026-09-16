@@ -6,6 +6,10 @@ import react from '@vitejs/plugin-react'
 // uses (PRD section 25.3 - avoids CORS drift between local and production).
 const hmrHost = process.env.VITE_HMR_HOST
 
+// Page navigations to shareable app routes get this dev server's app shell;
+// other requests on those paths still reach the Worker, as in production.
+const appPage = (req: { headers: { accept?: string | undefined } }) => (req.headers.accept?.includes('text/html') ? '/index.html' : undefined)
+
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -16,8 +20,8 @@ export default defineConfig({
     proxy: {
       '/api': { target: 'http://localhost:8787', changeOrigin: true },
       '/ws': { target: 'ws://localhost:8787', ws: true },
-      '/proof': { target: 'http://localhost:8787', changeOrigin: true },
-      '/invite': { target: 'http://localhost:8787', changeOrigin: true },
+      '/proof': { target: 'http://localhost:8787', changeOrigin: true, bypass: appPage },
+      '/invite': { target: 'http://localhost:8787', changeOrigin: true, bypass: appPage },
     },
   },
   build: {
