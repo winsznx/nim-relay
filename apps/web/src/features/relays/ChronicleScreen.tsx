@@ -8,11 +8,11 @@ import { EmptyState, Loading, SectionHeader, Stat, StatRow } from '../shell/ui/p
 import { Screen } from '../shell/ui/Screen'
 import { BatonEmblem } from '../baton/BatonEmblem'
 import { batonAppearance } from '../baton/baton-appearance'
+import { ShareCardButton } from '../social/cards/ShareCardButton'
 import * as api from './api'
 import { trackShare, useChronicle } from './data'
 import { countryName, flagFor, formatCount, formatDateTime, formatDuration, formatNim, formatRaceTime, modeLabel, serialLabel, shortHash } from './format'
-import { watchPath } from './JourneyRoute'
-import { shareJourneyCard } from './share-card'
+import { watchPath } from './paths'
 import './relays.css'
 
 function momentDetail(moment: ChronicleMoment): string {
@@ -50,6 +50,10 @@ function ChronicleBody({ chronicle }: { chronicle: BatonChronicle }) {
   const path = pathFor('chronicle', { code: baton.code })
   const countriesInOrder = chronicle.stops.map(stop => stop.countryCode)
   const route = countriesInOrder.length > 1 ? `${countryName(countriesInOrder[0] ?? null)} → ${countryName(countriesInOrder.at(-1) ?? null)}` : countryName(countriesInOrder[0] ?? null)
+  const consented = chronicle.stops.flatMap(stop => (stop.countryCode ? [stop.countryCode] : []))
+  const first = consented[0] ?? null
+  const last = consented.at(-1) ?? null
+  const cardRoute = first === null ? null : first === last ? countryName(first) : `${countryName(first)} → ${countryName(last)}`
   const appearance = batonAppearance({ handoffCount: chronicle.qualifiedHandoffs, ageMs: chronicle.aliveMs, countries: chronicle.countries, ghostWins: 0, milestones: chronicle.moments.filter(moment => moment.kind === 'rescue').map(() => 'rescue') })
   return (
     <>
@@ -154,31 +158,26 @@ function ChronicleBody({ chronicle }: { chronicle: BatonChronicle }) {
       </section>
 
       <div className="nr-actions nr-actions--stack">
-        <Button
+        <ShareCardButton
           variant="primary"
           block
-          busy={action.pending}
-          onClick={() =>
-            action.run(async () => {
-              await shareJourneyCard({
-                code: baton.code,
-                identity,
-                name: baton.displayName,
-                network: baton.network,
-                valueLuna: baton.value,
-                handoffs: chronicle.qualifiedHandoffs,
-                transactingWallets: chronicle.transactingWallets,
-                countries: chronicle.countries,
-                aliveMs: chronicle.aliveMs,
-                route,
-                runnerNames: chronicle.stops.map(stop => stop.runner.name),
-              })
-              trackShare('chronicle')
-            })
-          }
+          card={{
+            kind: 'chronicle',
+            code: baton.code,
+            identity,
+            name: baton.displayName,
+            network: baton.network,
+            valueLuna: baton.value,
+            handoffs: chronicle.qualifiedHandoffs,
+            transactingWallets: chronicle.transactingWallets,
+            countries: chronicle.countries,
+            aliveMs: chronicle.aliveMs,
+            route: cardRoute,
+            runnerNames: chronicle.stops.map(stop => stop.runner.name),
+          }}
         >
           Share Chronicle card
-        </Button>
+        </ShareCardButton>
         <Button
           variant="secondary"
           block

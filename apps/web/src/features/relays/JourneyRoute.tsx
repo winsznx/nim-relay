@@ -1,20 +1,17 @@
 import { useState } from 'react'
 import type { BatonDetail } from '@nim-relay/shared'
 import { linkProps, pathFor } from '../shell/router'
-import { Avatar, SectionHeader } from '../shell/ui/primitives'
+import { LegShare } from '../social/cards/LegShare'
+import { SectionHeader } from '../shell/ui/primitives'
+import { RunnerAvatar } from '../shell/ui/RunnerAvatar'
 import { countryName, formatCount, formatDateTime } from './format'
 import { echoText, type RelayView } from './model'
+import { practicePath, watchPath } from './paths'
 
 const VISIBLE_STOPS = 10
 
-const relaySuffix = (code: string | null) => (code ? `&relay=${encodeURIComponent(code)}` : '')
-/** Replay of a verified ride. `code` is the relay to return to when the replay was opened from a link. */
-export const watchPath = (runId: string, code: string | null) => `/leg/watch?run=${encodeURIComponent(runId)}${relaySuffix(code)}`
-/** A practice leg against a verified ghost. */
-export const practicePath = (runId: string, code: string | null) => `/leg/practice?ghost=${encodeURIComponent(runId)}${relaySuffix(code)}`
-
-/** Every stop in order: who started the baton, then each verified handoff with its replay and proof. */
-export function JourneyRoute({ relay, detail }: { relay: RelayView; detail: BatonDetail }) {
+/** Every stop in order: who started the baton, then each verified handoff with its replay, proof and, for its runners, share cards. */
+export function JourneyRoute({ relay, detail, playerId }: { relay: RelayView; detail: BatonDetail; playerId: string | null }) {
   const [expanded, setExpanded] = useState(false)
   const handoffs = detail.handoffs
   const hidden = expanded ? 0 : Math.max(0, handoffs.length - VISIBLE_STOPS)
@@ -23,7 +20,7 @@ export function JourneyRoute({ relay, detail }: { relay: RelayView; detail: Bato
       <SectionHeader id="journey-route" title="The route" detail={`${formatCount(handoffs.length + 1)} stops, oldest first`} />
       <ol className="nr-route">
         <li className="nr-route__stop">
-          <Avatar name={relay.origin.name} country={relay.origin.country} size={36} />
+          <RunnerAvatar name={relay.origin.name} wallet={relay.origin.wallet} country={relay.origin.country} size={36} />
           <div className="nr-route__body">
             <p className="nr-route__title">{relay.origin.name} started the relay</p>
             <p className="nr-route__meta">
@@ -41,7 +38,7 @@ export function JourneyRoute({ relay, detail }: { relay: RelayView; detail: Bato
         )}
         {handoffs.slice(hidden).map(handoff => (
           <li key={handoff.id} className="nr-route__stop" id={`leg-${handoff.leg}`}>
-            <Avatar name={handoff.to.name} country={handoff.to.country} holder={handoff.leg === relay.handoffCount && relay.status !== 'completed'} size={36} />
+            <RunnerAvatar name={handoff.to.name} wallet={handoff.to.wallet} country={handoff.to.country} holder={handoff.leg === relay.handoffCount && relay.status !== 'completed'} size={36} />
             <div className="nr-route__body">
               <p className="nr-route__leg">Leg {handoff.leg}</p>
               <p className="nr-route__title">
@@ -55,6 +52,7 @@ export function JourneyRoute({ relay, detail }: { relay: RelayView; detail: Bato
                 <a {...linkProps(watchPath(handoff.runId, relay.code))}>Watch verified ride</a>
                 <a {...linkProps(`${pathFor('proofRelay', { code: relay.code })}#tx-${handoff.txHash}`)}>Transaction proof</a>
               </p>
+              <LegShare relay={relay} handoffs={handoffs} handoff={handoff} playerId={playerId} />
             </div>
           </li>
         ))}

@@ -7,7 +7,8 @@ import { navigate, pathFor } from '../shell/router'
 import { useRequireRunner, useSession } from '../shell/session'
 import { useAction } from '../shell/use-action'
 import { Button, LinkButton } from '../shell/ui/Button'
-import { Avatar, EmptyState, Loading } from '../shell/ui/primitives'
+import { EmptyState, Loading } from '../shell/ui/primitives'
+import { RunnerAvatar } from '../shell/ui/RunnerAvatar'
 import { Screen } from '../shell/ui/Screen'
 import './social.css'
 
@@ -39,7 +40,7 @@ export function InviteScreen({ token, entryKey }: { token: string; entryKey: str
     <Screen title="Invitation" entryKey={entryKey}>
       {data ? (
         <div className="nr-invite">
-          <Avatar name={data.from.name} country={data.from.country} holder size={72} />
+          <RunnerAvatar name={data.from.name} wallet={data.from.wallet} country={data.from.country} holder size={72} />
           <h2 className="nr-invite__headline">{data.from.name} wants you to carry the next leg</h2>
           <p className="nr-lede">
             {baton ? `${baton.displayName} is carrying ${formatNim(baton.value)}.` : 'A relay is waiting for its next runner.'} Accept to reserve the next pass. You’ll race {data.from.name}’s verified ghost, then pass the baton on.

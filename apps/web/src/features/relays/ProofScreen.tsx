@@ -11,7 +11,7 @@ import { Screen } from '../shell/ui/Screen'
 import * as api from './api'
 import { useNetwork, useNow, useRelay } from './data'
 import { explorerUrl, formatCount, formatDateTime, formatDuration, formatLuna, formatNim, networkLabel } from './format'
-import { watchPath } from './JourneyRoute'
+import { watchPath } from './paths'
 import { toRelayView } from './model'
 import './relays.css'
 

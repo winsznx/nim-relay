@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
-import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { useQueries, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import type { BatonDetail, NetworkSnapshot, ShareSurface } from '@nim-relay/shared'
 import * as station from '../../station/api'
 import { useSession } from '../shell/session'
@@ -14,6 +14,7 @@ export const relayKeys = {
   chronicle: (code: string) => ['chronicle', code] as const,
   runner: (handle: string) => ['runner', handle] as const,
   invite: (token: string) => ['invite', token] as const,
+  replay: (runId: string) => ['replay', runId] as const,
 }
 
 /** Minute-resolution clock for ages and "time alive". */
@@ -51,6 +52,13 @@ export function useNetwork(): NetworkState {
   }
 }
 
+/** Runner id to Nimiq address, for identicons where only a runner's id and name travel. */
+export function useRunnerWallets(): ReadonlyMap<string, string> {
+  const { snapshot } = useNetwork()
+  const runners = snapshot?.runners
+  return useMemo(() => new Map((runners ?? []).map(runner => [runner.id, runner.wallet])), [runners])
+}
+
 export function useStationProfile() {
   const { player } = useSession()
   return useQuery({ queryKey: relayKeys.station, queryFn: station.loadStation, enabled: !!player, retry: 1 })
@@ -71,6 +79,19 @@ export function useBatonDetail(code: string | null) {
     refetchInterval: 20_000,
     retry: retryUnlessRefused,
   })
+}
+
+/** Details for several batons at once, sharing the cache and refresh of `useBatonDetail`. */
+export function useBatonDetails(codes: readonly string[]): BatonDetail[] {
+  return useQueries({
+    queries: codes.map(code => ({ queryKey: relayKeys.baton(code), queryFn: () => api.loadBaton(code), refetchInterval: 20_000, retry: retryUnlessRefused })),
+    combine: results => results.flatMap(result => (result.data ? [result.data] : [])),
+  })
+}
+
+/** A verified replay never changes once recorded, so it loads once per session. */
+export function useVerifiedReplay(runId: string | null) {
+  return useQuery({ queryKey: relayKeys.replay(runId ?? ''), queryFn: () => api.loadVerifiedReplay(runId ?? ''), enabled: !!runId, staleTime: Infinity, retry: retryUnlessRefused })
 }
 
 /** A relay view that prefers the detail record, so counts computed from handoffs are exact. */

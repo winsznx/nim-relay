@@ -46,8 +46,8 @@ export interface RelayView {
   serial: number
   origin: NetworkRunner
   holder: NetworkRunner
-  /** Runner the next pass is reserved for, and whether they accepted it. */
-  next: { id: string; name: string; accepted: boolean } | null
+  /** Runner the next pass is reserved for, and whether they accepted it. `wallet` is null for a runner missing from the snapshot. */
+  next: { id: string; name: string; wallet: string | null; accepted: boolean } | null
   handoffCount: number
   countries: string[]
   runners: number
@@ -87,6 +87,7 @@ export function toRelayView(baton: NetworkBaton, context: RelayContext): RelayVi
   // aliveMs is measured when the server answers; an active baton keeps ageing on screen.
   const aliveMs = baton.status === 'active' ? Math.max(baton.aliveMs, context.now - baton.createdAt) : baton.aliveMs
   const reserved = baton.recipientId && baton.recipientId !== baton.holder.id ? baton.recipientId : null
+  const nextRunner = reserved ? context.runners.find(runner => runner.id === reserved) : undefined
   const rescues = (detail?.handoffs ?? []).filter(handoff => handoff.rescue).map(() => 'rescue')
   return {
     id: baton.id,
@@ -100,7 +101,7 @@ export function toRelayView(baton: NetworkBaton, context: RelayContext): RelayVi
     serial: baton.serial,
     origin: baton.origin,
     holder: baton.holder,
-    next: reserved ? { id: reserved, name: context.runners.find(runner => runner.id === reserved)?.name ?? 'Reserved runner', accepted: baton.recipientAcceptedAt !== null } : null,
+    next: reserved ? { id: reserved, name: nextRunner?.name ?? 'Reserved runner', wallet: nextRunner?.wallet ?? null, accepted: baton.recipientAcceptedAt !== null } : null,
     handoffCount: baton.handoffCount,
     countries: baton.lineage.countries,
     runners: baton.lineage.runners,

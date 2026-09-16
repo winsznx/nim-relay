@@ -1,0 +1,164 @@
+.nr-rivals {
+  display: grid;
+  gap: 12px;
+}
+.nr-rival {
+  padding: 16px 16px 8px;
+  border-radius: var(--nr-radius-lg);
+  border: 1px solid var(--nr-line-strong);
+  background:
+    radial-gradient(90% 70% at 0% 0%, rgba(245, 166, 35, 0.09), transparent 70%),
+    radial-gradient(90% 70% at 100% 100%, rgba(34, 211, 238, 0.07), transparent 70%),
+    rgba(12, 17, 32, 0.6);
+}
+.nr-rival__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nr-space-3);
+}
+.nr-rival__head h3 {
+  min-width: 0;
+  margin: 0;
+  font-size: var(--nr-text-lg);
+  font-weight: 720;
+  letter-spacing: -0.015em;
+  overflow-wrap: anywhere;
+}
+.nr-rival__rule {
+  margin: 4px 0 16px;
+  color: var(--nr-mist);
+  font-size: var(--nr-text-sm);
+}
+.nr-rival__clock {
+  color: var(--nr-ink);
+}
+
+/* Race lanes */
+.nr-rival__lanes {
+  display: grid;
+  gap: 16px;
+}
+.nr-lane {
+  --nr-lane-color: var(--nr-gold);
+  --nr-lane-light: var(--nr-gold-light);
+  display: grid;
+  gap: 8px;
+}
+.nr-lane--cyan {
+  --nr-lane-color: var(--nr-cyan);
+  --nr-lane-light: #9ceefa;
+}
+.nr-lane--out {
+  opacity: 0.55;
+}
+.nr-lane__head {
+  min-height: 44px;
+  color: inherit !important;
+  text-decoration: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--nr-space-3);
+}
+.nr-lane__team {
+  display: grid;
+  min-width: 0;
+}
+.nr-lane__side {
+  color: var(--nr-lane-light);
+  font-size: 11px;
+  font-weight: 760;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.nr-lane__name {
+  overflow: hidden;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nr-lane__score {
+  flex: none;
+  color: var(--nr-lane-light);
+  font-size: 28px;
+  font-style: italic;
+  font-weight: 880;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+.nr-lane__target {
+  color: var(--nr-mist);
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+.nr-lane__track {
+  position: relative;
+  height: 12px;
+  margin: 4px 10px 4px 0;
+  border-radius: var(--nr-radius-pill);
+  background: rgba(214, 226, 255, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(214, 226, 255, 0.05);
+}
+.nr-lane__track::after {
+  content: '';
+  position: absolute;
+  top: -6px;
+  right: -1px;
+  width: 3px;
+  height: 24px;
+  border-radius: 2px;
+  background: repeating-linear-gradient(180deg, var(--nr-ink-soft) 0 4px, transparent 4px 8px);
+  opacity: 0.6;
+}
+.nr-lane__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--nr-lane-progress, 0) * 100%);
+  border-radius: inherit;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--nr-lane-color) 35%, transparent), var(--nr-lane-color));
+  box-shadow: 0 0 14px color-mix(in srgb, var(--nr-lane-color) 45%, transparent);
+  transition: width 700ms var(--nr-ease-out);
+}
+.nr-lane__baton {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--nr-lane-progress, 0) * 100%);
+  width: 20px;
+  height: 23px;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: linear-gradient(160deg, white, var(--nr-lane-light) 45%, var(--nr-lane-color));
+  transform: translate(-50%, -50%);
+  transition: left 700ms var(--nr-ease-out);
+}
+.nr-lane--won .nr-lane__track {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--nr-lane-color) 50%, transparent), 0 0 22px color-mix(in srgb, var(--nr-lane-color) 30%, transparent);
+}
+.nr-lane__holder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  margin: 0;
+  color: var(--nr-ink-soft);
+  font-size: 12.5px;
+}
+
+/* Calls to action */
+.nr-rival__call {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: var(--nr-radius-md);
+  border: 1px solid rgba(245, 166, 35, 0.35);
+  background: var(--nr-gold-wash);
+}
+.nr-rival__call p {
+  margin: 0 0 10px;
+  font-weight: 600;
+}
+.nr-rival__share {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}

@@ -1,6 +1,6 @@
 import { useId, useState } from 'react'
 import type { NetworkRunner } from '@nim-relay/shared'
-import { Avatar } from '../shell/ui/primitives'
+import { RunnerAvatar } from '../shell/ui/RunnerAvatar'
 
 interface RunnerPickerProps {
   label: string
@@ -42,7 +42,7 @@ export function RunnerPicker({ label, runners, selfId, value, onChange }: Runner
         {matches.slice(0, LIMIT).map(runner => (
           <li key={runner.id}>
             <button type="button" className="nr-picker__option" aria-pressed={runner.id === value} onClick={() => onChange(runner.id)}>
-              <Avatar name={runner.name} country={runner.country} size={32} />
+              <RunnerAvatar name={runner.name} wallet={runner.wallet} country={runner.country} size={32} />
               <span className="nr-row__body">
                 <span className="nr-row__title">{runner.name}</span>
                 <span className="nr-row__meta">@{runner.handle}</span>
@@ -53,7 +53,7 @@ export function RunnerPicker({ label, runners, selfId, value, onChange }: Runner
         {exactHandle && (
           <li>
             <button type="button" className="nr-picker__option" aria-pressed={value === exactHandle} onClick={() => onChange(exactHandle)}>
-              <Avatar name={exactHandle} size={32} />
+              <RunnerAvatar name={exactHandle} size={32} />
               <span className="nr-row__body">
                 <span className="nr-row__title">Send to @{exactHandle}</span>
                 <span className="nr-row__meta">Use their exact handle</span>

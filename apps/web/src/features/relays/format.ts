@@ -48,6 +48,24 @@ export function formatRaceTime(ms: number): string {
   return seconds < 60 ? `${seconds.toFixed(2)}s` : `${Math.floor(seconds / 60)}:${(seconds % 60).toFixed(2).padStart(5, '0')}`
 }
 
+const pad2 = (value: number) => String(value).padStart(2, '0')
+
+/** Leaderboard time as mm:ss.cc, truncated to the hundredth so a ranking never rounds up. */
+export function formatBoardTime(ms: number): string {
+  const centiseconds = Math.floor(Math.max(0, ms) / 10)
+  const minutes = Math.floor(centiseconds / 6000)
+  const seconds = Math.floor(centiseconds / 100) % 60
+  return `${pad2(minutes)}:${pad2(seconds)}.${pad2(centiseconds % 100)}`
+}
+
+/** Time left as HH:MM:SS, with whole days in front once it is a day or more. Partial seconds count as a full second. */
+export function formatClock(ms: number): string {
+  const total = Math.ceil(Math.max(0, ms) / 1000)
+  const days = Math.floor(total / 86_400)
+  const clock = `${pad2(Math.floor(total / 3600) % 24)}:${pad2(Math.floor(total / 60) % 60)}:${pad2(total % 60)}`
+  return days > 0 ? `${days}d ${clock}` : clock
+}
+
 export function formatDateTime(time: number): string {
   return new Date(time).toLocaleString('en', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }

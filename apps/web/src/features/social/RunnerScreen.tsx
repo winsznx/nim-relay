@@ -1,21 +1,25 @@
 import * as api from '../relays/api'
 import { useNetwork, useRunnerProfile } from '../relays/data'
-import { countryName, formatCount, formatRaceTime } from '../relays/format'
 import { playerMessage } from '../shell/errors'
+import { pathFor } from '../shell/router'
 import { useSession } from '../shell/session'
 import { Button, LinkButton } from '../shell/ui/Button'
-import { Avatar, EmptyState, Loading, Stat, StatRow } from '../shell/ui/primitives'
+import { EmptyState, Loading } from '../shell/ui/primitives'
 import { Screen } from '../shell/ui/Screen'
-import { AchievementList, RelayHistory } from './RunnerParts'
+import { ArtifactTiles, AchievementShelf } from './profile/Collection'
+import { LevelPlate, ProfileHeader } from './profile/ProfileHeader'
+import { RecentRunners, RelayHistory, RunnerStats } from './profile/RunnerRecord'
+import { useProfileLookups } from './data'
 import './social.css'
 
-/** A runner's public page. Wallets and exact locations never appear here. */
+/** A runner's public page. It never shows a wallet address or an exact location. */
 export function RunnerScreen({ handle, entryKey }: { handle: string; entryKey: string }) {
   const clean = handle.replace(/^@/, '')
   const profile = useRunnerProfile(clean)
   const { snapshot } = useNetwork()
   const { player } = useSession()
   const runner = profile.data
+  const lookups = useProfileLookups(runner?.historicBatons)
 
   if (!runner) {
     const missing = profile.error instanceof api.NetworkApiError && profile.error.code === 'runner_not_found'
@@ -40,32 +44,25 @@ export function RunnerScreen({ handle, entryKey }: { handle: string; entryKey: s
     )
   }
 
-  const holding = snapshot?.batons.some(baton => baton.holder.handle === runner.handle && baton.status === 'active') ?? false
+  const you = player?.handle === runner.handle
+  const holding = snapshot?.batons.some(baton => baton.holder.handle === runner.handle && baton.status !== 'completed') ?? false
   return (
     <Screen title="Runner" entryKey={entryKey}>
-      <div className="nr-profile-head">
-        <Avatar name={runner.name} country={runner.country} holder={holding} size={64} />
-        <div>
-          <h2 className="nr-profile-head__name">{player?.handle === runner.handle ? `${runner.name} (you)` : runner.name}</h2>
-          <p className="nr-profile-head__meta">
-            @{runner.handle}, {runner.country ? countryName(runner.country) : 'location not shared'}
-          </p>
-          <p className="nr-profile-head__rank">
-            Level {runner.level}, {runner.seasonRank}
-          </p>
+      {/* The identicon comes from the network roster; the public profile itself carries no wallet. */}
+      <ProfileHeader name={runner.name} handle={runner.handle} wallet={lookups.walletsByHandle.get(runner.handle) ?? null} country={runner.country} holder={holding} you={you} />
+      <LevelPlate level={runner.level} seasonRank={runner.seasonRank} xp={null} />
+      <RunnerStats profile={runner} />
+      {you && (
+        <div className="nr-actions">
+          <LinkButton variant="secondary" to={pathFor('profile')}>
+            Open your profile
+          </LinkButton>
         </div>
-      </div>
-      <StatRow columns={3} label="Runner statistics">
-        <Stat value={formatCount(runner.qualifiedHandoffs)} label="verified handoffs" gold />
-        <Stat value={formatCount(runner.legs)} label="relay legs" />
-        <Stat value={`${formatCount(runner.ghostWins)}–${formatCount(runner.ghostLosses)}`} label="ghost races won" />
-        <Stat value={`${formatCount(runner.quick.wins)}–${formatCount(runner.quick.losses)}`} label="quick matches won" />
-        <Stat value={runner.daily.bestTimeMs === null ? '–' : formatRaceTime(runner.daily.bestTimeMs)} label="best Daily time" />
-        <Stat value={runner.crew ? formatCount(runner.crew.streak) : '–'} label={runner.crew ? `${runner.crew.name} streak` : 'no crew yet'} />
-      </StatRow>
+      )}
       <RelayHistory batons={runner.historicBatons} />
-      <AchievementList achievements={runner.achievements} legacy={[]} artifacts={runner.artifacts} />
-      {runner.recentRunners.length > 0 && <p className="nr-note">Recently ran with {runner.recentRunners.map(item => item.name).join(', ')}.</p>}
+      <AchievementShelf achievements={runner.achievements} />
+      <ArtifactTiles artifacts={runner.artifacts} codes={lookups.batonCodes} />
+      <RecentRunners runners={runner.recentRunners} wallets={lookups.walletsByHandle} />
     </Screen>
   )
 }

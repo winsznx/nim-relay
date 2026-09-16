@@ -9,7 +9,8 @@ import { tickerMoments, toRelayView, type RelayView } from '../relays/model'
 import { linkProps, navigate, pathFor } from '../shell/router'
 import { useRequireRunner } from '../shell/session'
 import { Button } from '../shell/ui/Button'
-import { Avatar, Pill } from '../shell/ui/primitives'
+import { Pill } from '../shell/ui/primitives'
+import { RunnerAvatar } from '../shell/ui/RunnerAvatar'
 import { playArrival } from './globe-bridge'
 import { EmptyHero, RelayHero } from './RelayHero'
 
@@ -37,7 +38,7 @@ function TopBar({ player, snapshot }: { player: Player | null; snapshot: Network
         )}
         {player ? (
           <a className="nr-topbar__avatar" {...linkProps('/profile')} aria-label={`Your profile, ${player.displayName}`}>
-            <Avatar name={player.displayName} size={36} />
+            <RunnerAvatar name={player.displayName} wallet={player.walletAddress} size={36} />
           </a>
         ) : (
           <Button variant="secondary" size="sm" onClick={() => requireRunner('Sign in to receive batons and race for real.', () => undefined)}>

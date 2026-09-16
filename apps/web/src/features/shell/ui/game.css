@@ -1,0 +1,108 @@
+/* Game pieces shared by the social screens: identicon avatars, progress, countdowns and hex badges. */
+
+/* An identicon sits inside the avatar disc like a coin, small enough that its corners clear the ring. */
+.nr-avatar--identicon {
+  background: radial-gradient(120% 120% at 30% 20%, #1b2440 0%, #0b101e 72%);
+}
+.nr-avatar__identicon {
+  display: block;
+  width: 86%;
+  height: 86%;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Progress */
+.nr-progress {
+  --nr-progress-color: var(--nr-gold);
+  --nr-progress-glow: var(--nr-gold-glow);
+  position: relative;
+  height: 8px;
+  overflow: hidden;
+  border-radius: var(--nr-radius-pill);
+  background: rgba(214, 226, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(214, 226, 255, 0.05);
+}
+.nr-progress--sm {
+  height: 5px;
+}
+.nr-progress--cyan {
+  --nr-progress-color: var(--nr-cyan);
+  --nr-progress-glow: rgba(34, 211, 238, 0.35);
+}
+.nr-progress--crew {
+  --nr-progress-color: var(--nr-crew-color, var(--nr-gold));
+  --nr-progress-glow: color-mix(in srgb, var(--nr-crew-color, var(--nr-gold)) 40%, transparent);
+}
+.nr-progress__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--nr-progress, 0) * 100%);
+  border-radius: inherit;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--nr-progress-color) 55%, transparent), var(--nr-progress-color));
+  box-shadow: 0 0 12px var(--nr-progress-glow);
+  transition: width 600ms var(--nr-ease-out);
+}
+
+/* Countdown */
+.nr-countdown {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/* Hex badge */
+.nr-hex-badge {
+  flex: none;
+  display: block;
+  overflow: visible;
+  color: #2b1a03;
+}
+.nr-hex-badge__stop-light {
+  stop-color: #ffe0a3;
+}
+.nr-hex-badge__stop-mid {
+  stop-color: var(--nr-gold);
+}
+.nr-hex-badge__stop-deep {
+  stop-color: #a85f06;
+}
+.nr-hex-badge--crew .nr-hex-badge__stop-light {
+  stop-color: color-mix(in srgb, var(--nr-crew-color, var(--nr-gold)) 45%, white);
+}
+.nr-hex-badge--crew .nr-hex-badge__stop-mid {
+  stop-color: var(--nr-crew-color, var(--nr-gold));
+}
+.nr-hex-badge--crew .nr-hex-badge__stop-deep {
+  stop-color: color-mix(in srgb, var(--nr-crew-color, var(--nr-gold)) 55%, black);
+}
+.nr-hex-badge__frame {
+  filter: drop-shadow(0 6px 14px rgba(245, 166, 35, 0.28));
+}
+.nr-hex-badge--crew .nr-hex-badge__frame {
+  filter: drop-shadow(0 6px 14px color-mix(in srgb, var(--nr-crew-color, var(--nr-gold)) 30%, transparent));
+}
+.nr-hex-badge__inner {
+  fill: none;
+  stroke: rgba(255, 246, 222, 0.42);
+  stroke-width: 1;
+}
+.nr-hex-badge__text {
+  fill: currentColor;
+  font-size: 15px;
+  font-weight: 850;
+  letter-spacing: -0.02em;
+}
+.nr-hex-badge--locked {
+  color: var(--nr-mist-dim);
+}
+.nr-hex-badge--locked .nr-hex-badge__frame {
+  fill: rgba(214, 226, 255, 0.035);
+  stroke: rgba(214, 226, 255, 0.2);
+  stroke-width: 1.2;
+  stroke-dasharray: 3 3;
+  filter: none;
+}
+.nr-hex-badge--locked .nr-hex-badge__inner {
+  stroke: rgba(214, 226, 255, 0.08);
+}

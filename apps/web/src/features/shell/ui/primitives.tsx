@@ -1,5 +1,4 @@
 import type { CSSProperties, ReactNode } from 'react'
-import { flagFor, initials } from '../../relays/format'
 
 export type PillTone = 'neutral' | 'live' | 'verified' | 'gold' | 'danger'
 
@@ -9,24 +8,6 @@ export function Pill({ tone = 'neutral', children }: { tone?: PillTone; children
     <span className={`nr-pill nr-pill--${tone}`}>
       <span className="nr-pill__dot" aria-hidden="true" />
       {children}
-    </span>
-  )
-}
-
-interface AvatarProps {
-  name: string
-  /** Consented, network-observed country; shown as a small flag. */
-  country?: string | null | undefined
-  holder?: boolean
-  size?: number
-}
-
-export function Avatar({ name, country = null, holder = false, size = 40 }: AvatarProps) {
-  const flag = flagFor(country)
-  return (
-    <span className={`nr-avatar${holder ? ' nr-avatar--holder' : ''}`} style={{ '--nr-avatar-size': `${size}px` } as CSSProperties} aria-hidden="true">
-      {initials(name)}
-      {flag && <span className="nr-avatar__flag">{flag}</span>}
     </span>
   )
 }

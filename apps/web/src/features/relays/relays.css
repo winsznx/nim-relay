@@ -91,12 +91,34 @@
 .nr-route__links {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 16px;
-  margin: 6px 0 0;
+  gap: 0 18px;
+  margin: 0;
   font-size: var(--nr-text-sm);
 }
 .nr-route__links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   text-decoration-color: rgba(255, 212, 140, 0.35);
+}
+.nr-link-button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--nr-gold-light);
+  font-size: var(--nr-text-sm);
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 212, 140, 0.35);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.nr-link-button:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 .nr-route__more {
   padding-left: 40px;

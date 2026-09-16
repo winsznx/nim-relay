@@ -1,37 +1,72 @@
-import type { NetworkNotification, NetworkSnapshot } from '@nim-relay/shared'
 import * as api from '../relays/api'
 import { useNetwork, useNow, useRefreshNetwork } from '../relays/data'
-import { formatAgo, formatNim } from '../relays/format'
-import { watchPath } from '../relays/JourneyRoute'
+import { formatAgo } from '../relays/format'
 import { navigate, pathFor } from '../shell/router'
 import { useSession } from '../shell/session'
+import { useAction } from '../shell/use-action'
+import { LinkButton } from '../shell/ui/Button'
+import { Countdown } from '../shell/ui/Countdown'
 import { Icon } from '../shell/ui/Icon'
 import { EmptyState, Loading, SectionHeader } from '../shell/ui/primitives'
 import { Screen } from '../shell/ui/Screen'
+import { inboxSections, type InboxItem } from './model/inbox'
 import { SignInPrompt } from './SignInPrompt'
+import './inbox/inbox.css'
 import './social.css'
 
-/** Where each notice takes the player: straight to the thing they can act on. */
-function destination(item: NetworkNotification, snapshot: NetworkSnapshot): string {
-  const code = item.batonId ? (snapshot.batons.find(baton => baton.id === item.batonId)?.code ?? item.batonId) : null
-  switch (item.type) {
-    case 'crew_streak_risk':
-      return pathFor('crew')
-    case 'daily_active':
-      return pathFor('daily')
-    case 'rival_update':
-      return code ? pathFor('relay', { code }) : pathFor('rivals')
-    case 'ghost_beaten':
-      return item.runId && code ? watchPath(item.runId, code) : code ? pathFor('relay', { code }) : pathFor('inbox')
-    default:
-      return code ? pathFor('relay', { code }) : pathFor('world')
+function markRead(ids: readonly string[], refresh: () => void): void {
+  if (ids.length === 0) return
+  Promise.all(ids.map(id => api.markNotificationRead(id)))
+    .then(refresh)
+    .catch((error: unknown) => console.warn('Notification stays unread', error))
+}
+
+function Item({ item, urgent, now }: { item: InboxItem; urgent: boolean; now: number }) {
+  const action = useAction()
+  const refresh = useRefreshNetwork()
+  const open = () => {
+    markRead(item.unreadIds, refresh)
+    const target = item.action
+    if (target.kind === 'open') {
+      navigate(target.to)
+      return
+    }
+    action.run(async () => {
+      await api.acceptReservation(target.batonId)
+      refresh()
+      navigate(target.to)
+    })
   }
+  return (
+    <li>
+      <button type="button" className={`nr-inbox-item${urgent ? ' nr-inbox-item--now' : ''}${item.highlight ? ' nr-inbox-item--highlight' : ''}`} aria-busy={action.pending || undefined} disabled={action.pending} onClick={open}>
+        <span className="nr-inbox-item__dot" aria-hidden="true" />
+        <span className="nr-inbox-item__body">
+          <span className="nr-inbox-item__title">
+            {item.title}
+            {item.unreadIds.length > 0 && <span className="nr-visually-hidden">, unread</span>}
+          </span>
+          <span className="nr-inbox-item__text">{item.body}</span>
+          {item.deadline ? (
+            <span className="nr-inbox-item__deadline">
+              {item.deadline.label} <Countdown to={item.deadline.at} onElapsed={refresh} />
+            </span>
+          ) : item.at !== null && !urgent ? (
+            <span className="nr-inbox-item__time nr-num">{formatAgo(item.at, now)}</span>
+          ) : null}
+        </span>
+        <span className="nr-inbox-item__cta">
+          {item.cta}
+          <Icon name="chevron" size={15} />
+        </span>
+      </button>
+    </li>
+  )
 }
 
 export function InboxScreen({ entryKey }: { entryKey: string }) {
   const { player } = useSession()
   const { snapshot, loading } = useNetwork()
-  const refresh = useRefreshNetwork()
   const now = useNow()
 
   if (!player) {
@@ -49,71 +84,42 @@ export function InboxScreen({ entryKey }: { entryKey: string }) {
     )
   }
 
-  const open = (item: NetworkNotification) => {
-    if (item.readAt === null) {
-      api
-        .markNotificationRead(item.id)
-        .then(refresh)
-        .catch((error: unknown) => console.warn('Notification stays unread', error))
-    }
-    navigate(destination(item, snapshot))
+  const { now: needsYou, updates } = inboxSections(snapshot, player.id)
+  if (needsYou.length === 0 && updates.length === 0) {
+    return (
+      <Screen title="Inbox" entryKey={entryKey}>
+        <EmptyState title="Nothing needs you right now" body="Incoming batons, ghost battles and crew streaks land here. Ride today’s Daily or look around the Relay Station while you wait.">
+          <div className="nr-actions">
+            <LinkButton variant="primary" to={pathFor('daily')}>
+              Ride today’s Daily
+            </LinkButton>
+            <LinkButton variant="secondary" to={pathFor('station')}>
+              Open the Relay Station
+            </LinkButton>
+          </div>
+        </EmptyState>
+      </Screen>
+    )
   }
-  const pending = snapshot.pendingHandoff
-  const pendingCode = pending ? snapshot.batons.find(baton => baton.id === pending.batonId)?.code : undefined
-  const quietCrews = snapshot.crews.filter(crew => crew.members.some(member => member.id === player.id) && crew.todayHandoffs === 0)
 
   return (
     <Screen title="Inbox" entryKey={entryKey}>
-      {pending && pendingCode && (
-        <button type="button" className="nr-alert" onClick={() => navigate(pathFor('relay', { code: pendingCode }))}>
-          <span className="nr-row__body">
-            <span className="nr-row__title">Finish your pass to {pending.recipientName}</span>
-            <span className="nr-row__meta">
-              {formatNim(pending.value)} on leg {pending.leg} is prepared but not confirmed yet.
-            </span>
-          </span>
-          <Icon name="chevron" size={18} />
-        </button>
+      {needsYou.length > 0 && (
+        <section aria-labelledby="inbox-now">
+          <SectionHeader id="inbox-now" title="Needs you now" detail={needsYou.length === 1 ? 'One thing only you can move' : `${needsYou.length} things only you can move`} />
+          <ul className="nr-inbox-list">
+            {needsYou.map(item => (
+              <Item key={item.key} item={item} urgent now={now} />
+            ))}
+          </ul>
+        </section>
       )}
-
-      {snapshot.inbox.length === 0 ? (
-        <EmptyState title="Nothing waiting" body="Incoming batons, ghost battles and rematches land here. Start a relay or ride today’s Daily while you wait." />
-      ) : (
-        <ul className="nr-list" aria-label="Notifications">
-          {snapshot.inbox.map(item => (
-            <li key={item.id}>
-              <button type="button" className={`nr-row nr-notice${item.readAt === null ? ' nr-notice--unread' : ''}`} onClick={() => open(item)}>
-                <span className="nr-notice__dot" aria-hidden="true" />
-                <span className="nr-row__body">
-                  <span className="nr-row__title">
-                    {item.title}
-                    {item.readAt === null && <span className="nr-visually-hidden">, unread</span>}
-                  </span>
-                  <span className="nr-row__meta">{item.body}</span>
-                </span>
-                <span className="nr-row__aside nr-num">{formatAgo(item.createdAt, now)}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {quietCrews.length > 0 && (
-        <section className="nr-section" aria-labelledby="inbox-crews">
-          <SectionHeader id="inbox-crews" title="Crew streaks" />
-          <ul className="nr-list">
-            {quietCrews.map(crew => (
-              <li key={crew.id}>
-                <button type="button" className="nr-row" onClick={() => navigate(pathFor('crew'))}>
-                  <span className="nr-row__body">
-                    <span className="nr-row__title">{crew.name} needs a pass today</span>
-                    <span className="nr-row__meta">
-                      {crew.streak} day streak. Resets at {new Date(crew.deadline).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.
-                    </span>
-                  </span>
-                  <Icon name="chevron" size={18} />
-                </button>
-              </li>
+      {updates.length > 0 && (
+        <section className={needsYou.length > 0 ? 'nr-section' : undefined} aria-labelledby="inbox-updates">
+          <SectionHeader id="inbox-updates" title="Updates" />
+          <ul className="nr-inbox-list nr-inbox-list--updates" aria-label="Notifications">
+            {updates.map(item => (
+              <Item key={item.key} item={item} urgent={false} now={now} />
             ))}
           </ul>
         </section>

@@ -6,7 +6,8 @@ import { routeLine, type Moment, type RelayView } from '../relays/model'
 import { linkProps, navigate, pathFor } from '../shell/router'
 import { useRequireRunner } from '../shell/session'
 import { Button, LinkButton } from '../shell/ui/Button'
-import { Avatar, Stat, StatRow } from '../shell/ui/primitives'
+import { Stat, StatRow } from '../shell/ui/primitives'
+import { RunnerAvatar } from '../shell/ui/RunnerAvatar'
 import { flyToRelay } from './globe-bridge'
 
 const TICK_MS = 4800
@@ -90,7 +91,7 @@ export function RelayHero({ relay, playerId, latestReplay, moments, now }: Relay
         <div className="nr-hero__person">
           <p className="nr-hero__label">Current holder</p>
           <div className="nr-hero__runner">
-            <Avatar name={relay.holder.name} country={relay.holder.country} holder size={34} />
+            <RunnerAvatar name={relay.holder.name} wallet={relay.holder.wallet} country={relay.holder.country} holder size={34} />
             <span>
               <span className="nr-hero__runner-name">{isHolder ? 'You' : relay.holder.name}</span>
               <span className="nr-hero__runner-place">{countryName(relay.holder.country)}</span>
@@ -100,7 +101,7 @@ export function RelayHero({ relay, playerId, latestReplay, moments, now }: Relay
         <div className="nr-hero__person">
           <p className="nr-hero__label">Next</p>
           <div className="nr-hero__runner">
-            {relay.next ? <Avatar name={relay.next.name} size={34} /> : <span className="nr-hero__open-slot" aria-hidden="true" />}
+            {relay.next ? <RunnerAvatar name={relay.next.name} wallet={relay.next.wallet} size={34} /> : <span className="nr-hero__open-slot" aria-hidden="true" />}
             <span>
               <span className="nr-hero__runner-name">{relay.status !== 'active' ? 'No next leg' : relay.next ? (relay.next.id === playerId ? 'You' : relay.next.name) : 'Awaiting runner'}</span>
               <span className="nr-hero__runner-place">{relay.next ? 'Reserved' : relay.status === 'active' ? 'Open to invite' : ' '}</span>

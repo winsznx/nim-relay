@@ -1,5 +1,5 @@
 import type { Page, Route } from '@playwright/test'
-import type { BatonChronicle, BatonDetail, BatonHandoff, NetworkBaton, NetworkMetrics, NetworkRunner, NetworkSnapshot, RunnerProfile, StationSnapshot } from '@nim-relay/shared'
+import type { BatonChronicle, BatonDetail, BatonHandoff, CanonicalGhost, NetworkBaton, NetworkMetrics, NetworkRunner, NetworkSnapshot, RunnerProfile, StationSnapshot } from '@nim-relay/shared'
 
 /**
  * Test-only relay network fixtures shaped like the Worker's responses. They
@@ -7,9 +7,10 @@ import type { BatonChronicle, BatonDetail, BatonHandoff, NetworkBaton, NetworkMe
  * the product.
  */
 
-const HOUR = 3_600_000
-const hash = (seed: number) => Array.from({ length: 64 }, (_, i) => ((seed * 31 + i * 7) % 16).toString(16)).join('')
-const wallet = (seed: number) => `NQ${String(10 + seed).padStart(2, '0')} ${Array.from({ length: 8 }, (_, i) => String.fromCharCode(65 + ((seed + i * 5) % 26)) + String((seed + i) % 10) + String.fromCharCode(66 + ((seed * 3 + i) % 24)) + String((seed * 7 + i) % 10)).join(' ')}`
+export const HOUR = 3_600_000
+export const hash = (seed: number) => Array.from({ length: 64 }, (_, i) => ((seed * 31 + i * 7) % 16).toString(16)).join('')
+/** Compact and upper case, the way the Worker presents addresses in snapshots. */
+const wallet = (seed: number) => `NQ${String(10 + seed).padStart(2, '0')}${Array.from({ length: 8 }, (_, i) => String.fromCharCode(65 + ((seed + i * 5) % 26)) + String((seed + i) % 10) + String.fromCharCode(66 + ((seed * 3 + i) % 24)) + String((seed * 7 + i) % 10)).join('')}`
 
 function runner(id: string, name: string, handle: string, country: string | null, seed: number): NetworkRunner {
   return { id, name, handle, wallet: wallet(seed), country, countrySource: country ? 'network_observed' : null }
@@ -26,7 +27,7 @@ export const RUNNERS = {
   thandi: runner('p-thandi', 'Thandi M', 'thandi', 'ZA', 8),
 }
 
-const metrics = (overrides: Partial<NetworkMetrics> = {}): NetworkMetrics => ({
+export const metrics = (overrides: Partial<NetworkMetrics> = {}): NetworkMetrics => ({
   linkedWallets: 0,
   transactingWallets: 0,
   qualifiedHandoffs: 0,
@@ -73,7 +74,7 @@ export function emptySnapshot(network: NetworkSnapshot['network'] = 'TestAlbatro
   }
 }
 
-function baton(input: { id: string; code: string; serial: number; mode: NetworkBaton['mode']; title: string; path: NetworkRunner[]; createdAt: number; updatedAt: number; status?: NetworkBaton['status']; crewId?: string | null; rivalId?: string | null; recipientId?: string | null; ghostWins?: number }): NetworkBaton {
+export function baton(input: { id: string; code: string; serial: number; mode: NetworkBaton['mode']; title: string; path: NetworkRunner[]; createdAt: number; updatedAt: number; status?: NetworkBaton['status']; crewId?: string | null; rivalId?: string | null; recipientId?: string | null; ghostWins?: number }): NetworkBaton {
   const origin = input.path[0] ?? RUNNERS.ada
   const holder = input.path.at(-1) ?? origin
   const handoffCount = input.path.length - 1
@@ -168,7 +169,7 @@ export function populatedNetwork(now = Date.now()): { snapshot: NetworkSnapshot;
 
 const ref = (item: NetworkRunner) => ({ id: item.id, handle: item.handle, name: item.name })
 
-function chronicleOf(detail: BatonDetail): BatonChronicle {
+export function chronicleOf(detail: BatonDetail): BatonChronicle {
   const { baton, handoffs } = detail
   return {
     baton: { id: baton.id, code: baton.code, serial: baton.serial, title: baton.title, displayName: baton.displayName, mode: baton.mode, network: baton.network, status: baton.status, value: baton.value, createdAt: baton.createdAt, completedAt: baton.completedAt, origin: ref(baton.origin), holder: ref(baton.holder), route: baton.route, appearance: baton.appearance },
@@ -188,7 +189,7 @@ function chronicleOf(detail: BatonDetail): BatonChronicle {
   }
 }
 
-function profileOf(item: NetworkRunner, snapshot: NetworkSnapshot): RunnerProfile {
+export function profileOf(item: NetworkRunner, snapshot: NetworkSnapshot): RunnerProfile {
   const batons = snapshot.batons.filter(baton => baton.origin.id === item.id || baton.holder.id === item.id)
   return {
     handle: item.handle,
@@ -256,7 +257,16 @@ export function signedInAs(runner: NetworkRunner, snapshot: NetworkSnapshot): { 
  * Serves the relay API from fixtures, signed out unless an account is given.
  * Unknown codes answer exactly as the Worker does.
  */
-export async function mockRelayApi(page: Page, network: { snapshot: NetworkSnapshot; details?: Record<string, BatonDetail> }, account?: ReturnType<typeof signedInAs>): Promise<void> {
+export interface MockNetwork {
+  snapshot: NetworkSnapshot
+  details?: Record<string, BatonDetail>
+  /** Public runner profiles by handle; runners without one get a plain generated profile. */
+  profiles?: Record<string, RunnerProfile>
+  /** Verified replays by run id. */
+  replays?: Record<string, CanonicalGhost>
+}
+
+export async function mockRelayApi(page: Page, network: MockNetwork, account?: ReturnType<typeof signedInAs>): Promise<void> {
   await page.routeWebSocket(/\/ws\/network$/, () => undefined)
   await page.route('**/api/**', route => {
     const url = new URL(route.request().url())
@@ -273,11 +283,16 @@ export async function mockRelayApi(page: Page, network: { snapshot: NetworkSnaps
     }
     const runnerMatch = path.match(/^\/api\/station\/network\/runners\/([^/]+)$/)
     if (runnerMatch) {
-      const found = Object.values(RUNNERS).find(item => item.handle === decodeURIComponent(runnerMatch[1] ?? ''))
-      return found ? json(route, 200, profileOf(found, network.snapshot)) : json(route, 404, { error: 'runner_not_found' })
+      const handle = decodeURIComponent(runnerMatch[1] ?? '')
+      const found = Object.values(RUNNERS).find(item => item.handle === handle)
+      return found ? json(route, 200, network.profiles?.[handle] ?? profileOf(found, network.snapshot)) : json(route, 404, { error: 'runner_not_found' })
     }
     if (path.startsWith('/api/station/network/invites/')) return json(route, 404, { error: 'invite_not_found' })
-    if (path.startsWith('/api/station/network/replays/')) return json(route, 404, { error: 'verified_replay_not_found' })
+    const replayMatch = path.match(/^\/api\/station\/network\/replays\/([^/]+)$/)
+    if (replayMatch) {
+      const replay = network.replays?.[decodeURIComponent(replayMatch[1] ?? '')]
+      return replay ? json(route, 200, replay) : json(route, 404, { error: 'verified_replay_not_found' })
+    }
     if (path.startsWith('/api/station/network/track')) return json(route, 200, { counted: true })
     return json(route, 401, { error: 'no_session' })
   })

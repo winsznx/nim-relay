@@ -1,0 +1,279 @@
+/* Runner header */
+.nr-runner-head {
+  display: flex;
+  align-items: center;
+  gap: var(--nr-space-4);
+  margin: 6px 0 var(--nr-space-4);
+}
+.nr-runner-head__text {
+  min-width: 0;
+}
+.nr-runner-head__name {
+  margin: 0;
+  font-size: var(--nr-text-2xl);
+  font-weight: 760;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+  overflow-wrap: anywhere;
+}
+.nr-runner-head__meta {
+  margin: 3px 0 0;
+  color: var(--nr-mist);
+}
+.nr-runner-head__holding {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 6px 0 0;
+  color: var(--nr-gold-light);
+  font-size: var(--nr-text-sm);
+  font-weight: 650;
+}
+.nr-runner-head__holding::before {
+  content: '';
+  width: 9px;
+  height: 10px;
+  background: var(--nr-gold);
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+}
+
+/* Level plate */
+.nr-level {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  margin-bottom: var(--nr-space-5);
+  padding: 14px 16px 14px 12px;
+  border-radius: var(--nr-radius-lg);
+  border: 1px solid rgba(245, 166, 35, 0.2);
+  background: linear-gradient(115deg, rgba(245, 166, 35, 0.1), rgba(245, 166, 35, 0.015) 60%);
+}
+.nr-level .nr-hex-badge__text {
+  font-size: 19px;
+}
+.nr-level__body {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.nr-level__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--nr-space-3);
+  margin: 0;
+  font-size: var(--nr-text-lg);
+  font-weight: 720;
+  letter-spacing: -0.015em;
+}
+.nr-level__rank {
+  color: var(--nr-gold-light);
+  font-size: var(--nr-text-sm);
+  font-weight: 650;
+}
+.nr-level__meta {
+  margin: 0;
+  color: var(--nr-mist);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+/* Baton history */
+.nr-baton-mark {
+  flex: none;
+  width: 14px;
+  height: 16px;
+  margin: 0 6px;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: rgba(214, 226, 255, 0.22);
+}
+.nr-baton-mark--origin {
+  background: linear-gradient(160deg, #ffd48c, var(--nr-gold));
+}
+.nr-baton-mark--holder {
+  background: linear-gradient(160deg, #fff1cf, var(--nr-gold) 70%);
+  box-shadow: 0 0 12px var(--nr-gold-glow);
+}
+a.nr-row > svg:last-child {
+  flex: none;
+  color: var(--nr-mist-dim);
+}
+
+/* Recent runners */
+.nr-people {
+  display: flex;
+  gap: 6px;
+  margin: 0 calc(var(--nr-gutter) * -1);
+  padding: 2px var(--nr-gutter) 6px;
+  overflow-x: auto;
+  list-style: none;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.nr-people::-webkit-scrollbar {
+  display: none;
+}
+.nr-person {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  width: 76px;
+  padding: 6px 2px;
+  border-radius: var(--nr-radius-md);
+  color: var(--nr-ink-soft) !important;
+  font-size: 12px;
+  text-align: center;
+  text-decoration: none;
+  scroll-snap-align: start;
+}
+.nr-person__name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Achievement shelf */
+.nr-shelf {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.nr-shelf__badge {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 5px;
+  text-align: center;
+}
+.nr-shelf__badge .nr-hex-badge {
+  margin-bottom: 3px;
+}
+.nr-shelf__title {
+  font-size: 13px;
+  font-weight: 680;
+  line-height: 1.25;
+}
+.nr-shelf__detail {
+  color: var(--nr-mist);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+.nr-shelf__badge--locked .nr-shelf__title {
+  color: var(--nr-ink-soft);
+  font-weight: 600;
+}
+.nr-shelf__badge--locked .nr-shelf__detail {
+  color: var(--nr-mist-dim);
+}
+
+/* Relay Artifacts */
+.nr-artifact-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.nr-artifact {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  height: 100%;
+  min-height: 148px;
+  padding: 12px 14px 14px;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid rgba(245, 166, 35, 0.26);
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(245, 166, 35, 0.16), transparent 55%),
+    linear-gradient(180deg, rgba(20, 27, 46, 0.9), rgba(10, 14, 26, 0.9));
+  color: inherit !important;
+  text-decoration: none;
+}
+.nr-artifact::after {
+  content: '';
+  position: absolute;
+  right: -26px;
+  bottom: -30px;
+  width: 92px;
+  height: 104px;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: rgba(245, 166, 35, 0.06);
+}
+.nr-artifact--link:active {
+  transform: scale(0.985);
+}
+.nr-artifact__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.nr-artifact__date {
+  color: var(--nr-mist);
+  font-size: 11px;
+}
+.nr-artifact__title {
+  font-size: 14.5px;
+  font-weight: 720;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+.nr-artifact__subtitle {
+  color: var(--nr-mist);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+/* Locker */
+.nr-locker__item--locked .nr-locker__name {
+  color: var(--nr-mist);
+}
+
+/* Proof disclosure */
+.nr-proof-disclosure {
+  margin-top: var(--nr-space-6);
+  border-radius: var(--nr-radius-lg);
+  border: 1px solid var(--nr-line);
+  background: rgba(214, 226, 255, 0.03);
+}
+.nr-proof-disclosure summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 0 16px;
+  color: var(--nr-ink-soft);
+  font-weight: 650;
+  list-style: none;
+  cursor: pointer;
+}
+.nr-proof-disclosure summary::-webkit-details-marker {
+  display: none;
+}
+.nr-proof-disclosure summary svg {
+  color: #9ceefa;
+}
+.nr-proof-disclosure__hint {
+  margin-left: auto;
+  color: var(--nr-mist);
+  font-size: var(--nr-text-sm);
+  font-weight: 500;
+}
+.nr-proof-disclosure[open] summary {
+  border-bottom: 1px solid var(--nr-line);
+}
+.nr-proof-disclosure > :not(summary) {
+  margin: 12px 16px;
+}
+.nr-proof-disclosure > :last-child {
+  margin-bottom: 16px;
+}

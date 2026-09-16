@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react'
+import { useRunnerWallets } from '../relays/data'
+import { RunnerAvatar } from '../shell/ui/RunnerAvatar'
 import type { RunnerChoice } from './machine'
 
 export interface RunnerOption extends RunnerChoice {
@@ -18,16 +20,8 @@ interface RunnerPickerProps {
   onInvite(): void
 }
 
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .map(part => part[0] ?? '')
-    .join('')
-    .slice(0, 2)
-    .toUpperCase()
-}
-
 export function RunnerPicker({ groups, notice, onSelect, onInvite }: RunnerPickerProps) {
+  const wallets = useRunnerWallets()
   const [query, setQuery] = useState('')
   const total = groups.reduce((count, group) => count + group.runners.length, 0)
   const visibleGroups = useMemo(() => {
@@ -65,9 +59,7 @@ export function RunnerPicker({ groups, notice, onSelect, onInvite }: RunnerPicke
               {group.runners.map(runner => (
                 <li key={`${group.title}-${runner.id}`}>
                   <button type="button" className="handoff-runner" onClick={() => onSelect(runner)}>
-                    <span className="handoff-avatar" aria-hidden="true">
-                      {initials(runner.name)}
-                    </span>
+                    <RunnerAvatar name={runner.name} wallet={wallets.get(runner.id)} size={40} />
                     <span className="handoff-runner-text">
                       <strong>{runner.name}</strong>
                       <small>{runner.context ?? `@${runner.handle}`}</small>

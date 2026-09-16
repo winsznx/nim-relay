@@ -1,78 +1,4 @@
-/* Inbox */
-.nr-alert {
-  display: flex;
-  align-items: center;
-  gap: var(--nr-space-3);
-  width: 100%;
-  margin-bottom: var(--nr-space-4);
-  padding: var(--nr-space-4);
-  border-radius: var(--nr-radius-lg);
-  border: 1px solid rgba(245, 166, 35, 0.35);
-  background: var(--nr-gold-wash);
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.nr-notice {
-  align-items: flex-start;
-}
-.nr-notice__dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  margin-top: 8px;
-  border-radius: 50%;
-  background: transparent;
-}
-.nr-notice--unread .nr-notice__dot {
-  background: var(--nr-gold);
-}
-.nr-notice .nr-row__title {
-  white-space: normal;
-}
-.nr-notice:not(.nr-notice--unread) .nr-row__title {
-  color: var(--nr-ink-soft);
-  font-weight: 520;
-}
-
-/* Daily */
-.nr-daily-cover {
-  padding: var(--nr-space-2) 0 var(--nr-space-2);
-}
-.nr-daily-cover__date {
-  margin: 0;
-  color: var(--nr-gold-light);
-  font-size: var(--nr-text-sm);
-  font-weight: 650;
-}
-.nr-daily-cover__world {
-  margin: 2px 0 var(--nr-space-2);
-  font-size: var(--nr-text-3xl);
-  font-weight: 780;
-  letter-spacing: -0.04em;
-  line-height: 1.05;
-}
-.nr-row--self .nr-row__title {
-  color: var(--nr-gold-light);
-}
-.nr-plain-link {
-  color: inherit !important;
-  text-decoration: none;
-}
-
-/* Crew */
-.nr-crew-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--nr-space-3);
-  margin-bottom: var(--nr-space-4);
-}
-.nr-crew-head h2 {
-  margin: 0;
-  font-size: var(--nr-text-2xl);
-  letter-spacing: -0.03em;
-}
+/* Crew code */
 .nr-code-chip {
   display: inline-flex;
   align-items: center;
@@ -85,52 +11,6 @@
   color: var(--nr-ink-soft);
   cursor: pointer;
 }
-/* Rivals */
-.nr-rivalry {
-  padding: var(--nr-space-4) 0;
-  border-bottom: 1px solid var(--nr-line);
-}
-.nr-rivalry__title {
-  margin: 0 0 var(--nr-space-2);
-  font-weight: 650;
-}
-.nr-rivalry__score {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--nr-space-2);
-  margin-bottom: var(--nr-space-2);
-}
-.nr-rivalry__team {
-  display: grid;
-  gap: 2px;
-  padding: 12px 14px;
-  border-radius: var(--nr-radius-md);
-  border: 1px solid var(--nr-line);
-  color: inherit !important;
-  text-decoration: none;
-}
-.nr-rivalry__team--gold {
-  border-color: rgba(245, 166, 35, 0.35);
-}
-.nr-rivalry__team--cyan {
-  border-color: rgba(34, 211, 238, 0.35);
-}
-.nr-rivalry__points {
-  font-size: var(--nr-text-2xl);
-  font-weight: 760;
-  line-height: 1;
-}
-.nr-rivalry__team--gold .nr-rivalry__points {
-  color: var(--nr-gold-light);
-}
-.nr-rivalry__team--cyan .nr-rivalry__points {
-  color: #9ceefa;
-}
-.nr-rivalry__name {
-  color: var(--nr-mist);
-  font-size: var(--nr-text-sm);
-}
-
 /* Runner picker */
 .nr-picker {
   display: grid;
@@ -171,63 +51,7 @@
   margin-top: 8px;
 }
 
-/* Profile */
-.nr-profile-head {
-  display: flex;
-  align-items: center;
-  gap: var(--nr-space-4);
-  margin: 4px 0 var(--nr-space-5);
-}
-.nr-profile-head__name {
-  margin: 0;
-  font-size: var(--nr-text-2xl);
-  letter-spacing: -0.03em;
-  line-height: 1.15;
-}
-.nr-profile-head__meta {
-  margin: 2px 0 0;
-  color: var(--nr-mist);
-}
-.nr-profile-head__rank {
-  margin: 2px 0 0;
-  color: var(--nr-gold-light);
-  font-size: var(--nr-text-sm);
-  font-weight: 600;
-}
-.nr-badges {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: var(--nr-space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.nr-badge {
-  display: grid;
-  justify-items: start;
-  gap: 4px;
-  padding: var(--nr-space-3);
-  border-radius: var(--nr-radius-md);
-  border: 1px solid rgba(245, 166, 35, 0.22);
-  background: linear-gradient(180deg, rgba(245, 166, 35, 0.07), transparent);
-}
-.nr-badge__hex {
-  width: 22px;
-  height: 25px;
-  background: linear-gradient(160deg, #ffd48c, var(--nr-gold) 60%, #b86a08);
-  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
-}
-.nr-badge__title {
-  font-weight: 650;
-  text-transform: capitalize;
-}
-.nr-badge__detail {
-  color: var(--nr-mist);
-  font-size: 12px;
-}
-.nr-artifacts {
-  margin-top: var(--nr-space-3);
-}
+/* Profile settings */
 .nr-inline-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

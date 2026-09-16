@@ -11,11 +11,14 @@ import { Button, LinkButton } from '../shell/ui/Button'
 import { Icon } from '../shell/ui/Icon'
 import { EmptyState, Loading, Pill, SectionHeader, Stat, StatRow } from '../shell/ui/primitives'
 import { Screen } from '../shell/ui/Screen'
+import { batonMilestone } from '../social/cards/layout'
+import { ShareCardButton } from '../social/cards/ShareCardButton'
 import * as api from './api'
 import { BatonHero } from './BatonHero'
 import { useNetwork, useNow, useRefreshNetwork, useRelay } from './data'
 import { countryName, formatCount, formatDuration, formatNim, formatSince, networkLabel } from './format'
-import { JourneyRecords, JourneyRoute, practicePath } from './JourneyRoute'
+import { JourneyRecords, JourneyRoute } from './JourneyRoute'
+import { practicePath } from './paths'
 import { routeLine, type RelayView } from './model'
 import { RecoverTransfer } from './RecoverTransfer'
 import './relays.css'
@@ -164,6 +167,7 @@ export function JourneyScreen({ code, entryKey }: { code: string; entryKey: stri
   const isHolder = player?.id === relay.holder.id
   const pending = isHolder ? (detail?.pendingHandoff ?? (snapshot?.pendingHandoff?.batonId === relay.id ? snapshot.pendingHandoff : null)) : null
   const share = () => action.run(() => shareLink(relay.name, pathFor('relay', { code: relay.code })))
+  const milestone = batonMilestone({ wallets: relay.transactingWallets, handoffs: relay.handoffCount })
 
   return (
     <Screen
@@ -240,7 +244,7 @@ export function JourneyScreen({ code, entryKey }: { code: string; entryKey: stri
       {pending && <RecoverTransfer intent={pending} onDone={refresh} />}
       <NextLeg relay={relay} player={player} />
       <QuickMatch relay={relay} snapshot={snapshot} player={player} />
-      {detail ? <JourneyRoute relay={relay} detail={detail} /> : <Loading label="Loading the route" />}
+      {detail ? <JourneyRoute relay={relay} detail={detail} playerId={player?.id ?? null} /> : <Loading label="Loading the route" />}
       {detail && <JourneyRecords relay={relay} detail={detail} />}
 
       <section className="nr-section" aria-labelledby="journey-proof">
@@ -250,6 +254,22 @@ export function JourneyScreen({ code, entryKey }: { code: string; entryKey: stri
             ? `No handoff yet. The first verified transfer of ${formatNim(relay.valueLuna)} starts the public record.`
             : `${formatCount(relay.handoffCount)} verified ${relay.handoffCount === 1 ? 'transfer' : 'transfers'} of ${formatNim(relay.valueLuna)} on ${networkLabel(relay.network)}${detail?.handoffs.at(-1) ? `, latest in block ${formatCount(detail.handoffs.at(-1)?.blockNumber ?? 0)}` : ''}.`}
         </p>
+        {milestone && (
+          <div className="nr-panel nr-panel--gold">
+            <h3>
+              {relay.name} reached {formatCount(milestone.count)} {milestone.unit === 'wallets' ? 'transacting wallets' : 'verified handoffs'}
+            </h3>
+            <p>Counted from verified transfers only. A wallet is a linked account, not proof of a unique person.</p>
+            <div className="nr-actions">
+              <ShareCardButton
+                variant="primary"
+                card={{ kind: 'milestone', batonName: relay.name, code: relay.code, milestone, handoffs: relay.handoffCount, wallets: relay.transactingWallets, countries: relay.countries.length, network: relay.network }}
+              >
+                Share milestone card
+              </ShareCardButton>
+            </div>
+          </div>
+        )}
         <div className="nr-actions">
           <LinkButton variant="secondary" to={pathFor('chronicle', { code: relay.code })}>
             Read the Chronicle

@@ -1,8 +1,12 @@
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { expect, test, type Page } from '@playwright/test'
 import type { NetworkSnapshot } from '@nim-relay/shared'
 import { RUNNERS, emptySnapshot, mockRelayApi, populatedNetwork, signedInAs } from './relay-fixtures'
+import { socialNetwork } from './social-fixtures'
 
 const SHOTS = '/tmp/nim-relay-world/shots'
+const SOCIAL_SHOTS = '/tmp/nim-relay-social/shots'
 const GLOBE = '.nr-world__globe'
 
 /** Runtime failures on the page. A signed-out session check and deliberate unknown-code lookups answer 401 or 404 by design. */
@@ -160,4 +164,247 @@ test('the local Worker serves the world and its not-found answers', async ({ pag
   await page.goto('/relay/NOPE000000')
   await expect(page.getByRole('heading', { name: 'No relay uses this code' })).toBeVisible()
   expect(problems).toEqual([])
+})
+
+declare global {
+  interface Window {
+    __sharedCards: { name: string; data: string }[]
+  }
+}
+
+/** Replaces the system share sheet with one that keeps each shared file, so cards can be saved and inspected. */
+async function captureSharedCards(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const shared: { name: string; data: string }[] = []
+    Object.defineProperty(window, '__sharedCards', { value: shared })
+    Object.defineProperty(Navigator.prototype, 'canShare', { configurable: true, value: (data?: ShareData) => (data?.files?.length ?? 0) > 0 })
+    Object.defineProperty(Navigator.prototype, 'share', {
+      configurable: true,
+      value: async (data: ShareData) => {
+        const file = data.files?.[0]
+        if (!file) return
+        const url = await new Promise<string>(resolve => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(String(reader.result))
+          reader.readAsDataURL(file)
+        })
+        shared.push({ name: file.name, data: url })
+      },
+    })
+  })
+}
+
+/** Presses a share control, writes the card it produced to the shots folder and returns the shared file name. */
+async function saveCard(page: Page, name: string, share: () => Promise<void>): Promise<string> {
+  const before = await page.evaluate(() => window.__sharedCards.length)
+  await share()
+  await page.waitForFunction(count => window.__sharedCards.length > count, before, { timeout: 15_000 })
+  const card = await page.evaluate(index => window.__sharedCards[index], before)
+  expect(card?.data).toMatch(/^data:image\/png;base64,/)
+  writeFileSync(`${SOCIAL_SHOTS}/card-${name}.png`, Buffer.from(card?.data.split(',')[1] ?? '', 'base64'))
+  return card?.name ?? ''
+}
+
+/** The sheet at the top, then one screenshot per scrolled screenful, so long screens can be reviewed whole. */
+async function shootSheet(page: Page, name: string): Promise<void> {
+  await page.waitForTimeout(700)
+  await page.screenshot({ path: `${SOCIAL_SHOTS}/${name}.png` })
+  const sheet = page.locator('.nr-screen__scroll').last()
+  for (let part = 2; part <= 5; part++) {
+    const moved = await sheet.evaluate(element => {
+      const before = element.scrollTop
+      element.scrollTop += element.clientHeight - 80
+      return element.scrollTop > before
+    })
+    if (!moved) break
+    await page.waitForTimeout(250)
+    await page.screenshot({ path: `${SOCIAL_SHOTS}/${name}-${part}.png` })
+  }
+  await sheet.evaluate(element => {
+    element.scrollTop = 0
+  })
+}
+
+test.describe('social surfaces', () => {
+  test.beforeAll(() => {
+    mkdirSync(SOCIAL_SHOTS, { recursive: true })
+  })
+
+  test('profile: identicon, level climb, record, achievements, artifacts and proof', async ({ page }) => {
+    const problems = collectProblems(page)
+    const network = socialNetwork()
+    await mockRelayApi(page, network, network.account)
+    await page.goto('/profile')
+    await expect(page.getByRole('heading', { name: 'Mateo Silva', level: 2 })).toBeVisible()
+    await expect(page.locator('.nr-runner-head .nr-avatar__identicon')).toBeVisible()
+    await expect(page.getByRole('progressbar', { name: 'XP toward level 4' })).toHaveAttribute('aria-valuetext', '250 of 500 XP')
+    await expect(page.getByText('250 XP to level 4.', { exact: false })).toBeVisible()
+    await expect(page.getByText('3 of 11 unlocked')).toBeVisible()
+    await expect(page.getByText('Beat the ghost on 10 legs you pass on.')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Relay Artifacts' })).toBeVisible()
+    await expect(page.getByRole('link', { name: /Wanjiru K/ }).first()).toHaveAttribute('href', '/runner/wanjiru')
+    // The wallet address stays behind the Proof disclosure.
+    await expect(page.getByText(RUNNERS.mateo.wallet)).toBeHidden()
+    await shootSheet(page, 'profile')
+    await page.getByText('Proof', { exact: true }).click()
+    await expect(page.getByText(RUNNERS.mateo.wallet)).toBeVisible()
+    expect(problems).toEqual([])
+  })
+
+  test('the avatar identicon is the one Nimiq’s identicon library draws for the address', async ({ page }) => {
+    const network = socialNetwork()
+    await mockRelayApi(page, network, network.account)
+    await page.goto('/profile')
+    const image = page.locator('.nr-runner-head .nr-avatar__identicon')
+    await expect(image).toBeVisible()
+    const source = (await image.getAttribute('src')) ?? ''
+    const rendered = Buffer.from(source.replace(/^data:image\/svg\+xml;base64,/, ''), 'base64').toString('utf8')
+    // Reference: the package's documented API, fed the address as @nimiq/utils normalizeAddress formats it for Nimiq's wallets.
+    const identicons = (createRequire(import.meta.url)('@nimiq/identicons') as { default: { svg(text: string): Promise<string> } }).default
+    const walletForm = RUNNERS.mateo.wallet.toUpperCase().replace(/[\s+-]|%20/g, '').replace(/(.)(?=(.{4})+$)/g, '$1 ')
+    const reference = await identicons.svg(walletForm)
+    // Each call draws a random clip-path id, and a browser's XML serializer writes the SVG namespace onto every
+    // copied part where Node's parser copies the markup as is. Neither changes the picture.
+    const comparable = (svg: string) => svg.replace(/hexagon-clip-\d+/g, 'hexagon-clip').replaceAll(' xmlns="http://www.w3.org/2000/svg"', '')
+    expect(comparable(rendered)).toBe(comparable(reference))
+  })
+
+  test('crew at risk: streak countdown, crew baton, contributions, history and invite', async ({ page }) => {
+    const problems = collectProblems(page)
+    const network = socialNetwork()
+    await mockRelayApi(page, network, network.account)
+    await page.goto('/crew')
+    await expect(page.getByRole('heading', { name: 'Rift Valley Runners', level: 2 })).toBeVisible()
+    await expect(page.getByText('At risk')).toBeVisible()
+    const clock = page.locator('.nr-streak .nr-countdown')
+    const first = await clock.textContent()
+    expect(first).toMatch(/^\d{2}:\d{2}:\d{2}$/)
+    await expect(clock).not.toHaveText(first ?? '', { timeout: 3_000 })
+    await expect(page.getByText('One verified pass between different members before midnight UTC keeps the streak.')).toBeVisible()
+    await expect(page.getByText('With Wanjiru K')).toBeVisible()
+    await expect(page.getByRole('link', { name: 'See the journey' })).toBeVisible()
+    await expect(page.getByRole('progressbar', { name: 'Thandi M’s share of crew passes' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Recent crew passes' })).toBeVisible()
+    await expect(page.getByText('You → Wanjiru K')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Copy crew code RIFT42' })).toBeVisible()
+    await shootSheet(page, 'crew')
+    expect(problems).toEqual([])
+  })
+
+  test('rivals: gold against cyan, a call for runners and a finished rivalry', async ({ page }) => {
+    const problems = collectProblems(page)
+    const network = socialNetwork()
+    await mockRelayApi(page, network, network.account)
+    await page.goto('/rivals')
+    const live = page.getByRole('article', { name: 'North vs South' })
+    await expect(live.getByText('Racing')).toBeVisible()
+    await expect(live.getByRole('progressbar', { name: /Your team, verified handoffs toward 10/ })).toHaveAttribute('aria-valuenow', '6')
+    await expect(live.getByRole('progressbar', { name: /Lena Vogel’s team/ })).toHaveAttribute('aria-valuenow', '4')
+    await expect(live.getByText('Your team needs a runner.', { exact: false })).toBeVisible()
+    await expect(live.getByRole('link', { name: 'Take the next leg' })).toHaveAttribute('href', '/relay/GOLDN0RTH1#next-leg')
+    await expect(live.locator('.nr-countdown')).toHaveText(/^\dd \d{2}:\d{2}:\d{2}$/)
+    await expect(page.getByRole('article', { name: 'Coast Cup' }).getByText('Cyan won')).toBeVisible()
+    await shootSheet(page, 'rivals')
+    expect(problems).toEqual([])
+  })
+
+  test('daily: official result with rank, top percent, ghost above and the board', async ({ page }) => {
+    const problems = collectProblems(page)
+    const network = socialNetwork()
+    await mockRelayApi(page, network, network.account)
+    await page.goto('/daily')
+    await expect(page.getByText('#3 of 8')).toBeVisible()
+    await expect(page.getByText('Top 38%')).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Race Mei Tan’s ghost, 1.09s faster' })).toHaveAttribute('href', '/leg/practice?ghost=daily-1')
+    await expect(page.getByText('00:58.12')).toBeVisible()
+    await expect(page.locator('.nr-daily-cover .nr-countdown')).toHaveText(/^\d{2}:\d{2}:\d{2}$/)
+    await expect(page.getByRole('link', { name: 'Watch Arjun Rao’s ride' })).toHaveAttribute('href', '/leg/watch?run=daily-2')
+    await shootSheet(page, 'daily')
+    expect(problems).toEqual([])
+  })
+
+  test('inbox: what needs the runner now, then updates, each one tap from its action', async ({ page }) => {
+    const problems = collectProblems(page)
+    const network = socialNetwork()
+    await mockRelayApi(page, network, network.account)
+    await page.goto('/inbox')
+    const now = page.getByRole('region', { name: 'Needs you now' })
+    await expect(now.getByRole('button', { name: /Carry/ }).first()).toBeVisible()
+    await expect(now.getByRole('button', { name: /Lena Vogel saved the next leg for you/ })).toBeVisible()
+    await expect(now.getByRole('button', { name: /Rift Valley Runners needs a pass today/ })).toContainText('Streak ends in')
+    const updates = page.getByRole('list', { name: 'Notifications' })
+    await expect(updates.getByRole('button', { name: /Arjun Rao beat your ghost/ })).toContainText('Race again')
+    await shootSheet(page, 'inbox')
+    await now.getByRole('button', { name: /Rift Valley Runners needs a pass today/ }).click()
+    await expect(page).toHaveURL(/\/crew$/)
+    expect(problems).toEqual([])
+  })
+
+  test('an empty inbox points to the Daily and the Relay Station', async ({ page }) => {
+    const problems = collectProblems(page)
+    const quiet = emptySnapshot()
+    await mockRelayApi(page, { snapshot: quiet }, signedInAs(RUNNERS.sam, quiet))
+    await page.goto('/inbox')
+    await expect(page.getByRole('heading', { name: 'Nothing needs you right now' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Ride today’s Daily' })).toHaveAttribute('href', '/daily')
+    await expect(page.getByRole('link', { name: 'Open the Relay Station' })).toHaveAttribute('href', '/station')
+    expect(problems).toEqual([])
+  })
+
+  test('without a share sheet, a card downloads and its deep link is copied', async ({ page, context }) => {
+    const problems = collectProblems(page)
+    const network = socialNetwork()
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+    await page.addInitScript(() => {
+      Reflect.deleteProperty(Navigator.prototype, 'share')
+      Reflect.deleteProperty(Navigator.prototype, 'canShare')
+    })
+    await mockRelayApi(page, network, network.account)
+    await page.goto('/crew')
+    const download = page.waitForEvent('download')
+    const tracked = page.waitForRequest(request => request.method() === 'POST' && request.url().endsWith('/api/station/network/track'))
+    await page.getByRole('button', { name: 'Share the streak card' }).click()
+    expect((await download).suggestedFilename()).toBe('nim-relay-crew-rift-valley-runners.png')
+    expect((await tracked).postDataJSON()).toMatchObject({ kind: 'share', surface: 'crew' })
+    await expect(page.getByText('Card saved and link copied.')).toBeVisible()
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/\/crew$/)
+    expect(problems).toEqual([])
+  })
+
+  test('share cards render to PNG for every moment', async ({ page }) => {
+    const problems = collectProblems(page)
+    const network = socialNetwork()
+    await captureSharedCards(page)
+    await mockRelayApi(page, network, network.account)
+    const surfaces: string[] = []
+    page.on('request', request => {
+      if (request.method() === 'POST' && request.url().endsWith('/api/station/network/track')) surfaces.push((request.postDataJSON() as { surface: string }).surface)
+    })
+
+    const shared: string[] = []
+    await page.goto('/relay/C4NB7T90RE')
+    await expect(page.getByRole('button', { name: 'Share result card' })).toBeEnabled()
+    shared.push(await saveCard(page, 'result', () => page.getByRole('button', { name: 'Share result card' }).click()))
+    shared.push(await saveCard(page, 'handoff', () => page.getByRole('button', { name: 'Share handoff card' }).last().click()))
+
+    await page.goto('/relay/AUR0RA10XQ')
+    shared.push(await saveCard(page, 'milestone', () => page.getByRole('button', { name: 'Share milestone card' }).click()))
+
+    await page.goto('/chronicle/G7K2M9Q4XA')
+    shared.push(await saveCard(page, 'chronicle', () => page.getByRole('button', { name: 'Share Chronicle card' }).click()))
+
+    await page.goto('/daily')
+    shared.push(await saveCard(page, 'daily', () => page.getByRole('button', { name: 'Share Daily card' }).click()))
+
+    await page.goto('/crew')
+    shared.push(await saveCard(page, 'crew', () => page.getByRole('button', { name: 'Share the streak card' }).click()))
+
+    await page.goto('/rivals')
+    shared.push(await saveCard(page, 'rival', () => page.getByRole('article', { name: 'North vs South' }).getByRole('button', { name: 'Share rivalry card' }).click()))
+
+    expect(shared).toEqual(['nim-relay-result-c4nb7t90re.png', 'nim-relay-handoff-c4nb7t90re-2.png', 'nim-relay-milestone-aur0ra10xq-10.png', 'nim-relay-g7k2m9q4xa.png', expect.stringMatching(/^nim-relay-daily-\d{4}-\d{2}-\d{2}\.png$/), 'nim-relay-crew-rift-valley-runners.png', 'nim-relay-rivalry-north-vs-south.png'])
+    // Every completed share is counted on its surface; rivalries count under the Crew tab they belong to.
+    await expect.poll(() => surfaces).toEqual(['result', 'handoff', 'chronicle', 'chronicle', 'daily', 'crew', 'crew'])
+    expect(problems).toEqual([])
+  })
 })

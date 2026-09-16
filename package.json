@@ -31,14 +31,18 @@
     "verify:handoff": "tsx scripts/verify/handoff.ts"
   },
   "dependencies": {
-    "@nim-relay/relay-protocol": "workspace:*",
-    "@nim-relay/game-engine": "workspace:*"
+    "@nim-relay/game-engine": "workspace:*",
+    "@nim-relay/relay-protocol": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "5.9.3",
-    "tsx": "^4.19.2",
-    "eslint": "^9.38.0",
     "@eslint/js": "^9.38.0",
+    "@gltf-transform/core": "^4.5.0",
+    "@gltf-transform/extensions": "^4.5.0",
+    "@gltf-transform/functions": "^4.5.0",
+    "eslint": "^9.38.0",
+    "meshoptimizer": "^1.2.0",
+    "tsx": "^4.19.2",
+    "typescript": "5.9.3",
     "typescript-eslint": "^8.46.2"
   }
 }
