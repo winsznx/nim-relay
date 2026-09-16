@@ -63,7 +63,8 @@ export class StationRoom extends DurableObject<Env> {
     const envelope = await request.json() as StationEnvelope
     if (path === '/network' || path.startsWith('/network/')) return this.handleNetwork(state, path.slice('/network'.length) || '/', envelope)
     if (!envelope.player) throw new ApiError('no_player', 401)
-    return this.handleStation(state, path, this.profileFor(state, envelope.player), envelope.body)
+    const hadProfile = Boolean(state.players[envelope.player.id])
+    return this.handleStation(state, path, this.profileFor(state, envelope.player), envelope.body, hadProfile)
   }
 
   private async handleNetwork(state: State, networkPath: string, envelope: StationEnvelope): Promise<Response> {
@@ -71,12 +72,26 @@ export class StationRoom extends DurableObject<Env> {
     const network = await RelayNetworkService.load(this.ctx.storage, this.env, state, this.live)
     if (isPublicNetworkPath(networkPath)) return Response.json(await network.handlePublic(networkPath, envelope.body, envelope.actorId ?? null))
     if (!envelope.player) throw new ApiError('sign_in_to_join', 401)
+    const hadProfile = Boolean(state.players[envelope.player.id])
     const profile = this.profileFor(state, envelope.player)
     if (networkPath === LEG_PROGRESS_PATH) return Response.json(await this.reportLegProgress(network, profile, envelope.body))
+    if (networkPath === '/') return Response.json(await this.readNetworkSnapshot(network, profile, envelope.country, hadProfile))
     const response = await network.handle(networkPath, envelope.body, profile, envelope.country)
     await network.persist()
     if (!QUIET_NETWORK_PATHS.includes(networkPath)) this.broadcast({ type: 'network_updated', version: network.state.version })
     return Response.json(response)
+  }
+
+  /**
+   * Snapshot reads run on every live broadcast for every signed-in viewer, so they only write when the visit
+   * changed something worth keeping: a new runner, a new active day, a newly observed country, settled Dailies,
+   * or a last-seen time that has gone stale.
+   */
+  private async readNetworkSnapshot(network: RelayNetworkService, profile: Profile, country: string | undefined, hadProfile: boolean): Promise<unknown> {
+    const before = network.visitMarker(profile.id)
+    const response = await network.handle('/', undefined, profile, country)
+    if (!hadProfile || network.visitChanged(profile.id, before, Date.now())) await network.persist(false)
+    return response
   }
 
   /** Live progress never persists network or product state; clients learn of it through throttled live broadcasts. */
@@ -112,7 +127,7 @@ export class StationRoom extends DurableObject<Env> {
     return profile
   }
 
-  private async handleStation(state: State, path: string, profile: Profile, body: unknown): Promise<Response> {
+  private async handleStation(state: State, path: string, profile: Profile, body: unknown, hadProfile: boolean): Promise<Response> {
     const snapshot = () => this.snapshot(state, profile)
     let response: unknown
     if (path === '/') response = snapshot()
@@ -192,7 +207,8 @@ export class StationRoom extends DurableObject<Env> {
         } catch { response = { status: 'pending', reason: 'Awaiting network confirmation' } }
       }
     } else throw new ApiError('not_found', 404)
-    await this.ctx.storage.put('state', state)
+    // A plain station read changes nothing unless it created this runner's profile.
+    if (path !== '/' || !hadProfile) await this.ctx.storage.put('state', state)
     return Response.json(response)
   }
 

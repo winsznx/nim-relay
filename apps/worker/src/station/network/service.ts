@@ -49,6 +49,18 @@ export function isPublicNetworkPath(path: string): boolean {
  * Relay network for one Nimiq network inside the StationRoom Durable Object. Loaded per request, which the
  * room serializes with blockConcurrencyWhile; state reaches storage only through `persist` and `writeTo`.
  */
+/** A read only rewrites last-seen once it is this old, so returning-visitor data stays fresh without a write per refresh. */
+const LAST_SEEN_PERSIST_MS = 10 * 60_000
+
+export interface VisitMarker {
+  exists: boolean
+  days: number
+  country: string | null
+  lastSeen: number
+  settledThrough: string | null
+  dailyBests: number
+}
+
 export class RelayNetworkService {
   private constructor(
     private readonly context: NetworkContext,
@@ -187,6 +199,31 @@ export class RelayNetworkService {
   }
 
   /** Writes network and product state atomically and marks the network for archiving. */
+  /** What a visit may change, captured before handling a read so `visitChanged` can decide whether to write. */
+  visitMarker(playerId: string): VisitMarker {
+    const member = this.state.members[playerId]
+    return {
+      exists: member !== undefined,
+      days: member?.days.length ?? 0,
+      country: member?.country ?? null,
+      lastSeen: member?.lastSeen ?? 0,
+      settledThrough: this.state.dailySettledThrough,
+      dailyBests: Object.keys(this.state.dailyBests).length,
+    }
+  }
+
+  visitChanged(playerId: string, before: VisitMarker, now: number): boolean {
+    const after = this.visitMarker(playerId)
+    return (
+      !before.exists ||
+      after.days !== before.days ||
+      after.country !== before.country ||
+      after.settledThrough !== before.settledThrough ||
+      after.dailyBests !== before.dailyBests ||
+      now - before.lastSeen >= LAST_SEEN_PERSIST_MS
+    )
+  }
+
   async persist(schedule = true): Promise<void> {
     this.state.version++
     this.state.dirty = true
