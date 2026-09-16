@@ -135,14 +135,15 @@ export function LegRun({ setup, snapshot, playerId, onExit, onReissue, onRefresh
       director.ceremony('departed')
       const code = baton?.code ?? null
       const recipient = snapshot?.runners.find(runner => runner.id === stage.intent.recipientId)
-      if (baton) {
-        playArrival(stage.intent.id, { relayId: baton.id, fromCountry: baton.holder.country, toCountry: recipient?.country ?? null })
-        showDeparture({ key: stage.intent.id, batonName: baton.displayName, leg: stage.intent.leg, recipientName: stage.intent.recipientName })
-      }
       onRefresh()
+      // The race fades out first; the banner and the globe crossing belong to the world view.
       window.setTimeout(() => {
         director.ceremony('arrival')
         navigate(code ? pathFor('relay', { code }) : '/', { replace: true })
+        if (baton) {
+          playArrival(stage.intent.id, { relayId: baton.id, fromCountry: baton.holder.country, toCountry: recipient?.country ?? null })
+          showDeparture({ key: stage.intent.id, batonName: baton.displayName, leg: stage.intent.leg, recipientName: stage.intent.recipientName })
+        }
       }, 900)
     },
     [baton, director, onRefresh, showDeparture, snapshot?.runners],
