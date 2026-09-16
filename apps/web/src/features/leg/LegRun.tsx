@@ -4,13 +4,12 @@ import type { NetworkSnapshot, SubmittedRace } from '@nim-relay/shared'
 import { getAudioDirector } from '../audio/director'
 import { HandoffCeremony } from '../handoff/HandoffCeremony'
 import type { CeremonySceneState } from '../handoff/copy'
-import { HandoffOrchestrator, type HandoffDeps, type HandoffStage } from '../handoff/machine'
+import { handoffDeps } from '../handoff/deps'
+import { HandoffOrchestrator, type HandoffStage } from '../handoff/machine'
 import { RaceScreen, type CeremonyState, type RaceCue } from '../race/RaceScreen'
 import * as api from '../relays/api'
 import { trackShare } from '../relays/data'
 import { playArrival } from '../world/globe-bridge'
-import { sendRelayHandoff } from '../../lib/nimiq'
-import { readTransfer, saveTransfer } from '../../station/transfer-store'
 import { playerMessage } from '../shell/errors'
 import { navigate, pathFor } from '../shell/router'
 import { shareLink } from '../shell/share'
@@ -48,19 +47,6 @@ type Verification =
   | { status: 'verifying' }
   | { status: 'verified'; receipt: SubmittedRace }
   | { status: 'failed'; message: string; expired: boolean }
-
-const wait = (ms: number) => new Promise<void>(resolve => window.setTimeout(resolve, ms))
-
-const handoffDeps: HandoffDeps = {
-  prepare: (runId, recipientId, launch) => api.prepareNetworkHandoff(runId, recipientId, launch),
-  attempt: id => api.attemptNetworkHandoff(id),
-  cancel: id => api.cancelNetworkHandoff(id),
-  confirm: (id, hash) => api.confirmNetworkHandoff(id, hash),
-  send: intent => sendRelayHandoff(intent),
-  readTransfer,
-  saveTransfer,
-  wait,
-}
 
 function beatGhost(result: relayLeg.Result, ghostTimeMs: number | null): boolean {
   return ghostTimeMs === null ? result.completed : result.completed && result.timeMs < ghostTimeMs

@@ -49,7 +49,11 @@ function ChronicleBody({ chronicle }: { chronicle: BatonChronicle }) {
   const identity = `${modeLabel(baton.mode)} ${serialLabel(baton.serial)}`
   const path = pathFor('chronicle', { code: baton.code })
   const countriesInOrder = chronicle.stops.map(stop => stop.countryCode)
-  const route = countriesInOrder.length > 1 ? `${countryName(countriesInOrder[0] ?? null)} → ${countryName(countriesInOrder.at(-1) ?? null)}` : countryName(countriesInOrder[0] ?? null)
+  const firstStop = chronicle.stops[0]
+  const lastStop = chronicle.stops.at(-1)
+  const countryRoute = countriesInOrder.length > 1 ? `${countryName(countriesInOrder[0] ?? null)} → ${countryName(countriesInOrder.at(-1) ?? null)}` : countryName(countriesInOrder[0] ?? null)
+  const peopleRoute = firstStop && lastStop && firstStop.runner.id !== lastStop.runner.id ? `${firstStop.runner.name} → ${lastStop.runner.name}` : (firstStop?.runner.name ?? '')
+  const route = firstStop?.countryCode && lastStop?.countryCode ? countryRoute : peopleRoute
   const consented = chronicle.stops.flatMap(stop => (stop.countryCode ? [stop.countryCode] : []))
   const first = consented[0] ?? null
   const last = consented.at(-1) ?? null

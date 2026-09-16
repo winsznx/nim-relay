@@ -1,10 +1,11 @@
 import { useEffect } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
+import { paymentAddress } from '@nim-relay/relay-protocol'
 import type { NetworkNotification, NetworkSnapshot } from '@nim-relay/shared'
 import type { Player } from '../../lib/auth-api'
 import { acceptReservation, markNotificationRead } from '../relays/api'
 import { useAction } from '../shell/use-action'
-import { useBatonDetail, useLiveStatus, useNow, useRefreshNetwork, type NetworkState } from '../relays/data'
+import { useBatonDetail, useLiveStatus, useNow, useRefreshNetwork, useStationProfile, type NetworkState } from '../relays/data'
 import { tickerMoments, toRelayView, type RelayView } from '../relays/model'
 import { linkProps, navigate, pathFor } from '../shell/router'
 import { useRequireRunner } from '../shell/session'
@@ -24,6 +25,9 @@ interface WorldHomeProps {
 function TopBar({ player, snapshot }: { player: Player | null; snapshot: NetworkSnapshot | undefined }) {
   const live = useLiveStatus()
   const requireRunner = useRequireRunner()
+  const profile = useStationProfile()
+  // The session carries the sign-in name; the courier name the runner chose lives on their station profile.
+  const courierName = profile.data?.profile.name ?? player?.displayName ?? ''
   return (
     <header className="nr-topbar">
       <a className="nr-wordmark" {...linkProps('/')} aria-label="NIM Relay home">
@@ -37,8 +41,8 @@ function TopBar({ player, snapshot }: { player: Player | null; snapshot: Network
           </Pill>
         )}
         {player ? (
-          <a className="nr-topbar__avatar" {...linkProps('/profile')} aria-label={`Your profile, ${player.displayName}`}>
-            <RunnerAvatar name={player.displayName} wallet={player.walletAddress} size={36} />
+          <a className="nr-topbar__avatar" {...linkProps('/profile')} aria-label={`Your profile, ${courierName}`}>
+            <RunnerAvatar name={courierName} wallet={paymentAddress(player.walletAddress)} size={36} />
           </a>
         ) : (
           <Button variant="secondary" size="sm" onClick={() => requireRunner('Sign in to receive batons and race for real.', () => undefined)}>

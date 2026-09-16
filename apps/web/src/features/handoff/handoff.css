@@ -152,6 +152,20 @@
   outline-offset: 3px;
 }
 
+.handoff-recovery,
+.handoff-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.handoff-confirm {
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(245, 166, 35, 0.35);
+  background: rgba(245, 166, 35, 0.06);
+}
+
 .handoff-picker {
   display: flex;
   flex-direction: column;

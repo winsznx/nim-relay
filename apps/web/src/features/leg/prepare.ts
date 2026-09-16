@@ -112,6 +112,11 @@ export async function prepareLeg(leg: Leg, signedIn: boolean, daily: NetworkDail
     return { config, mode: modeFor(leg), ghost, playback: null, issued: null, sender: null, baton: null, appearance: undefined, echoes: [], firstOnSector: false }
   }
 
+  const detail = leg.kind === 'baton' ? await api.loadBaton(leg.code) : null
+  if (detail?.pendingHandoff) {
+    throw new LegUnavailable(`Your pass to ${detail.pendingHandoff.recipientName} is already locked. Finish it from the journey before racing again.`)
+  }
+
   const issued = await api.issueNetworkRace(
     leg.kind === 'baton'
       ? { batonId: leg.code }
@@ -121,7 +126,6 @@ export async function prepareLeg(leg: Leg, signedIn: boolean, daily: NetworkDail
   )
   if (issued.config.engineVersion !== '5') throw new LegUnavailable('This leg was issued for an earlier version of the race. Open it again to get the current course.')
 
-  const detail = leg.kind === 'baton' ? await api.loadBaton(leg.code) : null
   const baton = detail?.baton ?? null
   const passedBy = detail?.handoffs.at(-1)?.from ?? null
   const ghost = toGhostRun(issued.ghost)

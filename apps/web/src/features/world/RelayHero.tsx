@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { RelayNetwork } from '@nim-relay/shared'
 import { countryName, formatAgo, formatCount, formatDuration, formatNim } from '../relays/format'
-import { routeLine, type Moment, type RelayView } from '../relays/model'
+import { journeyHeadline, type Moment, type RelayView } from '../relays/model'
 import { linkProps, navigate, pathFor } from '../shell/router'
 import { useRequireRunner } from '../shell/session'
 import { Button, LinkButton } from '../shell/ui/Button'
@@ -77,7 +77,7 @@ export function RelayHero({ relay, playerId, latestReplay, moments, now }: Relay
         <span className="nr-hero__value nr-num">{formatNim(relay.valueLuna)}</span>
       </div>
       <a className="nr-hero__route" id="hero-route" {...linkProps(journey)}>
-        {routeLine(relay.stops)}
+        {journeyHeadline(relay)}
       </a>
       {relay.name !== relay.identity && <p className="nr-hero__name">{relay.name}</p>}
       <StatRow label="Relay statistics" relay>

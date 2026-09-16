@@ -104,6 +104,25 @@ describe('handoff ceremony', () => {
     expect(machine.getSnapshot()).toMatchObject({ stage: 'confirmed', hash: HASH })
   })
 
+  it('re-arms the same intent only after the holder confirms nothing was sent', async () => {
+    let calls = 0
+    const { deps, machine } = harness({
+      send: vi.fn(async () => {
+        calls++
+        if (calls === 1) throw new Error('Request timed out')
+        return HASH
+      }),
+    })
+    machine.select(runner)
+    await machine.throwBaton(launch)
+    expect(machine.getSnapshot().stage).toBe('recovery')
+    await machine.confirmNothingSent()
+    expect(machine.getSnapshot().stage).toBe('armed')
+    await machine.launch()
+    expect(deps.prepare).toHaveBeenCalledTimes(1)
+    expect(machine.getSnapshot()).toMatchObject({ stage: 'confirmed', hash: HASH })
+  })
+
   it('stays in flight while the chain confirms, then verifies', async () => {
     let checks = 0
     const { machine } = harness({

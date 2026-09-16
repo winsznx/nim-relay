@@ -273,6 +273,17 @@ export class HandoffOrchestrator {
     await this.confirmLoop(intent, hash)
   }
 
+  /**
+   * The holder checked Nimiq Pay activity and found no transfer for this pass.
+   * Re-arms the same locked intent so they can approve it again; nothing is sent automatically.
+   */
+  async confirmNothingSent(): Promise<void> {
+    if (this.state.stage !== 'recovery') return
+    const intent = this.state.intent
+    await this.deps.saveTransfer({ id: intent.id, hash: null, state: 'ready' })
+    this.set({ stage: 'armed', intent })
+  }
+
   async checkAgain(): Promise<void> {
     if (this.state.stage !== 'in-flight') return
     await this.confirmLoop(this.state.intent, this.state.hash)

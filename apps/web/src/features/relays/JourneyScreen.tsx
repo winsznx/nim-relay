@@ -19,8 +19,10 @@ import { useNetwork, useNow, useRefreshNetwork, useRelay } from './data'
 import { countryName, formatCount, formatDuration, formatNim, formatSince, networkLabel } from './format'
 import { JourneyRecords, JourneyRoute } from './JourneyRoute'
 import { practicePath } from './paths'
-import { routeLine, type RelayView } from './model'
-import { RecoverTransfer } from './RecoverTransfer'
+import { journeyHeadline, type RelayView } from './model'
+import { PendingPass } from '../handoff/PendingPass'
+import { useDeparture } from '../leg/departure'
+import { playArrival } from '../world/globe-bridge'
 import './relays.css'
 
 function statusPill(relay: RelayView) {
@@ -128,6 +130,7 @@ export function JourneyScreen({ code, entryKey }: { code: string; entryKey: stri
   const location = useLocation()
   const action = useAction()
   const refresh = useRefreshNetwork()
+  const showDeparture = useDeparture(state => state.show)
   const now = useNow()
   const relayId = relay?.id ?? null
 
@@ -188,7 +191,7 @@ export function JourneyScreen({ code, entryKey }: { code: string; entryKey: stri
             {statusPill(relay)}
             <Pill tone="gold">{formatNim(relay.valueLuna)}</Pill>
           </div>
-          <p className="nr-identity__route">{routeLine(relay.stops)}</p>
+          <p className="nr-identity__route">{journeyHeadline(relay)}</p>
           <p className="nr-identity__meta">
             Started by {relay.origin.name} {formatSince(relay.createdAt, now)}. {isHolder ? 'You hold it' : `${relay.holder.name} holds it`}
             {relay.holder.country ? ` in ${countryName(relay.holder.country)}.` : '. Location not shared.'}
@@ -208,7 +211,19 @@ export function JourneyScreen({ code, entryKey }: { code: string; entryKey: stri
       {relay.status === 'stranded' && <p className="nr-note">This baton is waiting with {relay.holder.name}. NIM Relay can’t move anyone’s funds, so the journey continues when they return.</p>}
 
       <div className="nr-actions nr-actions--stack">
-        {isHolder && relay.status !== 'completed' ? (
+        {isHolder && pending ? (
+          <PendingPass
+            key={pending.id}
+            intent={pending}
+            onConfirmed={stage => {
+              const recipient = snapshot?.runners.find(runner => runner.id === stage.intent.recipientId)
+              playArrival(stage.intent.id, { relayId: relay.id, fromCountry: relay.holder.country, toCountry: recipient?.country ?? null })
+              showDeparture({ key: stage.intent.id, batonName: relay.identity, leg: stage.intent.leg, recipientName: stage.intent.recipientName })
+              refresh()
+            }}
+            onCancelled={refresh}
+          />
+        ) : isHolder && relay.status !== 'completed' ? (
           <>
             <LinkButton variant="primary" size="lg" block to={pathFor('leg', { code: relay.code })}>
               Carry this leg
@@ -241,7 +256,6 @@ export function JourneyScreen({ code, entryKey }: { code: string; entryKey: stri
         )}
       </div>
 
-      {pending && <RecoverTransfer intent={pending} onDone={refresh} />}
       <NextLeg relay={relay} player={player} />
       <QuickMatch relay={relay} snapshot={snapshot} player={player} />
       {detail ? <JourneyRoute relay={relay} detail={detail} playerId={player?.id ?? null} /> : <Loading label="Loading the route" />}

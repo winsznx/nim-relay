@@ -131,7 +131,13 @@ export function HandoffCeremony({ machine, groups, value, onSceneState, onInvite
     case 'recovery':
       return (
         <CeremonyFrame tone="frozen">
-          <RecoveryPanel invalidHash={stage.invalidHash} onSubmit={hash => void machine.submitRecoveredHash(hash)} />
+          <RecoveryPanel
+            invalidHash={stage.invalidHash}
+            recipientName={stage.intent.recipientName}
+            onSubmit={hash => void machine.submitRecoveredHash(hash)}
+            onNothingSent={() => void machine.confirmNothingSent()}
+            onLeave={onKeepBaton}
+          />
         </CeremonyFrame>
       )
     case 'in-flight':
@@ -190,8 +196,17 @@ function CeremonyFrame({ children, tone = 'default' }: { children: React.ReactNo
   )
 }
 
-function RecoveryPanel({ invalidHash, onSubmit }: { invalidHash: boolean; onSubmit(hash: string): void }) {
+interface RecoveryPanelProps {
+  invalidHash: boolean
+  recipientName: string
+  onSubmit(hash: string): void
+  onNothingSent(): void
+  onLeave(): void
+}
+
+function RecoveryPanel({ invalidHash, recipientName, onSubmit, onNothingSent, onLeave }: RecoveryPanelProps) {
   const [hash, setHash] = useState('')
+  const [confirmingNothingSent, setConfirmingNothingSent] = useState(false)
   return (
     <form
       className="handoff-recovery"
@@ -201,7 +216,7 @@ function RecoveryPanel({ invalidHash, onSubmit }: { invalidHash: boolean; onSubm
       }}
     >
       <h2 className="handoff-title">Check your wallet</h2>
-      <p className="handoff-body">Nimiq Pay didn’t tell us whether the pass was sent. Don’t send it again. Open your wallet activity and paste the transaction reference.</p>
+      <p className="handoff-body">Nimiq Pay didn’t tell us whether the pass was sent. Don’t send it again yet. Open your wallet activity and paste the transaction reference.</p>
       <label className="handoff-label">
         Transaction reference
         <input value={hash} onChange={event => setHash(event.target.value)} autoComplete="off" spellCheck={false} inputMode="text" />
@@ -209,6 +224,24 @@ function RecoveryPanel({ invalidHash, onSubmit }: { invalidHash: boolean; onSubm
       {invalidHash && <p className="handoff-notice">That doesn’t look like a Nimiq transaction reference.</p>}
       <button type="submit" className="handoff-primary" disabled={!hash.trim()}>
         Verify the pass
+      </button>
+      {confirmingNothingSent ? (
+        <div className="handoff-confirm" role="group" aria-label="Confirm nothing was sent">
+          <p className="handoff-body">Only continue if your Nimiq Pay activity shows no transfer to {recipientName}. Approving again sends a new transfer.</p>
+          <button type="button" className="handoff-secondary" onClick={onNothingSent}>
+            Nothing was sent, approve again
+          </button>
+          <button type="button" className="handoff-link" onClick={() => setConfirmingNothingSent(false)}>
+            Keep checking
+          </button>
+        </div>
+      ) : (
+        <button type="button" className="handoff-link" onClick={() => setConfirmingNothingSent(true)}>
+          My wallet shows no transfer
+        </button>
+      )}
+      <button type="button" className="handoff-link" onClick={onLeave}>
+        Leave for now, the baton stays with you
       </button>
     </form>
   )

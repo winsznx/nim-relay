@@ -139,6 +139,18 @@ export function routeLine(stops: readonly RouteStop[]): string {
   return `${countryName(first)} → ${countryName(last)}`
 }
 
+/**
+ * The journey's headline: where it travelled when runners share their country,
+ * otherwise who it travelled between. Unknown places are never the headline.
+ */
+export function journeyHeadline(relay: Pick<RelayView, 'stops' | 'origin' | 'holder'>): string {
+  const first = relay.stops[0]?.countryCode ?? null
+  const last = relay.stops.at(-1)?.countryCode ?? null
+  if (first && last) return routeLine(relay.stops)
+  if (relay.origin.id === relay.holder.id) return relay.origin.name
+  return `${relay.origin.name} → ${relay.holder.name}`
+}
+
 /** Recent real events for the world ticker: echoes, verified handoffs and relay starts. */
 export function tickerMoments(relays: readonly RelayView[], featured: RelayView | null, detail: BatonDetail | undefined): Moment[] {
   const moments: Moment[] = []
