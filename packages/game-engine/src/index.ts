@@ -10,3 +10,5 @@ export * as relayRun from './relay-run'
 export * as relayRace from './relay-race'
 
 export * as stationRace from './station-race'
+
+export * as relayLeg from './relay-leg'

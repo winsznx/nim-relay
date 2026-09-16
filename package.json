@@ -27,7 +27,8 @@
     "verify:mainnet": "tsx scripts/verify/mainnet.ts",
     "verify:auth": "tsx scripts/verify/auth-e2e.ts",
     "clean-room": "bash scripts/clean-room/run.sh",
-    "verify:runs": "tsx scripts/verify/runs-e2e.ts"
+    "verify:runs": "tsx scripts/verify/runs-e2e.ts",
+    "verify:handoff": "tsx scripts/verify/handoff.ts"
   },
   "dependencies": {
     "@nim-relay/relay-protocol": "workspace:*",
