@@ -797,6 +797,43 @@
         "encoded AAC-LC 64kbps mono 44100 Hz in M4A"
       ],
       "bytes": 5335
+    },
+    {
+      "path": "courier-v5.glb",
+      "name": "Relay courier body (Superhero Male) with race animation clips",
+      "source": "https://quaternius.itch.io/universal-base-characters (Superhero_Male_FullBody.gltf); https://quaternius.itch.io/universal-animation-library (UAL1_Standard.glb); https://quaternius.itch.io/universal-animation-library-2 (UAL2_Standard.glb)",
+      "sourceFile": "characters/quaternius-universal-base-characters/Superhero_Male_FullBody.gltf; characters/quaternius-universal-animation-library/UAL1_Standard.glb; characters/quaternius-universal-animation-library/UAL2_Standard.glb",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "generator": "scripts/assets/build-courier-v5.mjs",
+      "modifications": [
+        "removed hair and eye meshes (covered by the procedural helmet)",
+        "removed all textures and the TEXCOORD_0..3, COLOR_0 and COLOR_1 attributes; the race draws a procedural suit shader instead",
+        "copied 10 clips by bone name onto the body skeleton and renamed them: Idle_Loop->idle, Crouch_Idle_Loop->ride, NinjaJump_Start->jump-start, NinjaJump_Idle_Loop->air, NinjaJump_Land->land, Slide_Start->slide-start, Slide_Loop->slide, Hit_Chest->hit, OverhandThrow->throw, Yes->victory",
+        "kept bone rotation channels only, plus pelvis translation rescaled to the body's rest pelvis height; dropped leaf-bone channels",
+        "welded, resampled animation keys (tolerance 0.0008), pruned, deduplicated",
+        "quantized and compressed with EXT_meshopt_compression (medium)"
+      ],
+      "bytes": 342712
+    },
+    {
+      "path": "courier-v5-female.glb",
+      "name": "Relay courier body (Superhero Female)",
+      "source": "https://quaternius.itch.io/universal-base-characters (Superhero_Female_FullBody.gltf)",
+      "sourceFile": "characters/quaternius-universal-base-characters/Superhero_Female_FullBody.gltf",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "generator": "scripts/assets/build-courier-v5.mjs",
+      "modifications": [
+        "removed hair and eye meshes (covered by the procedural helmet)",
+        "removed all textures and the TEXCOORD_0..3, COLOR_0 and COLOR_1 attributes; the race draws a procedural suit shader instead",
+        "no animation clips; the race binds the clips from courier-v5.glb by bone name (same 65-joint rig)",
+        "welded, pruned, deduplicated",
+        "quantized and compressed with EXT_meshopt_compression (medium)"
+      ],
+      "bytes": 119100
     }
   ]
 }
