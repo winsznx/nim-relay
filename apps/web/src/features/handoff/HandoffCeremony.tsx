@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from 'react'
 import { chooseNoticeCopy, failureCopy, formatNim, sceneStateFor, verificationCopy, type CeremonySceneState } from './copy'
 import type { HandoffOrchestrator, HandoffStage, LaunchParameters } from './machine'
 import { RunnerPicker, type RunnerGroup } from './RunnerPicker'
@@ -31,11 +31,14 @@ export function HandoffCeremony({ machine, groups, value, onSceneState, onInvite
     onSceneState(sceneState)
   }, [sceneState, onSceneState])
 
+  // The cinematic timer belongs to the confirmed stage. A new onDeparted identity (every network refresh
+  // re-renders the host) must not restart it, or a busy network holds the ceremony on "confirmed".
+  const depart = useEffectEvent(onDeparted)
   useEffect(() => {
     if (stage.stage !== 'confirmed') return
-    const timer = window.setTimeout(() => onDeparted(stage), DEPARTURE_MS)
+    const timer = window.setTimeout(() => depart(stage), DEPARTURE_MS)
     return () => window.clearTimeout(timer)
-  }, [stage, onDeparted])
+  }, [stage])
 
   const amount = formatNim(value)
 

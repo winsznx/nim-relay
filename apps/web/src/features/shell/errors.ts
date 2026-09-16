@@ -78,6 +78,20 @@ const API_COPY: Record<string, string> = {
 
 const UNKNOWN_REFUSAL = 'The relay server turned this request down. Check the journey for its current state, then try again.'
 
+/** Failures on the player's own device, which no server code describes. */
+const LOCAL_COPY = {
+  card_canvas_unavailable: 'This browser can’t draw share cards. Share the link instead.',
+  card_export_failed: 'The share card couldn’t be saved as an image. Share the link instead.',
+  replay_unavailable: 'That ride’s verified record didn’t load, so its card can’t be made yet. Try again in a moment.',
+} as const
+
+export type LocalFailure = keyof typeof LOCAL_COPY
+
+/** An Error whose message is already player copy; `playerMessage` shows it as-is. */
+export function localFailure(code: LocalFailure): Error {
+  return new Error(LOCAL_COPY[code])
+}
+
 export function messageForCode(code: string): string {
   return API_COPY[code] ?? UNKNOWN_REFUSAL
 }

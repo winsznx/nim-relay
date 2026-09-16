@@ -70,8 +70,10 @@ export class NimiqRpcClient {
   private async call<T>(method: string, params: unknown[]): Promise<T> {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), this.timeoutMs)
+    // Called unbound: the Workers runtime throws "Illegal invocation" when fetch runs as a method of this client.
+    const fetchImpl = this.fetchImpl
     try {
-      const res = await this.fetchImpl(this.rpcUrl, {
+      const res = await fetchImpl(this.rpcUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jsonrpc: '2.0', method, params, id: 1 }),

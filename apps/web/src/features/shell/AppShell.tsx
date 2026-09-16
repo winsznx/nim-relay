@@ -26,6 +26,7 @@ import { matchRoute, useLocation, type AppLocation, type RouteMatch } from './ro
 import { SIGN_IN_OVERLAY, useSession } from './session'
 import { SignInSheet } from './SignInSheet'
 import { ToastViewport } from './ui/overlays'
+import { DepartureBanner } from '../leg/DepartureBanner'
 
 const LegHost = lazy(() => import('./LegHost').then(module => ({ default: module.LegHost })))
 const StationScreen = lazy(() => import('./StationScreen').then(module => ({ default: module.StationScreen })))
@@ -125,6 +126,7 @@ export function AppShell() {
       )}
       <PlaySheet open={location.overlay === PLAY_OVERLAY} playerId={player?.id ?? null} relays={relays} snapshot={state.snapshot} />
       <SignInSheet open={location.overlay === SIGN_IN_OVERLAY} />
+      <DepartureBanner />
       <ToastViewport />
     </div>
   )

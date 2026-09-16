@@ -69,6 +69,12 @@ describe('NimiqRpcClient', () => {
     await expect(client.getBlockNumber()).rejects.toThrow('Method not found')
   })
 
+  it('calls fetch unbound, as the Workers runtime requires', async () => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ jsonrpc: '2.0', result: { data: 1, metadata: null }, id: 1 })))
+    await new NimiqRpcClient({ rpcUrl: 'https://example.invalid', fetchImpl: fetchImpl as unknown as typeof fetch }).getBlockNumber()
+    expect(fetchImpl.mock.contexts).toEqual([undefined])
+  })
+
   it('throws on a non-2xx HTTP response', async () => {
     const client = new NimiqRpcClient({
       rpcUrl: 'https://example.invalid',

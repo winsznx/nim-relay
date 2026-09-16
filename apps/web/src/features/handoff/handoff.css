@@ -223,20 +223,6 @@
   background: rgba(245, 166, 35, 0.12);
 }
 
-.handoff-avatar {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 2px solid rgba(245, 166, 35, 0.7);
-  background: radial-gradient(circle at 35% 30%, #2b3656, #111829);
-  font-size: 14px;
-  font-weight: 800;
-  color: var(--color-gold-500);
-}
-
 .handoff-runner-text {
   display: flex;
   flex-direction: column;
