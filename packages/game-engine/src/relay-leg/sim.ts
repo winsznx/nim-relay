@@ -24,9 +24,9 @@ import {
 const centimetres = (cm: number): number => Math.trunc(cm * ONE / 100)
 const percent = (p: number): number => Math.trunc(p * ONE / 100)
 
-// Forward motion, metres per tick (Q16.16). 0.45 m/tick is 27 m/s.
-export const BASE_SPEED = centimetres(45)
-export const FLOW_SPEED = centimetres(36)
+// Forward motion, metres per tick (Q16.16). 0.46 m/tick is 27.6 m/s.
+export const BASE_SPEED = centimetres(46)
+export const FLOW_SPEED = centimetres(33)
 export const STUMBLE_SPEED = centimetres(24)
 export const RAIL_SPEED = centimetres(5)
 export const PAD_SPEED = centimetres(20)
@@ -59,7 +59,6 @@ export const NEAR_MISS_MARGIN = centimetres(60)
 export const FLOW = {
   PERFECT_GATE: percent(5),
   PULSE_GATE: percent(9),
-  OFFBEAT_PULSE_GATE: percent(3),
   NEAR_MISS: percent(4),
   CLEAN_LANDING: percent(3),
   RAIL_TICK: 66,
@@ -207,9 +206,19 @@ export function trainBlockedSide(hazard: Readonly<Hazard>, tick: number): -1 | 1
 }
 
 /**
+ * Centre of the lit lane of a gate at `tick`. A pulse gate lights `x` on even
+ * beats and `-x` on odd beats, swapping exactly on the beat, so one lane is
+ * always lit. Gold gates never move. Pass `state.tick`.
+ */
+export function pulseGateLateral(gate: Readonly<Gate>, tick: number): number {
+  if (gate.kind !== 'pulse' || gate.period <= 0) return gate.x
+  return Math.trunc(tick / gate.period) % 2 === 0 ? gate.x : -gate.x
+}
+
+/**
  * True on the beat window of the pulse section. With `dist` it also requires
- * being inside the section, which is what the simulation uses; without it the
- * answer is the pure beat phase (useful for music-synced presentation).
+ * being inside the section, which is what boost pads use; without it the
+ * answer is the pure beat phase for music-synced presentation.
  * Pass `state.tick`: every time-based rule resolves against the tick of the
  * state it produces.
  */
@@ -529,23 +538,22 @@ function crossGates(s: Draft): void {
   }
 }
 
+/** A pulse gate passed in its lit lane is both a perfect gate and a PULSE_HIT; the dark lane is a miss. */
 function resolveGate(s: Draft, gate: Gate): void {
   s.metrics.totalGates++
-  if (Math.abs(s.x - gate.x) > gate.half) {
+  if (Math.abs(s.x - pulseGateLateral(gate, s.tick)) > gate.half) {
     s.events |= EVENT.MISSED_GATE
     loseFlow(s, FLOW.MISSED_GATE)
     return
   }
   s.events |= EVENT.PERFECT_GATE
   s.metrics.perfectGates++
-  if (gate.kind !== 'pulse') {
-    gainFlow(s, FLOW.PERFECT_GATE)
-  } else if (onBeat(s.track, s.tick, gate.dist)) {
+  if (gate.kind === 'pulse') {
     s.events |= EVENT.PULSE_HIT
     s.metrics.pulseHits++
     gainFlow(s, FLOW.PULSE_GATE)
   } else {
-    gainFlow(s, FLOW.OFFBEAT_PULSE_GATE)
+    gainFlow(s, FLOW.PERFECT_GATE)
   }
 }
 

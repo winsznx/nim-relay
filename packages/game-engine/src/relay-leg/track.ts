@@ -17,8 +17,13 @@ export type TrackConfig = Pick<Config, 'seed' | 'world' | 'tier'>
 export const ROUTE_MIN_METRES = 1400
 export const ROUTE_MAX_METRES = 1750
 
-/** 128 BPM at 60 Hz is 28.125 ticks per beat. */
-export const PULSE_PERIOD = 28
+/**
+ * Ticks per beat: 144 BPM at 60 Hz is exactly 25. Beat 0 is tick 0 of every leg
+ * (no per-route phase), so race music time-stretched to 144 BPM stays locked to
+ * `onBeat` and `pulseGateLateral`.
+ */
+export const PULSE_PERIOD = 25
+/** Ticks after each beat that still count as on the beat for boost pads and beat visuals. */
 export const PULSE_WINDOW = 8
 
 /** Minimum distance between collidable hazards on the same path, metres, by tier. */
@@ -31,6 +36,8 @@ export const RAMP_JUMPABLE_CLEAR_BEFORE_METRES = 50
 export const RAMP_CLEAR_AFTER_METRES = 50
 /** Beams need a slide, which is impossible in the air, so they keep a longer distance. */
 export const RAMP_BEAM_CLEAR_AFTER_METRES = 90
+/** Nothing (gust zones included) within this many metres of a pulse gate: the intercept needs a clean run-up. */
+export const PULSE_GATE_CLEAR_METRES = 25
 /** Tier 0 keeps the opening stretch free of hazards. */
 export const OPENING_CALM_METRES = 150
 /** Tier 0 keeps timing hazards (doors, trains) out of the first stretch. */
@@ -203,6 +210,7 @@ function assemble(config: TrackConfig, layout: readonly ModuleTemplate[], rng: R
   if (!out.fork || !out.pulse) throw new Error('relay-leg: layout lacks a fork or pulse module')
   const finishDist = metres(start)
   out.setPieces.push({ dist: finishDist, kind: 'handoff-gate', length: metres(HANDOFF_LENGTH_METRES) })
+  const pulseGates = out.gates.filter(gate => gate.kind === 'pulse')
   return {
     world: config.world,
     tier: config.tier,
@@ -210,7 +218,7 @@ function assemble(config: TrackConfig, layout: readonly ModuleTemplate[], rng: R
     segments: out.segments,
     fork: out.fork,
     gates: out.gates.sort(byDistThenPath),
-    hazards: admitHazards(out.hazards.sort(byDistThenPath), out.ramps, config.tier),
+    hazards: admitHazards(out.hazards.sort(byDistThenPath), { ramps: out.ramps, pulseGates }, config.tier),
     ramps: out.ramps.sort(byFromThenPath),
     gaps: out.gaps.sort(byFromThenPath),
     rails: out.rails.sort(byFromThenPath),
@@ -282,6 +290,7 @@ function placeFeature(out: Assembly, placed: Placed, feature: FeatureTemplate, r
         half: decimetres(GATE_HALF_DECIMETRES[placed.tier] + bonus),
         kind: feature.kind,
         path: feature.path,
+        period: feature.kind === 'pulse' ? PULSE_PERIOD : 0,
       })
       return
     }
@@ -336,18 +345,23 @@ function placeZone(placed: Placed, feature: ZoneTemplate, at: number): Zone {
 // Cross-module fairness filter
 // ---------------------------------------------------------------------------
 
+interface Landmarks {
+  ramps: readonly Zone[]
+  pulseGates: readonly Gate[]
+}
+
 /**
  * Module boundaries can put two authored hazards too close together, or a
- * hazard where the courier is still airborne from the previous module's ramp.
- * Walking the route in order and dropping the later hazard keeps the authored
- * rhythm and guarantees the content invariants.
+ * hazard where the courier is still airborne from the previous module's ramp
+ * or lining up a pulse gate. Walking the route in order and dropping the later
+ * hazard keeps the authored rhythm and guarantees the content invariants.
  */
-function admitHazards(sorted: readonly Hazard[], ramps: readonly Zone[], tier: Tier): Hazard[] {
+function admitHazards(sorted: readonly Hazard[], landmarks: Landmarks, tier: Tier): Hazard[] {
   const spacing = metres(HAZARD_SPACING_METRES[tier])
   const last: Record<Path, number> = { main: -spacing, safe: -spacing, risk: -spacing }
   const admitted: Hazard[] = []
   for (const hazard of sorted) {
-    if (!isPlaceable(hazard, ramps, tier)) continue
+    if (!isPlaceable(hazard, landmarks, tier)) continue
     if (hazard.kind === 'gust') {
       admitted.push(hazard)
       continue
@@ -359,11 +373,23 @@ function admitHazards(sorted: readonly Hazard[], ramps: readonly Zone[], tier: T
   return admitted
 }
 
-function isPlaceable(hazard: Hazard, ramps: readonly Zone[], tier: Tier): boolean {
+function isPlaceable(hazard: Hazard, landmarks: Landmarks, tier: Tier): boolean {
   if (tier === 0 && hazard.dist < metres(OPENING_CALM_METRES)) return false
   const timed = hazard.kind === 'door' || hazard.kind === 'train'
   if (tier === 0 && timed && hazard.dist < metres(TIER0_TIMED_HAZARDS_FROM_METRES)) return false
-  if (hazard.kind === 'gust') return true
+  if (crowdsPulseGate(hazard, landmarks.pulseGates)) return false
+  return hazard.kind === 'gust' || clearOfRamps(hazard, landmarks.ramps)
+}
+
+/** A hazard, or a gust's whole zone, too close to a pulse gate on a connected path. */
+function crowdsPulseGate(hazard: Hazard, pulseGates: readonly Gate[]): boolean {
+  const clear = metres(PULSE_GATE_CLEAR_METRES)
+  const reach = hazard.kind === 'gust' ? hazard.length : 0
+  return pulseGates.some(gate =>
+    pathsTouch(gate.path, hazard.path) && gate.dist > hazard.dist - clear && gate.dist < hazard.dist + reach + clear)
+}
+
+function clearOfRamps(hazard: Hazard, ramps: readonly Zone[]): boolean {
   const jumpable = hazard.kind === 'barrier' || hazard.kind === 'sweeper'
   const clearAfter = metres(hazard.kind === 'beam' ? RAMP_BEAM_CLEAR_AFTER_METRES : RAMP_CLEAR_AFTER_METRES)
   const clearBefore = metres(jumpable ? RAMP_JUMPABLE_CLEAR_BEFORE_METRES : RAMP_CLEAR_BEFORE_METRES)

@@ -94,14 +94,22 @@ export interface Fork {
   riskHalfWidth: number
 }
 
+/**
+ * gold:  a fixed window on the racing line
+ * pulse: two lanes, `x` and `-x`; the lit lane swaps on every beat, so the
+ *        courier has to arrive in the lane that is lit at the crossing tick
+ */
 export type GateKind = 'gold' | 'pulse'
 export interface Gate {
   dist: number
+  /** Centre of the window (Q16.16 m). Pulse gates: the lane lit on even beats; odd beats light `-x`. */
   x: number
   /** Half-width of the perfect window (Q16.16 m). */
   half: number
   kind: GateKind
   path: Path
+  /** Pulse gates: ticks per lane, one beat of the pulse section. 0 for gold gates. */
+  period: number
 }
 
 /**

@@ -26,6 +26,7 @@ import {
   step,
 } from './sim'
 import { InputCursor, validateTrace } from './trace'
+import { PULSE_PERIOD, PULSE_WINDOW } from './track'
 import { MAX_TICKS, TICK_RATE, type Config, type InputTrace, type Metrics, type Result, type State } from './types'
 
 /**
@@ -43,6 +44,7 @@ export const RULES = [
   `slide-${SLIDE_TICKS}/stumble-${STUMBLE_TICKS}/fall-stumble-${FALL_STUMBLE_TICKS}/buffer-${ACTION_BUFFER_TICKS}/clean-air-${CLEAN_LANDING_AIR_TICKS}`,
   `heights-low-${LOW_HAZARD_HEIGHT}/drone-${DRONE_HEIGHT}/train-${TRAIN_HEIGHT}/near-${NEAR_MISS_MARGIN}`,
   `flow-${Object.entries(FLOW).map(([name, value]) => `${name}=${value}`).join(',')}`,
+  `beat-${PULSE_PERIOD}-ticks/window-${PULSE_WINDOW}/pulse-gates-swap-lanes-each-beat-from-tick-0`,
   'hits-ignored-while-stumbling',
   'actions-impulse-buffered',
   'score-300000-ticks*40+gates*120+pulse*160+near*60+land*40+risk*400-hits*300-falls*500+avgflow*2000',

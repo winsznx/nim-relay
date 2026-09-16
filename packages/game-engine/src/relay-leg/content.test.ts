@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { ONE } from '../fixed-point'
 import { WORLD_KITS, worldTemplates, type FeatureTemplate, type HazardTemplate } from './modules'
-import { GRAVITY, JUMP_VELOCITY, LOW_HAZARD_HEIGHT, TRAIN_HEIGHT, halfWidthAt } from './sim'
-import { buildTrack, pathsTouch } from './track'
+import { BASE_SPEED, GRAVITY, JUMP_VELOCITY, LOW_HAZARD_HEIGHT, TRAIN_HEIGHT, halfWidthAt } from './sim'
+import { PULSE_PERIOD, buildTrack, pathsTouch } from './track'
 import { WORLDS, type Hazard, type HazardKind, type Tier, type Track, type World } from './types'
 
 const SEEDS = 500
@@ -139,7 +139,7 @@ describe('relay leg route shape', () => {
     const found = violations(({ track }) => {
       const { pulse, finishDist } = track
       if (pulse.from * 2 < finishDist || pulse.to > finishDist) return `pulse at ${metres(pulse.from)} m`
-      if (pulse.period !== 28 || pulse.window <= 0 || pulse.window >= pulse.period) return 'pulse timing'
+      if (pulse.period !== PULSE_PERIOD || pulse.window <= 0 || pulse.window >= pulse.period) return 'pulse timing'
       const stray = track.gates.find(gate => gate.kind === 'pulse' && (gate.dist < pulse.from || gate.dist >= pulse.to))
       return stray ? `pulse gate outside the section at ${metres(stray.dist)} m` : null
     })
@@ -270,6 +270,54 @@ describe('relay leg fairness', () => {
       const firstGap = track.gaps[0]
       if (!firstRamp) return 'no ramp'
       return firstGap && firstGap.from < firstRamp.to ? 'a gap comes before the first ramp' : null
+    })
+    expect(found).toEqual([])
+  })
+})
+
+describe('relay leg pulse section', () => {
+  it('gives every pulse gate two distinct, reachable lanes that miss the centre line', () => {
+    const found = violations(({ track }) => {
+      for (const gate of track.gates) {
+        if (gate.kind === 'gold') {
+          if (gate.period !== 0) return `gold gate with a beat at ${metres(gate.dist)} m`
+          continue
+        }
+        const halfWidth = halfWidthAt(track, gate.dist, gate.path)
+        const lane = Math.abs(gate.x)
+        const where = `pulse gate at ${metres(gate.dist)} m`
+        if (gate.period !== track.pulse.period) return `${where} is off the section beat`
+        if (lane * 100 < halfWidth * 35 || lane * 100 > halfWidth * 60) return `${where} lane at ${metres(lane)} m of ${metres(halfWidth)} m`
+        if (lane <= gate.half) return `${where}: a centred courier sits inside both windows`
+        if (lane + gate.half > halfWidth) return `${where}: window runs off the deck`
+      }
+      return null
+    })
+    expect(found).toEqual([])
+  })
+
+  it('spaces pulse gates at least 1.5 beats of base-speed travel apart', () => {
+    const found = violations(({ track }) => {
+      const minimum = Math.trunc(3 * track.pulse.period * BASE_SPEED / 2)
+      const pulseGates = track.gates.filter(gate => gate.kind === 'pulse')
+      if (pulseGates.length < 4) return `${pulseGates.length} pulse gates`
+      const cramped = pulseGates.find((gate, i) => i > 0 && gate.dist - pulseGates[i - 1]!.dist < minimum)
+      return cramped ? `pulse gate at ${metres(cramped.dist)} m follows too closely` : null
+    })
+    expect(found).toEqual([])
+  })
+
+  it('keeps hazards and gust zones 25 m clear of pulse gates', () => {
+    const found = violations(({ track }) => {
+      for (const gate of track.gates.filter(candidate => candidate.kind === 'pulse')) {
+        const crowding = track.hazards.find(hazard => {
+          if (!pathsTouch(gate.path, hazard.path)) return false
+          const end = hazard.kind === 'gust' ? hazard.dist + hazard.length : hazard.dist
+          return gate.dist > hazard.dist - 25 * M && gate.dist < end + 25 * M
+        })
+        if (crowding) return `${crowding.kind} at ${metres(crowding.dist)} m crowds the pulse gate at ${metres(gate.dist)} m`
+      }
+      return null
     })
     expect(found).toEqual([])
   })

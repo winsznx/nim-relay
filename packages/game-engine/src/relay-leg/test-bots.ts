@@ -1,6 +1,6 @@
 import { ONE } from '../fixed-point'
-import { GRAVITY, LOW_HAZARD_HEIGHT, createState, doorOpenSide, halfWidthAt, hazardLateral, step, trainBlockedSide } from './sim'
-import { ACTION_JUMP, ACTION_SLIDE, type Config, type Hazard, type Input, type Path, type Sample, type State, type Zone } from './types'
+import { GRAVITY, LOW_HAZARD_HEIGHT, createState, doorOpenSide, halfWidthAt, hazardLateral, pulseGateLateral, step, trainBlockedSide } from './sim'
+import { ACTION_JUMP, ACTION_SLIDE, type Config, type Gate, type Hazard, type Input, type Path, type Sample, type State, type Zone } from './types'
 
 /**
  * Deterministic, integer-only couriers for the tests and the golden corpus.
@@ -86,7 +86,8 @@ function ticksUntil(state: State, dist: number): number {
 
 function steerTarget(state: State, plan: ForkPlan): number {
   const fork = state.track.fork
-  let target = nextGateX(state, plan) ?? 0
+  const gate = nextGate(state, plan)
+  let target = gate ? interceptX(state, gate) : 0
   const ramp = nextZone(state, state.track.ramps, plan, RAMP_LOOKAHEAD)
   if (ramp) target = ramp.x
   if (state.path === 'main' && state.dist < fork.from && fork.from - state.dist <= FORK_LOOKAHEAD) {
@@ -94,18 +95,26 @@ function steerTarget(state: State, plan: ForkPlan): number {
     target = side * Math.trunc(halfWidthAt(state.track, state.dist, 'main') / 2)
   }
   const hazard = nextHazard(state, plan)
-  if (hazard) target = dodgeTarget(state, hazard, target)
+  // Pulse gates keep 25 m clear of hazards, so meeting the lit lane first still leaves time to dodge.
+  const pulseGateFirst = gate !== null && gate.kind === 'pulse' && (hazard === null || gate.dist < hazard.dist)
+  if (hazard && !pulseGateFirst) target = dodgeTarget(state, hazard, target)
   return target - gustDrift(state, plan)
 }
 
-function nextGateX(state: State, plan: ForkPlan): number | null {
+function nextGate(state: State, plan: ForkPlan): Gate | null {
   const gates = state.track.gates
   for (let i = state.gateIdx; i < gates.length; i++) {
     const gate = gates[i]!
     if (gate.dist - state.dist > GATE_LOOKAHEAD) return null
-    if (gate.path === plannedPathAt(state, gate.dist, plan)) return gate.x
+    if (gate.path === plannedPathAt(state, gate.dist, plan)) return gate
   }
   return null
+}
+
+/** Where the gate will be lit when the courier gets there: pulse gates swap lanes on the beat. */
+function interceptX(state: State, gate: Gate): number {
+  const arrival = state.tick + ticksUntil(state, gate.dist) + 1
+  return pulseGateLateral(gate, arrival)
 }
 
 function nextZone(state: State, zones: readonly Zone[], plan: ForkPlan, lookahead: number): Zone | null {

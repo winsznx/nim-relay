@@ -14,10 +14,12 @@ import {
   hazardLateral,
   hazardOutcome,
   onBeat,
+  pulseGateLateral,
   step,
   trainBlockedSide,
 } from './sim'
 import { goodBot, idleBot, playLeg } from './test-bots'
+import { PULSE_PERIOD, PULSE_WINDOW } from './track'
 import { InputCursor, MAX_TRACE_BYTES, validateTrace } from './trace'
 import {
   ACTION_JUMP,
@@ -79,7 +81,7 @@ function testTrack(overrides: Partial<Track> = {}): Track {
     gaps: [],
     rails: [],
     boostPads: [],
-    pulse: { from: 550 * M, to: 580 * M, period: 28, window: 8 },
+    pulse: { from: 550 * M, to: 580 * M, period: PULSE_PERIOD, window: PULSE_WINDOW },
     setPieces: [],
     ...overrides,
   }
@@ -414,35 +416,63 @@ describe('relay leg gates and FLOW', () => {
   }
 
   it('pays +5% for a perfect gate and takes 4% for a missed one', () => {
-    const gate = { dist: 3 * M, x: 0, half: M, kind: 'gold', path: 'main' } as const
+    const gate = { dist: 3 * M, x: 0, half: M, kind: 'gold', path: 'main', period: 0 } as const
     const perfect = flowDelta(testTrack({ gates: [gate] }))
     const missed = flowDelta(testTrack({ gates: [{ ...gate, x: 3 * M }] }))
     expect(perfect).toEqual({ delta: FLOW.PERFECT_GATE, events: EVENT.PERFECT_GATE })
     expect(missed).toEqual({ delta: -FLOW.MISSED_GATE, events: EVENT.MISSED_GATE })
   })
 
-  it('pays a pulse gate +9% on the beat and +3% off it', () => {
-    // #given a pulse gate just inside the pulse section and a courier arriving next tick
-    const gate = { dist: 551 * M, x: 0, half: M, kind: 'pulse', path: 'main' } as const
+  it('runs the beat at 144 BPM from tick 0 with no per-route phase', () => {
+    expect(PULSE_PERIOD).toBe(25)
+    for (const world of WORLDS) {
+      const { track } = createState({ ...CONFIG, world, seed: `beat-${world}` })
+      expect(track.pulse.period, world).toBe(PULSE_PERIOD)
+      expect(track.gates.filter(gate => gate.kind === 'pulse').every(gate => gate.period === PULSE_PERIOD), world).toBe(true)
+    }
+  })
+
+  it('lights exactly one pulse lane at every tick and swaps it on the beat', () => {
+    // #given a pulse gate with lanes at +2 m and -2 m and a gold gate
+    const pulseGate = { dist: 560 * M, x: 2 * M, half: M, kind: 'pulse', path: 'main', period: PULSE_PERIOD } as const
+    const goldGate = { ...pulseGate, kind: 'gold', period: 0 } as const
+    // #when sampling ten beats tick by tick
+    const lanes = Array.from({ length: 250 }, (_, tick) => pulseGateLateral(pulseGate, tick))
+    // #then the lit lane is always one of the two and flips exactly on beat boundaries
+    expect(lanes.every((lane, tick) => lane === (Math.trunc(tick / 25) % 2 === 0 ? 2 * M : -2 * M))).toBe(true)
+    expect([24, 25, 49, 50].map(tick => pulseGateLateral(pulseGate, tick))).toEqual([2 * M, -2 * M, -2 * M, 2 * M])
+    expect([0, 25, 57].map(tick => pulseGateLateral(goldGate, tick))).toEqual([2 * M, 2 * M, 2 * M])
+  })
+
+  it('pays a pulse gate +9% in the lit lane and counts the dark lane or the centre as a miss', () => {
+    // #given a courier holding the +2 m lane, arriving at a pulse gate next tick
+    const gate = { dist: 560 * M, x: 2 * M, half: M, kind: 'pulse', path: 'main', period: PULSE_PERIOD } as const
     const track = testTrack({ gates: [gate] })
-    const arriving = { dist: 551 * M - 1000, speed: M }
-    // #when the crossing tick lands on the beat (tick 28) or off it (tick 11)
-    const onBeatRun = simulate(stateOn(track, { ...arriving, flow, tick: 27 }), 1)[0]!
-    const offBeatRun = simulate(stateOn(track, { ...arriving, flow, tick: 10 }), 1)[0]!
-    const control = (tick: number): State => simulate(stateOn(testTrack(), { ...arriving, flow, tick }), 1)[0]!
-    // #then only the on-beat crossing is a PULSE_HIT
-    expect(onBeatRun.events & (EVENT.PULSE_HIT | EVENT.PERFECT_GATE)).toBe(EVENT.PULSE_HIT | EVENT.PERFECT_GATE)
-    expect(onBeatRun.flow - control(27).flow).toBe(FLOW.PULSE_GATE)
-    expect(offBeatRun.events & (EVENT.PULSE_HIT | EVENT.PERFECT_GATE)).toBe(EVENT.PERFECT_GATE)
-    expect(offBeatRun.flow - control(10).flow).toBe(FLOW.OFFBEAT_PULSE_GATE)
+    const holdLane = { steer: 32, action: ACTION_NONE } as const
+    const arriving = (tick: number, x: number): Partial<State> => ({ dist: 560 * M - 1000, speed: M, flow, tick, x })
+    const cross = (onTrack: Track, tick: number, x: number): State =>
+      step(stateOn(onTrack, arriving(tick, x)), x === 0 ? NONE : holdLane)
+    // #when crossing on the last tick of beat 0 (+2 m lit), the first of beat 1 (-2 m lit) and on the centre line
+    const lit = cross(track, 23, 2 * M)
+    const dark = cross(track, 24, 2 * M)
+    const centred = cross(track, 23, 0)
+    // #then only the lit lane pays; there is no off-beat consolation
+    expect(lit.events & (EVENT.PULSE_HIT | EVENT.PERFECT_GATE | EVENT.MISSED_GATE)).toBe(EVENT.PULSE_HIT | EVENT.PERFECT_GATE)
+    expect(lit.flow - cross(testTrack(), 23, 2 * M).flow).toBe(FLOW.PULSE_GATE)
+    expect(dark.events & (EVENT.PULSE_HIT | EVENT.PERFECT_GATE | EVENT.MISSED_GATE)).toBe(EVENT.MISSED_GATE)
+    expect(dark.flow - cross(testTrack(), 24, 2 * M).flow).toBe(-FLOW.MISSED_GATE)
+    expect(centred.events & (EVENT.PULSE_HIT | EVENT.MISSED_GATE)).toBe(EVENT.MISSED_GATE)
+    expect([lit.metrics.pulseHits, dark.metrics.pulseHits, dark.metrics.totalGates]).toEqual([1, 0, 1])
   })
 
   it('is on beat only inside the pulse section when given a distance', () => {
     const track = testTrack()
-    expect(onBeat(track, 28, 560 * M)).toBe(true)
-    expect(onBeat(track, 36, 560 * M)).toBe(false)
-    expect(onBeat(track, 28, 100 * M)).toBe(false)
-    expect(onBeat(track, 28)).toBe(true)
+    expect(onBeat(track, 25, 560 * M)).toBe(true)
+    expect(onBeat(track, 32, 560 * M)).toBe(true)
+    expect(onBeat(track, 33, 560 * M)).toBe(false)
+    expect(onBeat(track, 24, 560 * M)).toBe(false)
+    expect(onBeat(track, 25, 100 * M)).toBe(false)
+    expect(onBeat(track, 50)).toBe(true)
   })
 
   it('drains FLOW by about 1.5% per second when nothing is earned', () => {
@@ -451,7 +481,7 @@ describe('relay leg gates and FLOW', () => {
   })
 
   it('fires FLOW_MAX when FLOW reaches full', () => {
-    const gate = { dist: 3 * M, x: 0, half: M, kind: 'gold', path: 'main' } as const
+    const gate = { dist: 3 * M, x: 0, half: M, kind: 'gold', path: 'main', period: 0 } as const
     const states = simulate(stateOn(testTrack({ gates: [gate] }), { flow: ONE - 500 }), 20)
     const maxed = stateWithEvent(states, EVENT.FLOW_MAX)
     expect(maxed.flow).toBe(ONE)
@@ -478,7 +508,7 @@ describe('relay leg gates and FLOW', () => {
     expect(boosted.dist).toBeGreaterThan(plain.dist)
     expect(boosted.metrics.boostPadTicks).toBe(60)
     const pulseStart = { dist: 552 * M }
-    expect(step(stateOn(padTrack, { ...pulseStart, tick: 27 }), NONE).events & EVENT.BOOST_PAD).toBe(EVENT.BOOST_PAD)
+    expect(step(stateOn(padTrack, { ...pulseStart, tick: 24 }), NONE).events & EVENT.BOOST_PAD).toBe(EVENT.BOOST_PAD)
     expect(step(stateOn(padTrack, { ...pulseStart, tick: 10 }), NONE).events & EVENT.BOOST_PAD).toBe(0)
   })
 })
@@ -700,6 +730,35 @@ describe('relay leg playability', () => {
       }
     }
     expect(failures).toEqual([])
+  })
+
+  it('lets an intercepting courier meet at least 80% of pulse gates in the lit lane on every world and tier', () => {
+    const shortfalls: string[] = []
+    for (const world of WORLDS) {
+      for (const tier of [0, 1, 2] as const) {
+        let hits = 0
+        let pulseGates = 0
+        for (let i = 0; i < SEEDS; i++) {
+          // #given the good bot, which predicts its arrival tick and steers for the lane lit then
+          const { state } = playLeg(legConfig(world, tier, i), goodBot(i % 2 === 0 ? 'safe' : 'risk'))
+          hits += state.metrics.pulseHits
+          pulseGates += state.track.gates.filter(gate => gate.kind === 'pulse').length
+        }
+        // #then reading the rhythm pays off
+        if (hits * 100 < pulseGates * 80) shortfalls.push(`${world} t${tier}: ${hits}/${pulseGates}`)
+      }
+    }
+    expect(shortfalls).toEqual([])
+  })
+
+  it('gives a courier who stays centred no pulse hits', () => {
+    for (const world of WORLDS) {
+      for (const tier of [0, 1, 2] as const) {
+        let hits = 0
+        for (let i = 0; i < SEEDS; i++) hits += playLeg(legConfig(world, tier, i), idleBot).state.metrics.pulseHits
+        expect(hits, `${world} t${tier}`).toBe(0)
+      }
+    }
   })
 
   it('makes the risk route the faster line for a clean courier', () => {

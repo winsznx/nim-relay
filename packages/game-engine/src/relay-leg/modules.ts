@@ -23,6 +23,8 @@ import type { GateKind, HazardKind, ModuleKind, Path, SetPieceKind, Tier, World 
  *   courier past the ramp and into its gap.
  * - Gates telegraph the racing line: the gates around a lane hazard sit in the
  *   opposite lane, so following the gold line avoids the hazard.
+ * - Pulse gates sit at 35-60% of the half-width (their lanes are `x` and `-x`),
+ *   at least 1.5 beats of base-speed travel apart, with nothing within 25 m.
  * - Roughly one gate per 25 m, so FLOW has to be earned rather than soaked up.
  */
 
@@ -401,17 +403,22 @@ function fork(world: World, slots: ForkSlots): ModuleTemplate {
   }
 }
 
-function pulse(world: World, a: Slot, b: Slot): ModuleTemplate {
+/**
+ * Two runs of three pulse gates around one hazard. A pulse gate's lit lane
+ * swaps sides on every 25-tick beat, so the courier reads the rhythm and
+ * arrives in the lit lane. Lanes sit at half the half-width, clear of the
+ * centre line on every tier. Gates are 26 m apart: 1.5 beats at a cruising
+ * 0.7 m/tick and 2.3 beats at base speed, enough to cross between lanes.
+ */
+function pulse(world: World, slot: Slot): ModuleTemplate {
   return {
-    ...defineModule(`${world}.pulse.a`, 'pulse', { length: 210, halfWidth: 45, difficulty: 0 }, [
-      ...gates([[28, 0], [46, 30], [64, 45], [100, 0], [118, -30], [136, -45], [172, 0], [190, 0]], 'pulse'),
-      pad(36, 12, 15, 16),
-      pad(108, 12, -15, 16),
-      pad(160, 12, -20, 16),
-      a(80, -45),
-      b(150, 45),
+    ...defineModule(`${world}.pulse.a`, 'pulse', { length: 220, halfWidth: 45, difficulty: 0 }, [
+      ...gates([[30, 50], [56, 50], [82, 50], [138, 50], [164, 50], [190, 50]], 'pulse'),
+      slot(110, 45),
+      pad(114, 12, 0, 16),
+      pad(196, 8, 0, 16),
     ]),
-    pulse: { from: 20, to: 196 },
+    pulse: { from: 20, to: 206 },
   }
 }
 
@@ -442,7 +449,7 @@ const COAST: WorldKit = {
     risk: [BARRIER, DRONE, BEAM, SWEEPER, DOOR],
     setPiece: 'skyline-jump',
   }),
-  pulse: pulse('coast', BARRIER, DRONE),
+  pulse: pulse('coast', BARRIER),
   approach: approach('coast', BARRIER, [rail(60, 36, 0, 12)]),
   setPiece: defineModule('coast.set-piece.bridge', 'set-piece', { length: 160, halfWidth: 32, rise: 20, difficulty: 0 }, [
     setPiece(0, 'suspension-bridge', 160),
@@ -474,7 +481,7 @@ const METRO: WorldKit = {
     risk: [TRAIN, BARRIER, DOOR, BEAM, DRONE],
     setPiece: 'tunnel',
   }),
-  pulse: pulse('metro', BARRIER, DOOR),
+  pulse: pulse('metro', DOOR),
   approach: approach('metro', DRONE, [rail(60, 36, 0, 12)]),
   setPiece: defineModule('metro.set-piece.crossing', 'set-piece', { length: 160, halfWidth: 45, difficulty: 0 }, [
     setPiece(20, 'transit-crossing', 110),
@@ -503,7 +510,7 @@ const ALPINE: WorldKit = {
     risk: [BARRIER, DRONE, SWEEPER, BEAM, BARRIER],
     setPiece: 'tunnel',
   }),
-  pulse: pulse('alpine', BARRIER, SWEEPER),
+  pulse: pulse('alpine', SWEEPER),
   approach: approach('alpine', BARRIER, [gust(56, 40, -35)]),
   setPiece: defineModule('alpine.set-piece.cliff', 'set-piece', { length: 160, halfWidth: 45, rise: -140, difficulty: 0 }, [
     setPiece(20, 'cliff-drop', 60),
@@ -535,7 +542,7 @@ const SOLAR: WorldKit = {
     risk: [SWEEPER, DRONE, BEAM, DOOR, SWEEPER],
     setPiece: 'skyline-jump',
   }),
-  pulse: pulse('solar', SWEEPER, BARRIER),
+  pulse: pulse('solar', SWEEPER),
   approach: approach('solar', SWEEPER, [pad(60, 36, 0, 14)]),
   setPiece: defineModule('solar.set-piece.turbines', 'set-piece', { length: 160, halfWidth: 45, difficulty: 0 }, [
     setPiece(0, 'turbine-field', 160),
@@ -567,7 +574,7 @@ const OCEAN: WorldKit = {
     risk: [DOOR, DRONE, BARRIER, BEAM, SWEEPER],
     setPiece: 'tunnel',
   }),
-  pulse: pulse('ocean', DRONE, BARRIER),
+  pulse: pulse('ocean', DRONE),
   approach: approach('ocean', DRONE, [pad(60, 36, 0, 14)]),
   setPiece: defineModule('ocean.set-piece.wave', 'set-piece', { length: 160, halfWidth: 42, difficulty: 0 }, [
     setPiece(30, 'wave-arch', 100),
