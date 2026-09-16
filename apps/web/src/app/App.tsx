@@ -25,13 +25,21 @@ async function runLogin() {
   return player
 }
 
+const NetworkApp = lazy(() => import('../network/NetworkApp').then(module => ({ default: module.NetworkApp })))
+const StationApp = lazy(() => import('../station/StationApp').then(module => ({ default: module.StationApp })))
 const GamePage = lazy(() => import('../game/GamePage').then(module => ({ default: module.GamePage })))
 const RelayRunLab = lazy(() => import('../lab/relay-run/RelayRunLab').then(module => ({ default: module.RelayRunLab })))
 const RelayRaceLab = lazy(() => import('../lab/relay-race/RelayRaceLab').then(module => ({ default: module.RelayRaceLab })))
 
 export function App() {
   const path = window.location.pathname
-  if (path === '/play' || path === '/play/') {
+  if (path === '/' || path === '/play' || /^\/(relay|r|journey|invite|proof|daily|crews|inbox|profile|vault|create|rivals|home|privacy)(\/|$)/.test(path)) {
+    return <Suspense fallback={<p>Opening the relay world…</p>}><NetworkApp /></Suspense>
+  }
+  if (path === '/station-v4') {
+    return <Suspense fallback={<p>Preparing your departure…</p>}><StationApp /></Suspense>
+  }
+  if (path === '/practice-v1') {
     return <Suspense fallback={<p>Loading solo practice…</p>}><GamePage /></Suspense>
   }
   if (path === '/lab/relay-run-v2' || path === '/lab/relay-run-v2/') {

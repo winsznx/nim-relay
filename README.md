@@ -4,7 +4,11 @@
 
 Real NIM is the turn. Catch it, beat the ghost, pass it on.
 
-> Build status: **Phase 1 in progress** (Phase 0 verification complete). Not yet live — this README will carry real `[Open Mini App]` / `[Watch Live]` / `[Proof]` links and real proof metrics once a production deployment exists (Phase 10-12). See `run-state.json` for exact current phase.
+[Open NIM Relay](https://nim-relay.timjosh507.workers.dev) · [Testnet for test NIM](https://nim-relay-testnet.timjosh507.workers.dev) · [Public proof](https://nim-relay.timjosh507.workers.dev/proof/)
+
+The current build centers on persistent baton journeys: an interactive Earth, verified race ghosts, friend matches, crews, rival routes, Daily Circuit, incoming turns, and public handoff records. Native Nimiq Pay approval authorizes each 1 NIM pass. Custody changes only after independent transaction verification.
+
+Real-user adoption and an end-to-end native mainnet handoff are **not yet verified**. Empty metrics remain zero. Testnet evidence is excluded from mainnet usage. See [network release evidence](evidence/production/network-release.md).
 
 ## What this is
 

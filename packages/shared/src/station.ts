@@ -1,0 +1,14 @@
+export type StationWorld = 'coast' | 'alpine' | 'metro' | 'solar' | 'ocean'
+export type RaceMode = 'quick' | 'global' | 'crew' | 'rival' | 'daily'
+export type RaceTrace = readonly (readonly [number, number, 0 | 1, 0 | 1 | 2])[]
+export interface RaceConfig { engineVersion: '4'; challenge: 'station-race'; challengeVersion: '4'; seed: string; world: StationWorld }
+export interface RaceResult { score: number; resultHash: string; completed: boolean; ticks: number; timeMs: number; metrics: { hazardsHit: number; nearMisses: number; gates: number; missedGates: number; beatHits: number; boostTicks: number; overheats: number; jumps: number; landings: number; grindTicks: number; shortcutTicks: number } }
+export interface CanonicalGhost { runId: string; name: string; config: RaceConfig; inputTrace: RaceTrace; result: RaceResult; verified: true }
+export interface IssuedRace { batonId?: string; networkRace?: boolean; practice?: boolean; official?: boolean; relayLeg: number | null; runId: string; playerId: string; mode: RaceMode; config: RaceConfig; expiresAt: number; target: string | null; mac: string; ghost: CanonicalGhost | null }
+export interface StationProfile { id: string; name: string; handle: string; xp: number; level: number; seasonRank: string; runs: number; handoffs: number; achievements: string[]; unlocked: string[]; equipped: { suit: string; helmet: string; board: string; trail: string }; crewId: string | null }
+export interface StationCrew { id: string; name: string; code: string; members: string[] }
+export interface StationChallenge { id: string; from: string; fromName: string; to: string; runId: string; status: 'pending' | 'completed'; createdAt: number }
+export interface Chronicle { id: string; name: string; kind: 'run' | 'handoff'; world: StationWorld; at: number; score: number; leg: number }
+export interface StationSnapshot { pendingHandoff?: HandoffIntent | null; profile: StationProfile; global: { holderId: string | null; holderName: string | null; leg: number; world: StationWorld; seed: string }; daily: { date: string; world: StationWorld; seed: string; best: number | null }; crews: StationCrew[]; rivals: { id: string; name: string; score: number }[]; inbox: StationChallenge[]; rankings: { id: string; name: string; score: number; xp: number }[]; chronicles: Chronicle[]; cosmetics: { id: string; category: 'suit' | 'helmet' | 'board' | 'trail'; name: string; xp: number }[] }
+export interface SubmittedRace { runId: string; result: RaceResult; created: boolean; xpEarned: number; profile: StationProfile; qualifiedHandoff: boolean }
+export interface HandoffIntent { throw?: { angle: number; power: number }; id: string; runId: string; recipientId: string; recipientName: string; sender: string; recipient: string; value: number; data: string; network: 'TestAlbatross' | 'MainAlbatross'; leg: number; status: 'pending' | 'verified'; txHash: string | null }

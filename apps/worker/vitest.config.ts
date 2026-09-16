@@ -16,6 +16,8 @@ export default defineConfig({
       // routes need, which live in secrets / .dev.vars outside tests.
       miniflare: {
         bindings: {
+          NIMIQ_NETWORK: 'TestAlbatross',
+          NIMIQ_RPC_URL: 'https://rpc.testnet.nimiqwatch.com/',
           SUPABASE_URL: '',
           SUPABASE_SERVICE_ROLE_KEY: '',
           SESSION_SECRET: 'test-session-secret',

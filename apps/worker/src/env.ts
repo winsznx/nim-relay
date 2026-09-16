@@ -1,6 +1,8 @@
+import type { StationRoom } from './station/room'
 import type { RelayRoom } from './durable/relay-room'
 
 export interface Env {
+  STATION_ROOM: DurableObjectNamespace<StationRoom>
   ASSETS: Fetcher
   RELAY_ROOM: DurableObjectNamespace<RelayRoom>
   /** Bound from Phase 4+ when replay-artifact storage is built; unbound today. */

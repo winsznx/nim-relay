@@ -12,7 +12,8 @@
   },
   "durable_objects": {
     "bindings": [
-      { "name": "RELAY_ROOM", "class_name": "RelayRoom" }
+      { "name": "RELAY_ROOM", "class_name": "RelayRoom" },
+      { "name": "STATION_ROOM", "class_name": "StationRoom" }
     ]
   },
   // The declarative "exports" field (SQLite-backed DO classes without a
@@ -22,7 +23,8 @@
   // local `wrangler dev`/deploy and the Workers Vitest pool on the same
   // page; revisit once vitest-pool-workers bumps its wrangler peer.
   "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["RelayRoom"] }
+    { "tag": "v1", "new_sqlite_classes": ["RelayRoom"] },
+    { "tag": "v2", "new_sqlite_classes": ["StationRoom"] }
   ],
   // REPLAY_BUCKET (R2) is added back when replay-artifact storage is built
   // (Phase 4+). R2 is not yet enabled on the deploy account and nothing reads
@@ -35,11 +37,26 @@
   // `wrangler dev` - see .dev.vars.example. With no SUPABASE_SERVICE_ROLE_KEY,
   // getAuthStore() falls back to the in-memory store.
   "vars": {
-    "NIMIQ_NETWORK": "TestAlbatross",
-    "NIMIQ_RPC_URL": "https://rpc.testnet.nimiqwatch.com/"
+    "NIMIQ_NETWORK": "MainAlbatross",
+    "NIMIQ_RPC_URL": "https://rpc.nimiqwatch.com/"
   },
   "triggers": {
     "crons": ["0 0 * * *", "*/10 * * * *"]
+  },
+  "env": {
+    "testnet": {
+      "name": "nim-relay-testnet",
+      "vars": {
+        "NIMIQ_NETWORK": "TestAlbatross",
+        "NIMIQ_RPC_URL": "https://rpc.testnet.nimiqwatch.com/"
+      },
+      "durable_objects": {
+        "bindings": [
+          { "name": "RELAY_ROOM", "class_name": "RelayRoom" },
+          { "name": "STATION_ROOM", "class_name": "StationRoom" }
+        ]
+      }
+    }
   },
   "observability": {
     "enabled": true

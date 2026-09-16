@@ -1,9 +1,9 @@
 {
   "product": "NIM Relay",
   "prd": "NIM_RELAY_PRD_v1.md",
-  "updatedAt": "2026-09-07T12:00:00Z",
+  "updatedAt": "2026-09-08T12:30:00Z",
   "currentPhase": 4,
-  "topBlocker": "V3 slice BUILT + DEPLOYED at /lab/relay-race-v3 (Three.js behind-courier racer: visible courier + baton, chase cam, gold gates / red hazards, safe vs shortcut fork, hold-to-boost heat, visible cyan ghost racer, time-based result, level-design tutorial track, deterministic engine v3 relay-race + 64-case corpus byte-identical Node/workerd, live-sim==canonical-replay assert). AWAITING the user to play it. Do NOT start Relay Station / crews / seasons / other product systems. Engine v1/v2 + all anti-cheat/auth/Supabase preserved.",
+  "topBlocker": "Production Station v4 deployed and browser verified. Physical iPhone profiling and real Nimiq Pay transaction approval still require an actual device/wallet.",
   "phases": {
     "0": {
       "name": "Source-of-truth verification",
@@ -243,5 +243,19 @@
     "lab": "https://nim-relay.timjosh507.workers.dev/lab/relay-run-v2 (Phase 3.6 Relay Run v2 vertical slice - isolated, placeholder handoff, awaiting play-test approval)"
   },
   "repository": "https://github.com/winsznx/nim-relay",
-  "finalReadinessState": null
+  "finalReadinessState": null,
+  "productionStation": {
+    "branch": "production-relay",
+    "engineVersion": "4",
+    "worlds": [
+      "coast",
+      "alpine",
+      "metro",
+      "solar",
+      "ocean"
+    ],
+    "supabaseMigration": "0004_station_races applied",
+    "validation": "711 engine/shared/protocol/Worker tests + 2 controller tests; 2 browser tests (full mobile ride and five worlds); live mobile touch-control recording with no runtime errors",
+    "deployment": "https://nim-relay.timjosh507.workers.dev \u2014 dd887da5-95a3-4364-a4e3-6ff2b551bed5"
+  }
 }

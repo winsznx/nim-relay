@@ -20,9 +20,14 @@ export function nimiqPayDeepLink(origin: string): string {
   return `https://nimpay.app/miniapps/open/${origin.replace(/^https?:\/\//, '')}`
 }
 
+export class NimiqPayError extends Error {
+  constructor(readonly type: string, message: string) { super(message || type); this.name = 'NimiqPayError' }
+  get approvalDeclined() { return /cancel|reject|denied|insufficient|balance/i.test(`${this.type} ${this.message}`) && !/timeout|network|broadcast/i.test(`${this.type} ${this.message}`) }
+}
+
 function unwrap<T>(value: T | { error: { type: string; message: string } }): T {
   if (value && typeof value === 'object' && 'error' in value) {
-    throw new Error(value.error.message || value.error.type || 'Nimiq Pay request failed')
+    throw new NimiqPayError(value.error.type, value.error.message)
   }
   return value
 }
@@ -54,4 +59,12 @@ export async function deviceIdentifier(reason: string): Promise<string | undefin
   } catch {
     return undefined
   }
+}
+
+/** Invoked by the player's handoff button; Nimiq Pay owns transaction approval. */
+export async function sendRelayHandoff(intent: { recipient: string; value: number; data: string; network: string }): Promise<string> {
+  const p = await provider()
+  // getNetwork() identifies the provider family ('nimiq'), not mainnet/testnet.
+  // The approval screen shows the requested network; the server verifies chain identity.
+  return unwrap(await p.sendBasicTransactionWithData({ recipient: intent.recipient, value: intent.value, data: intent.data }))
 }

@@ -1,0 +1,38 @@
+import { expect, it } from 'vitest'
+import { StationController } from './controller'
+const config = { engineVersion: '4', challenge: 'station-race', challengeVersion: '4', seed: 'controller', world: 'coast' } as const
+it('preserves accumulator ticks across slow frames and countdown overshoot', () => {
+  const c = new StationController(config)
+  c.start(); c.frame(0); c.frame(3500)
+  expect(c.snapshot().state.tick).toBe(30)
+  c.frame(5000)
+  expect(c.snapshot().state.tick).toBe(120)
+  c.pause(); c.frame(9000); c.resume(); c.frame(10000); c.frame(11000)
+  expect(c.snapshot().state.tick).toBe(180)
+})
+it('records controls, verifies replay, freezes handoff until explicit launch', () => {
+  const c = new StationController(config)
+  c.start(); c.frame(0); c.frame(3000)
+  c.setBoost(true); c.setSteer(20); c.jump(); c.frame(3100)
+  c.setBoost(false); c.duck(); c.frame(3200)
+  c.frame(100000)
+  expect(c.snapshot().divergence).toBe(false)
+  expect(c.snapshot().phase).toBe('handoff')
+  expect(c.snapshot().ghost).toBeNull()
+  c.frame(200000)
+  expect(c.snapshot().phase).toBe('handoff')
+  c.launch({ practice: true }); c.frame(201000); c.frame(206000)
+  expect(c.snapshot().phase).toBe('results')
+})
+it('plays a canonical trace to its verified result without a handoff phase', () => {
+  const source = new StationController(config)
+  source.start(); source.frame(0); source.frame(3000)
+  source.setSteer(20); source.setBoost(true); source.frame(3500)
+  source.setSteer(0); source.setBoost(false); source.frame(100000)
+  const replay = new StationController(config, undefined, { playbackTrace: source.snapshot().trace })
+  replay.start(); replay.frame(0); replay.frame(100000)
+  expect(replay.isPlayback).toBe(true)
+  expect(replay.snapshot().phase).toBe('results')
+  expect(replay.snapshot().result?.resultHash).toBe(source.snapshot().result?.resultHash)
+  expect(replay.snapshot().divergence).toBe(false)
+})

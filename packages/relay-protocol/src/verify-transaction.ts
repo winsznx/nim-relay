@@ -12,6 +12,7 @@
  * reason. It performs no I/O.
  */
 
+import { paymentAddress } from './address'
 import { decodeTxData } from './tx-data'
 import type { NimiqTransaction, NimiqNetwork } from './nimiq-rpc'
 
@@ -49,7 +50,7 @@ export type TxVerificationResult =
 /** Nimiq user-friendly addresses carry spaces and are case-insensitive; the
  * RPC and the wallet can disagree on formatting for the same address. */
 function normalizeAddress(address: string): string {
-  return address.replace(/\s+/g, '').toUpperCase()
+  return paymentAddress(address)
 }
 
 const NETWORK_RPC_ALIASES: Record<NimiqNetwork, readonly string[]> = {
@@ -116,14 +117,14 @@ export function verifyHandoffTransaction(
     return fail('NETWORK_MISMATCH', `network ${JSON.stringify(tx.network)} is not ${expected.network}`)
   }
 
-  if (tx.blockNumber === null) {
+  if (tx.blockNumber === null || !Number.isSafeInteger(tx.blockNumber) || tx.blockNumber < 0) {
     return fail('NOT_INCLUDED', 'transaction is not yet in a block')
   }
-  if (tx.executionResult === false) {
+  if (tx.executionResult !== true) {
     return fail('EXECUTION_FAILED', 'transaction was included but reverted')
   }
   const confirmations = tx.confirmations ?? 0
-  if (confirmations < expected.minConfirmations) {
+  if (!Number.isSafeInteger(confirmations) || confirmations < expected.minConfirmations) {
     return fail(
       'INSUFFICIENT_CONFIRMATIONS',
       `${confirmations} confirmations < required ${expected.minConfirmations}`,

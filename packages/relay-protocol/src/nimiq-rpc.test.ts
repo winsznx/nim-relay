@@ -77,3 +77,21 @@ describe('NimiqRpcClient', () => {
     await expect(client.getBlockNumber()).rejects.toThrow('RPC HTTP 503')
   })
 })
+
+describe('current Albatross RPC transaction shape', () => {
+  const raw = { hash: 'a'.repeat(64), from: 'NQ07 0000', to: 'NQ08 1111', value: 100000, recipientData: '4e52312e', networkId: 5, blockNumber: 9, confirmations: 2, executionResult: true }
+  it('normalizes addresses, hex data and numeric network/value', async () => {
+    const client = new NimiqRpcClient({ rpcUrl: 'https://example.invalid', fetchImpl: fakeFetch([{ body: { result: { data: raw } } }]) })
+    expect(await client.getTransactionByHash(raw.hash)).toEqual({ hash: raw.hash, sender: raw.from, recipient: raw.to, value: '100000', data: 'NR1.', network: 'TestAlbatross', blockNumber: 9, confirmations: 2, executionResult: true })
+  })
+  it('rejects a different transaction returned for the requested hash', async () => {
+    const client = new NimiqRpcClient({ rpcUrl: 'https://example.invalid', fetchImpl: fakeFetch([{ body: { result: { data: raw } } }]) })
+    await expect(client.getTransactionByHash('b'.repeat(64))).rejects.toThrow('hash mismatch')
+  })
+  it('rejects malformed response and unsafe money', async () => {
+    for (const data of [null, { ...raw, value: Number.MAX_SAFE_INTEGER + 1 }, { ...raw, recipientData: 'not-hex' }]) {
+      const client = new NimiqRpcClient({ rpcUrl: 'https://example.invalid', fetchImpl: fakeFetch([{ body: { result: { data } } }]) })
+      await expect(client.getTransactionByHash(raw.hash)).rejects.toThrow()
+    }
+  })
+})

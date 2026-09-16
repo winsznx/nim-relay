@@ -1,0 +1,31 @@
+import { test, expect } from '@playwright/test'
+test('public network, truthful empty state, deep links and playable mobile leg', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  await page.goto('/')
+  await expect(page.getByRole('heading', {name:'How far can one NIM travel?'})).toBeVisible()
+  await expect(page.locator('canvas')).toBeVisible()
+  await expect(page.locator('.network-globe').first()).toHaveAttribute('data-map-ready', 'true')
+  await page.screenshot({path:'/tmp/nim-relay-network-mobile.png'})
+  await page.getByRole('button', {name:'Explore journeys'}).click()
+  await expect(page.getByRole('heading', {name:'Living journeys'})).toBeVisible()
+  await page.getByRole('button', {name:'Close panel'}).click()
+  await page.getByRole('button', {name:'Try a relay leg'}).click()
+  await page.getByRole('button', {name:'Let’s ride'}).click()
+  await expect(page.locator('.race-controls')).toBeVisible({timeout:8000})
+  await page.keyboard.press('Escape')
+  await expect(page.getByText('Take a breath.')).toBeVisible()
+  await page.getByRole('button', {name:'Keep riding'}).click()
+  await page.keyboard.down(' ')
+  await expect(page.getByRole('button', {name:'Return to world'})).toBeVisible({timeout:100000})
+  await page.keyboard.up(' ')
+  await expect(page.getByText('This ride could not be verified.')).toBeHidden()
+  await page.getByRole('button', {name:'Return to world'}).click()
+  await expect(page.getByRole('heading', {name:'How far can one NIM travel?'})).toBeVisible()
+  for (const path of ['/proof/', '/invite/missing']) {
+    const response = await page.goto(path)
+    expect(response?.status()).toBe(200)
+    await expect(page.locator('.network-panel')).toBeVisible()
+  }
+  expect(errors).toEqual([])
+})
