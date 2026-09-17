@@ -7,6 +7,7 @@ import { useAction } from '../shell/use-action'
 import { Button, LinkButton } from '../shell/ui/Button'
 import { Loading } from '../shell/ui/primitives'
 import { Screen } from '../shell/ui/Screen'
+import { replayProductTour } from '../tour/launch'
 import { ArtifactTiles, AchievementShelf } from './profile/Collection'
 import { Locker, ProfileSettings, ProofDisclosure } from './profile/OwnerTools'
 import { LevelPlate, ProfileHeader } from './profile/ProfileHeader'
@@ -27,10 +28,15 @@ export function ProfileScreen({ entryKey }: { entryKey: string }) {
   if (!player) {
     return (
       <Screen title="Profile" entryKey={entryKey}>
-        <SignInPrompt title="Your runner lives here" body="Your level, batons, achievements and courier locker. Sign in once and they follow you." reason="Sign in to open your runner profile." />
+        <SignInPrompt title="Your runner lives here" body="Your level, batons, achievements and courier locker. Sign in once and they follow you." reason="Sign in to open your runner profile." tour="profile-signin" />
         <p className="nr-note">
           <a {...linkProps(pathFor('privacy'))}>How NIM Relay handles your data</a>
         </p>
+        <div className="nr-actions">
+          <Button variant="quiet" onClick={replayProductTour}>
+            Take the product tour
+          </Button>
+        </div>
       </Screen>
     )
   }
@@ -85,6 +91,9 @@ export function ProfileScreen({ entryKey }: { entryKey: string }) {
       <ProofDisclosure wallet={player.walletAddress} />
 
       <div className="nr-actions nr-actions--stack">
+        <Button variant="quiet" block onClick={replayProductTour}>
+          Take the product tour
+        </Button>
         <LinkButton variant="quiet" block to={pathFor('privacy')}>
           Privacy and your data
         </LinkButton>

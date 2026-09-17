@@ -1,6 +1,7 @@
 import type { NetworkSnapshot } from '@nim-relay/shared'
 import { worldName } from '../relays/format'
 import type { RelayView } from '../relays/model'
+import { replayProductTour } from '../tour/launch'
 import { closeOverlay, navigate, pathFor } from './router'
 import { BatonEmblem } from '../baton/BatonEmblem'
 import { useRequireRunner } from './session'
@@ -96,6 +97,12 @@ export function PlaySheet({ open, playerId, relays, snapshot }: PlaySheetProps) 
           </button>
         </li>
       </ul>
+      <div className="nr-sheet-footer">
+        <span className="nr-field__hint">New to NIM Relay?</span>
+        <Button variant="quiet" size="sm" onClick={replayProductTour}>
+          Take the tour
+        </Button>
+      </div>
       <div className="nr-sheet-footer">
         <span className="nr-field__hint">Race sound and haptics</span>
         <Button variant="quiet" size="sm" aria-pressed={sound} onClick={() => setSoundEnabled(!sound)}>

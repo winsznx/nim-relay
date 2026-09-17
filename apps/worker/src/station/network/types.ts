@@ -89,6 +89,46 @@ export interface TrafficState {
   sharesByDay: Record<string, number>
 }
 
+export interface TourStepCounters {
+  /** The step's position the latest event reported. */
+  stepNumber: number
+  viewed: number
+  completed: number
+  /** Tours left while this step was showing. */
+  skipped: number
+  /** Views that found nothing on screen to point at. */
+  missing: number
+}
+
+export interface TourDayCounters {
+  offered: number
+  started: number
+  completed: number
+  /** Tours left mid-way. */
+  skipped: number
+  /** Offers turned down before the first step. */
+  declined: number
+  replayed: number
+  steps: Record<string, TourStepCounters>
+  /** First path segment of the page a started tour's visit began on -> started tours. */
+  entries: Record<string, number>
+}
+
+/**
+ * Guided-tour events, stored on their own key so a walkthrough never loads or rewrites network state. Bounded: days
+ * outside the operator window are dropped on write, and tours and steps per day are capped.
+ */
+export interface TourLedger {
+  /** When counting started. */
+  startedAt: number
+  /** UTC day the caps in `eventsToday` belong to. */
+  day: string
+  /** Events counted on `day` per actor key, plus the `anonymous` total. Cleared when the day rolls. */
+  eventsToday: Record<string, number>
+  /** UTC date -> `${tourId}:${version}` -> counters. */
+  days: Record<string, Record<string, TourDayCounters>>
+}
+
 export interface OpsDayCounters {
   runsVerified: number
   runsRejected: number

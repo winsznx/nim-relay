@@ -70,7 +70,7 @@ export function RelayHero({ relay, playerId, latestReplay, moments, now, live }:
   }
   const status = relay.status === 'active' ? 'Live' : relay.status === 'stranded' ? 'Waiting on holder' : 'Finished'
   return (
-    <article className="nr-hero" aria-labelledby="hero-route">
+    <article className="nr-hero" aria-labelledby="hero-route" data-tour="featured-relay">
       <div className="nr-hero__head">
         <p className={`nr-hero__identity nr-hero__identity--${relay.status}`}>
           <span className="nr-hero__status-dot" aria-hidden="true" />
@@ -137,7 +137,7 @@ export function RelayHero({ relay, playerId, latestReplay, moments, now, live }:
             Join next leg
           </Button>
         )}
-        <LinkButton variant="quiet" to={journey}>
+        <LinkButton variant="quiet" to={journey} data-tour="open-journey">
           View journey
         </LinkButton>
       </div>
@@ -149,7 +149,7 @@ export function RelayHero({ relay, playerId, latestReplay, moments, now, live }:
 export function EmptyHero({ network }: { network: RelayNetwork | null }) {
   const requireRunner = useRequireRunner()
   return (
-    <article className="nr-hero nr-hero--empty" aria-labelledby="empty-hero-title">
+    <article className="nr-hero nr-hero--empty" aria-labelledby="empty-hero-title" data-tour="relay-empty">
       <p className="nr-hero__identity">The first baton is waiting</p>
       <h1 className="nr-hero__headline" id="empty-hero-title">
         How far can one NIM travel?

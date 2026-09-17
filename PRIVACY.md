@@ -17,6 +17,8 @@ NIM Relay's data-collection contract, matching the table required by PRD §33. T
 | NIM transaction | Onchain | Yes | Public blockchain data by nature |
 | Session token | Hashed/opaque | No | HttpOnly cookie |
 | Email/phone | No | No | Not collected — not required for the product |
+| Guided tour progress | Yes, on the device; per runner when signed in | No | Started, completed or skipped per tour version, so another device doesn't offer a tour again |
+| Guided tour events | Daily aggregate counts only | No | Tour, step and the first path segment of the entry page; per-runner or per-device caps reset daily and no wallet, device identifier or IP is sent |
 
 ## User controls (target: implemented by Phase 7-8)
 - Export offchain profile data

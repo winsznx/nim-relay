@@ -59,7 +59,7 @@ test('an operator sees alerts first, then totals, trends, the funnel, flagged ru
 
   // Alerts come before every other section.
   const headings = await page.locator('.nr-screen__scroll h2').allTextContents()
-  expect(headings).toEqual(['Alerts', 'Network totals', 'Last 30 UTC days', 'Handoff funnel', 'Flagged runs', 'NIM moved'])
+  expect(headings).toEqual(['Alerts', 'Network totals', 'Last 30 UTC days', 'Handoff funnel', 'Onboarding', 'Flagged runs', 'NIM moved'])
 
   await expect(page.getByText('Wallets that signed in and joined the relay network. A wallet is not proof of a unique person.')).toBeVisible()
   await expect(page.getByRole('img', { name: /^Runs submitted per UTC day\. Today \d+ verified, \d+ rejected, \d+ refused\.$/ })).toBeVisible()
@@ -72,6 +72,13 @@ test('an operator sees alerts first, then totals, trends, the funnel, flagged ru
   await expect(flagged.getByRole('link', { name: '@mateo' })).toHaveAttribute('href', '/runner/mateo')
   await expect(flagged.getByText('Global leg', { exact: false }).first()).toContainText('submitted 3 times')
   await expect(page.getByRole('region', { name: 'NIM moved' }).getByText('212 NIM')).toBeVisible()
+  const onboarding = page.getByRole('region', { name: 'Onboarding' })
+  const productTour = onboarding.getByRole('group', { name: 'Product tour, v1' })
+  await expect(productTour.getByText('53% of offers started, 64% of starts completed, 30 declined the offer, 6 replays.')).toBeVisible()
+  await expect(productTour.getByRole('list', { name: 'Product tour, v1 steps' }).getByRole('listitem')).toHaveCount(10)
+  await expect(productTour.getByText('45 went on, 2 left here, 2 with nothing to point at')).toBeVisible()
+  await expect(productTour.getByText('Started from / (51), /invite (9), /relay (4).')).toBeVisible()
+  await expect(onboarding.getByRole('group', { name: 'Gameplay tutorial, v1' })).toBeVisible()
 
   // No wallet address reaches the operator screen.
   expect(await page.locator('.nr-ops').textContent()).not.toMatch(/NQ\d{2}/)

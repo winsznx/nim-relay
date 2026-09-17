@@ -358,6 +358,31 @@
   min-width: 0;
 }
 
+/* Onboarding */
+.nr-ops-tours {
+  display: grid;
+  gap: var(--nr-space-6);
+  margin-top: var(--nr-space-5);
+}
+.nr-ops-outcomes--four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: var(--nr-space-3);
+}
+.nr-ops-tour__steps {
+  margin-top: var(--nr-space-4);
+}
+.nr-ops-step {
+  margin: 4px 0 0;
+  color: var(--nr-mist);
+  font-size: 12.5px;
+}
+.nr-ops-step__left {
+  color: var(--nr-ink-soft);
+}
+.nr-ops-step__missing {
+  color: var(--nr-ops-amber);
+}
+
 /* Flagged runs and NIM moved */
 .nr-ops-flag {
   min-height: 56px;

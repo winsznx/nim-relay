@@ -100,7 +100,7 @@ function OfficialRide({ daily, player }: { daily: NetworkDaily; player: Player |
       <p className="nr-official__body nr-num">{formatCount(standing.entry.score)} points on the official board.</p>
       <div className="nr-actions nr-actions--stack">
         {ghost && (
-          <LinkButton variant="primary" block to={practicePath(ghost.runId, null)}>
+          <LinkButton variant="primary" block to={practicePath(ghost.runId, null)} data-tour="ghost">
             Race {ghost.player.name}’s ghost, {formatRaceTime(standing.entry.timeMs - ghost.timeMs)} faster
           </LinkButton>
         )}
@@ -165,7 +165,7 @@ export function DailyScreen({ entryKey }: { entryKey: string }) {
   }
   return (
     <Screen title="Daily Circuit" entryKey={entryKey}>
-      <header className="nr-daily-cover">
+      <header className="nr-daily-cover" data-tour="daily">
         <p className="nr-daily-cover__date nr-num">{new Date(`${daily.date}T00:00:00Z`).toLocaleDateString('en', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })}</p>
         <h2 className="nr-daily-cover__world">{worldName(daily.world)}</h2>
         <p className="nr-daily-cover__reset">

@@ -17,7 +17,7 @@ interface ProfileHeaderProps {
 
 export function ProfileHeader({ name, handle, wallet, country, holder, you }: ProfileHeaderProps) {
   return (
-    <header className="nr-runner-head">
+    <header className="nr-runner-head" data-tour="profile-runner">
       <RunnerAvatar name={name} wallet={wallet} country={country} holder={holder} size={84} />
       <div className="nr-runner-head__text">
         <h2 className="nr-runner-head__name">{you ? `${name} (you)` : name}</h2>

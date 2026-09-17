@@ -1,0 +1,569 @@
+/*
+ * Gameplay coach. One prompt at a time, low between the courier and the thumbs, in the HUD's dark glass
+ * with a gold hairline. The glyph carries the motion; the card only arrives, flares when it is time to act,
+ * and leaves. Every glyph's resting pose reads on its own, so reduced motion loses nothing but the loop.
+ */
+
+.leg-coach {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: calc(var(--leg-bottom) + 20px);
+  box-sizing: border-box;
+  width: fit-content;
+  max-width: 358px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px 10px 10px;
+  border-radius: 18px;
+  border: 1px solid rgba(245, 166, 35, 0.42);
+  background: linear-gradient(180deg, rgba(12, 16, 28, 0.88), rgba(6, 9, 18, 0.92));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 217, 138, 0.1);
+  pointer-events: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.leg-coach__text {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  margin: 0;
+}
+
+.leg-coach__heading {
+  font-size: 15px;
+  font-weight: 900;
+  font-style: italic;
+  line-height: 1.12;
+  letter-spacing: 0.05em;
+  color: var(--leg-gold-light);
+  text-shadow: 0 0 14px rgba(245, 166, 35, 0.45);
+  text-wrap: balance;
+}
+
+.leg-coach__line {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: rgba(245, 247, 250, 0.88);
+  text-wrap: balance;
+}
+
+.leg-coach__glyph {
+  width: 44px;
+  height: 44px;
+  overflow: visible;
+  border-radius: 12px;
+  background: radial-gradient(circle at 50% 55%, rgba(245, 166, 35, 0.18), rgba(245, 166, 35, 0.04) 72%);
+  box-shadow: inset 0 0 0 1px rgba(245, 166, 35, 0.24);
+}
+
+.leg-coach[data-step='edge'][data-side='right'] .leg-coach__glyph {
+  transform: scaleX(-1);
+}
+
+/* Time to act: the obstacle is inside its jump or slide window. */
+.leg-coach[data-now='true'] {
+  border-color: rgba(255, 217, 138, 0.95);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 0 24px rgba(245, 166, 35, 0.55), inset 0 1px 0 rgba(255, 217, 138, 0.2);
+}
+
+.leg-coach[data-now='true'] .leg-coach__heading {
+  color: #fff3d6;
+}
+
+/* Answered: a gold flare, then gone. Unanswered: it just fades. */
+.leg-coach[data-status='done'] {
+  border-color: var(--leg-gold-light);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 0 30px rgba(245, 166, 35, 0.75);
+}
+
+/* Pointer ---------------------------------------------------------------- */
+
+.leg-coach__pointer {
+  display: none;
+  position: absolute;
+  width: 14px;
+  height: 9px;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+/* The Ghostline runs on the deck ahead of the courier. */
+.leg-coach[data-step='ghostline'] .leg-coach__pointer {
+  display: block;
+  top: -14px;
+  left: calc(50% - 7px);
+  background: var(--leg-cyan);
+  filter: drop-shadow(0 0 4px rgba(34, 211, 238, 0.9));
+}
+
+/* The FLOW arc hugs the courier above the card. */
+.leg-coach[data-step='flow'] .leg-coach__pointer {
+  display: block;
+  top: -14px;
+  left: calc(50% - 7px);
+  background: var(--leg-gold);
+}
+
+/* The edge is off to one side: point out at it. */
+.leg-coach[data-step='edge'] .leg-coach__pointer {
+  display: block;
+  top: calc(50% - 7px);
+  width: 9px;
+  height: 14px;
+  background: var(--leg-red);
+  filter: drop-shadow(0 0 4px rgba(255, 59, 78, 0.9));
+}
+
+.leg-coach[data-step='edge'][data-side='left'] .leg-coach__pointer {
+  left: -14px;
+  clip-path: polygon(0 50%, 100% 0, 100% 100%);
+}
+
+.leg-coach[data-step='edge'][data-side='right'] .leg-coach__pointer {
+  right: -14px;
+  clip-path: polygon(100% 50%, 0 0, 0 100%);
+}
+
+/* Glyphs ------------------------------------------------------------------ */
+
+.coach-guide {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.34);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-dasharray: 0.5 4.5;
+}
+
+.coach-chevron {
+  fill: none;
+  stroke: var(--leg-gold-light);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.coach-thumb__origin {
+  fill: rgba(245, 166, 35, 0.16);
+  stroke: rgba(255, 217, 138, 0.5);
+  stroke-width: 1.2;
+}
+
+.coach-thumb__dot {
+  fill: var(--leg-gold);
+  filter: drop-shadow(0 0 3px rgba(245, 166, 35, 0.9));
+}
+
+.coach-thumb--along,
+.coach-thumb--along-origin {
+  transform: translateY(9px);
+}
+
+.coach-thumb--inward,
+.coach-thumb--inward-origin {
+  transform: translateX(-8px);
+}
+
+.coach-key__cap {
+  fill: rgba(255, 255, 255, 0.07);
+  stroke: rgba(255, 217, 138, 0.6);
+  stroke-width: 1.5;
+}
+
+.coach-key__arrow {
+  fill: none;
+  stroke: var(--leg-gold-light);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.coach-ghostline {
+  fill: none;
+  stroke: rgba(34, 211, 238, 0.55);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.coach-ghostline__shimmer {
+  fill: none;
+  stroke: #b8f6ff;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 16 84;
+  stroke-dashoffset: 40;
+  filter: drop-shadow(0 0 3px rgba(34, 211, 238, 0.9));
+}
+
+.coach-courier {
+  fill: var(--leg-gold);
+}
+
+.coach-edge {
+  fill: none;
+  stroke: var(--leg-red);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 4px rgba(255, 59, 78, 0.9));
+}
+
+.coach-flow__track,
+.coach-flow__fill {
+  fill: none;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.coach-flow__track {
+  stroke: rgba(255, 255, 255, 0.16);
+}
+
+.coach-flow__fill {
+  stroke: var(--leg-gold);
+  stroke-dasharray: 62 100;
+  filter: drop-shadow(0 0 4px rgba(245, 166, 35, 0.8));
+}
+
+.coach-flow__mark {
+  stroke: var(--leg-gold-light);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* Skip -------------------------------------------------------------------- */
+
+.leg .leg-coach-skip {
+  position: absolute;
+  top: calc(var(--leg-top) + 62px);
+  right: 16px;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--leg-line);
+  background: var(--leg-glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--leg-muted);
+}
+
+/* A thumb-sized target around a quiet control. */
+.leg .leg-coach-skip::before {
+  content: '';
+  position: absolute;
+  inset: -8px -4px;
+}
+
+.leg .leg-coach-skip:hover,
+.leg .leg-coach-skip:focus-visible {
+  color: var(--leg-ink);
+}
+
+/* Motion ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: no-preference) {
+  .leg-coach {
+    animation: leg-coach-in 280ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+  }
+
+  .leg-coach[data-status='done'] {
+    animation: leg-coach-done 300ms ease-out forwards;
+  }
+
+  .leg-coach[data-status='dismissed'] {
+    animation: leg-coach-out 220ms ease-in forwards;
+  }
+
+  .leg-coach[data-now='true']::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    animation: leg-coach-flare 700ms ease-out forwards;
+  }
+
+  .leg .leg-coach-skip {
+    animation: leg-coach-in 280ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+  }
+
+  .leg .leg-coach-skip[data-status='done'],
+  .leg .leg-coach-skip[data-status='dismissed'] {
+    animation: leg-coach-out 220ms ease-in forwards;
+  }
+
+  .coach-thumb--across {
+    animation: coach-across 1800ms cubic-bezier(0.3, 0.7, 0.4, 1) infinite;
+  }
+
+  .coach-thumb--along {
+    animation: coach-along 1300ms cubic-bezier(0.3, 0.7, 0.4, 1) infinite;
+  }
+
+  .coach-thumb--inward {
+    animation: coach-inward 1300ms cubic-bezier(0.3, 0.7, 0.4, 1) infinite;
+  }
+
+  .coach-chevron {
+    opacity: 0.5;
+  }
+
+  /* Each chevron lights as the thumb reaches it. */
+  .coach-chevron--right {
+    animation: coach-light 1800ms 320ms ease-out infinite;
+  }
+
+  .coach-chevron--left {
+    animation: coach-light 1800ms 1220ms ease-out infinite;
+  }
+
+  .coach-chevron--ahead {
+    animation: coach-light 1300ms 440ms ease-out infinite;
+  }
+
+  .leg-coach[data-step='edge'] .coach-chevron--right {
+    animation-duration: 1300ms;
+    animation-delay: 440ms;
+  }
+
+  .leg-coach[data-now='true'] .coach-chevron--ahead {
+    animation-duration: 650ms;
+    animation-delay: 220ms;
+  }
+
+  .leg-coach[data-now='true'] .coach-thumb--along {
+    animation-duration: 650ms;
+  }
+
+  .coach-key--first {
+    animation: coach-press 1600ms ease-in-out infinite;
+  }
+
+  .coach-key--second {
+    animation: coach-press 1600ms 800ms ease-in-out infinite;
+  }
+
+  .leg-coach[data-now='true'] .coach-key--first {
+    animation-duration: 800ms;
+  }
+
+  .coach-ghostline__shimmer {
+    animation: coach-shimmer 1500ms linear infinite;
+  }
+
+  .coach-edge {
+    animation: coach-edge 640ms ease-in-out infinite alternate;
+  }
+
+  .coach-flow__fill {
+    animation: coach-fill 2400ms ease-in-out infinite;
+  }
+
+  .leg-coach[data-step='ghostline'] .leg-coach__pointer,
+  .leg-coach[data-step='flow'] .leg-coach__pointer {
+    animation: coach-nudge-up 1100ms ease-in-out infinite;
+  }
+
+  .leg-coach[data-step='edge'][data-side='left'] .leg-coach__pointer {
+    animation: coach-nudge-left 700ms ease-in-out infinite;
+  }
+
+  .leg-coach[data-step='edge'][data-side='right'] .leg-coach__pointer {
+    animation: coach-nudge-right 700ms ease-in-out infinite;
+  }
+}
+
+@keyframes leg-coach-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+}
+
+@keyframes leg-coach-done {
+  35% {
+    opacity: 1;
+    transform: scale(1.03);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+
+@keyframes leg-coach-out {
+  to {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes leg-coach-flare {
+  from {
+    box-shadow: 0 0 0 0 rgba(255, 217, 138, 0.85);
+  }
+  to {
+    box-shadow: 0 0 0 14px rgba(255, 217, 138, 0);
+  }
+}
+
+/* A thumb lands, holds a beat, flicks to the chevron and lifts off; then the other way. */
+@keyframes coach-across {
+  0% {
+    opacity: 0;
+    transform: translateX(0);
+  }
+  8% {
+    opacity: 1;
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.55, 0, 0.2, 1);
+  }
+  30% {
+    opacity: 1;
+    transform: translateX(13px);
+  }
+  42%,
+  50% {
+    opacity: 0;
+    transform: translateX(13px);
+  }
+  51% {
+    opacity: 0;
+    transform: translateX(0);
+  }
+  58% {
+    opacity: 1;
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.55, 0, 0.2, 1);
+  }
+  80% {
+    opacity: 1;
+    transform: translateX(-13px);
+  }
+  92%,
+  100% {
+    opacity: 0;
+    transform: translateX(-13px);
+  }
+}
+
+@keyframes coach-along {
+  0% {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  14% {
+    opacity: 1;
+    transform: translateY(9px);
+    animation-timing-function: cubic-bezier(0.55, 0, 0.2, 1);
+  }
+  46% {
+    opacity: 1;
+    transform: translateY(-13px);
+  }
+  62%,
+  100% {
+    opacity: 0;
+    transform: translateY(-13px);
+  }
+}
+
+@keyframes coach-inward {
+  0% {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  14% {
+    opacity: 1;
+    transform: translateX(-8px);
+    animation-timing-function: cubic-bezier(0.55, 0, 0.2, 1);
+  }
+  46% {
+    opacity: 1;
+    transform: translateX(12px);
+  }
+  62%,
+  100% {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+
+@keyframes coach-light {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  12% {
+    opacity: 1;
+  }
+  40% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes coach-press {
+  0%,
+  34%,
+  100% {
+    transform: translateY(0);
+  }
+  12%,
+  22% {
+    transform: translateY(2px);
+  }
+}
+
+@keyframes coach-shimmer {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes coach-edge {
+  to {
+    opacity: 0.45;
+  }
+}
+
+@keyframes coach-fill {
+  0% {
+    stroke-dasharray: 0 100;
+  }
+  55%,
+  85% {
+    stroke-dasharray: 62 100;
+    opacity: 1;
+  }
+  100% {
+    stroke-dasharray: 62 100;
+    opacity: 0;
+  }
+}
+
+@keyframes coach-nudge-up {
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes coach-nudge-left {
+  50% {
+    transform: translateX(-3px);
+  }
+}
+
+@keyframes coach-nudge-right {
+  50% {
+    transform: translateX(3px);
+  }
+}

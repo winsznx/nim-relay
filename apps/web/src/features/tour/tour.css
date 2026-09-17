@@ -1,0 +1,424 @@
+/*
+ * Guided tour. The world dims like a stage and one thing stays lit, ringed in baton gold. The coach mark is the
+ * app's own dark glass; gold carries the label, the progress line and the primary action, and cyan stays out of it.
+ */
+
+.nr-tour {
+  --nr-tour-veil: rgba(3, 5, 12, 0.78);
+  --nr-tour-card-top: #151b2f;
+  --nr-tour-card-bottom: #0a0e1b;
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  pointer-events: none;
+}
+
+.nr-tour__veil {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  animation: nr-tour-fade 320ms var(--nr-ease-out) both;
+}
+.nr-tour__veil-fill {
+  fill: var(--nr-tour-veil);
+}
+
+.nr-tour__blocker {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+.nr-tour__probe {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  visibility: hidden;
+}
+
+/* The lit target's edge: a gold hairline with a soft glow, and one ring that breathes outwards. */
+.nr-tour__ring {
+  position: fixed;
+  left: 0;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 1.5px rgba(255, 212, 140, 0.92),
+    0 0 0 5px rgba(245, 166, 35, 0.12),
+    0 0 32px 2px rgba(245, 166, 35, 0.3);
+}
+.nr-tour__ring::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 0 rgba(255, 212, 140, 0.55);
+  animation: nr-tour-breathe 2.6s var(--nr-ease-out) infinite;
+}
+
+/* Coach mark */
+.nr-coach {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: min(340px, calc(100vw - 32px));
+  padding: 14px 14px 12px 18px;
+  border-radius: 20px;
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(245, 166, 35, 0.09), transparent 60%),
+    linear-gradient(180deg, rgba(21, 27, 47, 0.95) 0%, rgba(10, 14, 27, 0.97) 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 214, 140, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 26px 60px -20px rgba(0, 0, 0, 0.9);
+  -webkit-backdrop-filter: var(--nr-blur);
+  backdrop-filter: var(--nr-blur);
+  color: var(--nr-ink);
+  /* Transparent rather than hidden until placed, so it can take focus right away. */
+  opacity: 0;
+  pointer-events: none;
+}
+.nr-coach[data-positioned] {
+  opacity: 1;
+  pointer-events: auto;
+  animation: nr-tour-card-in 260ms var(--nr-ease-out) both;
+}
+.nr-coach[data-placement='top'] {
+  --nr-tour-rise: -6px;
+}
+
+.nr-coach__progress {
+  position: absolute;
+  top: 0;
+  left: 20px;
+  right: 20px;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 0 0 2px 2px;
+  background: rgba(214, 226, 255, 0.08);
+}
+.nr-coach__progress::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: scaleX(var(--nr-coach-progress, 0));
+  transform-origin: left center;
+  background: linear-gradient(90deg, var(--nr-gold-light), var(--nr-gold));
+  box-shadow: 0 0 10px rgba(245, 166, 35, 0.6);
+  transition: transform 320ms var(--nr-ease-out);
+}
+
+.nr-coach__arrow {
+  position: absolute;
+  display: none;
+  width: 14px;
+  height: 14px;
+  transform: rotate(45deg);
+  border: 1px solid rgba(255, 214, 140, 0.2);
+}
+.nr-coach[data-placement='bottom'] .nr-coach__arrow {
+  display: block;
+  top: -7px;
+  border-right: 0;
+  border-bottom: 0;
+  border-top-left-radius: 3px;
+  background: var(--nr-tour-card-top);
+}
+.nr-coach[data-placement='top'] .nr-coach__arrow {
+  display: block;
+  bottom: -7px;
+  border-left: 0;
+  border-top: 0;
+  border-bottom-right-radius: 3px;
+  background: var(--nr-tour-card-bottom);
+}
+.nr-coach[data-placement='right'] .nr-coach__arrow {
+  display: block;
+  left: -7px;
+  border-top: 0;
+  border-right: 0;
+  border-bottom-left-radius: 3px;
+  background: var(--nr-tour-card-top);
+}
+.nr-coach[data-placement='left'] .nr-coach__arrow {
+  display: block;
+  right: -7px;
+  border-bottom: 0;
+  border-left: 0;
+  border-top-right-radius: 3px;
+  background: var(--nr-tour-card-top);
+}
+
+.nr-coach__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nr-space-3);
+  min-height: 28px;
+}
+.nr-coach__category {
+  margin: 0;
+  min-width: 0;
+  font-size: 10.5px;
+  font-weight: 760;
+  line-height: 1.3;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--nr-gold-light);
+}
+.nr-coach__skip {
+  appearance: none;
+  flex: none;
+  min-width: 44px;
+  min-height: 44px;
+  margin: -8px -4px -8px 0;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--nr-radius-sm);
+  background: none;
+  color: var(--nr-mist);
+  font-size: var(--nr-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.nr-coach__skip:hover {
+  color: var(--nr-ink);
+}
+.nr-coach__title {
+  margin: 4px 0 0;
+  font-size: 19px;
+  font-weight: 720;
+  line-height: 1.22;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.nr-coach__body {
+  margin: 6px 0 0;
+  color: var(--nr-ink-soft);
+  font-size: 14.5px;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+.nr-coach__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--nr-space-2);
+  margin-top: 14px;
+}
+.nr-coach__count {
+  flex: 1;
+  margin: 0;
+  color: var(--nr-mist);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+}
+.nr-coach .nr-button {
+  min-height: 44px;
+}
+.nr-coach__next {
+  min-width: 92px;
+}
+
+/* Completion */
+.nr-tour__finale {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: calc(var(--nr-safe-top) + 16px) 16px calc(var(--nr-safe-bottom) + 16px);
+}
+.nr-finale {
+  width: min(360px, 100%);
+  padding: 26px 20px 18px;
+  border-radius: var(--nr-radius-xl);
+  text-align: center;
+  background:
+    radial-gradient(120% 70% at 50% 0%, rgba(245, 166, 35, 0.22), transparent 62%),
+    linear-gradient(180deg, rgba(20, 26, 46, 0.97), rgba(8, 11, 21, 0.98));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 214, 140, 0.3),
+    0 30px 80px -24px rgba(0, 0, 0, 0.9),
+    0 0 70px -24px rgba(245, 166, 35, 0.5);
+  pointer-events: auto;
+  animation: nr-tour-finale-in 480ms var(--nr-ease-out) both;
+}
+.nr-finale__emblem {
+  display: block;
+  margin: 0 auto 12px;
+  filter: drop-shadow(0 0 18px rgba(245, 166, 35, 0.45));
+}
+.nr-finale__category {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 780;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--nr-gold-light);
+}
+.nr-finale__title {
+  margin: 8px 0 20px;
+  font-size: clamp(25px, 7.4vw, 30px);
+  font-weight: 780;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+.nr-finale__actions {
+  display: grid;
+  gap: 10px;
+}
+.nr-finale__note {
+  margin: 14px 0 0;
+  color: var(--nr-mist);
+  font-size: 12.5px;
+}
+
+/* First-run offer and the quiet prompt, over the world home. */
+.nr-tour-offer,
+.nr-tour-nudge {
+  position: fixed;
+  z-index: 45;
+  top: calc(var(--nr-safe-top) + 64px);
+  left: var(--nr-gutter);
+  right: var(--nr-gutter);
+  max-width: 420px;
+  margin: 0 auto;
+  -webkit-backdrop-filter: var(--nr-blur);
+  backdrop-filter: var(--nr-blur);
+}
+.nr-tour-offer {
+  padding: 16px;
+  border-radius: 22px;
+  background:
+    radial-gradient(130% 110% at 0% 0%, rgba(245, 166, 35, 0.17), transparent 58%),
+    linear-gradient(180deg, rgba(18, 24, 43, 0.9), rgba(8, 11, 22, 0.95));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 214, 140, 0.26),
+    0 24px 60px -24px rgba(0, 0, 0, 0.9),
+    0 0 44px -22px rgba(245, 166, 35, 0.5);
+}
+.nr-tour-offer__head {
+  display: flex;
+  align-items: center;
+  gap: var(--nr-space-3);
+}
+.nr-tour-offer__emblem {
+  flex: none;
+  filter: drop-shadow(0 0 12px rgba(245, 166, 35, 0.4));
+}
+.nr-tour-offer__titles {
+  min-width: 0;
+}
+.nr-tour-offer__eyebrow {
+  margin: 0;
+  font-size: 10.5px;
+  font-weight: 760;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--nr-gold-light);
+}
+.nr-tour-offer__title {
+  margin: 2px 0 0;
+  font-size: 20px;
+  font-weight: 740;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.nr-tour-offer__actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: var(--nr-space-2);
+  margin-top: 14px;
+}
+.nr-tour-offer__actions .nr-button {
+  padding: 0 var(--nr-space-3);
+}
+
+.nr-tour-nudge {
+  display: flex;
+  align-items: center;
+  gap: var(--nr-space-1);
+  padding: 2px 2px 2px 4px;
+  border-radius: 16px;
+  background: rgba(11, 15, 29, 0.88);
+  box-shadow:
+    inset 0 0 0 1px var(--nr-line-strong),
+    0 16px 40px -22px rgba(0, 0, 0, 0.9);
+}
+.nr-tour-nudge__take {
+  appearance: none;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 13px;
+  background: none;
+  color: var(--nr-ink-soft);
+  font-size: var(--nr-text-sm);
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+}
+.nr-tour-nudge__emblem {
+  flex: none;
+}
+.nr-tour-nudge__action {
+  color: var(--nr-gold-light);
+  font-weight: 650;
+}
+.nr-tour-nudge__close {
+  flex: none;
+  border-color: transparent;
+  background: none;
+}
+
+@keyframes nr-tour-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes nr-tour-card-in {
+  from {
+    opacity: 0;
+    translate: 0 var(--nr-tour-rise, 6px);
+  }
+}
+@keyframes nr-tour-finale-in {
+  from {
+    opacity: 0;
+    translate: 0 14px;
+    scale: 0.97;
+  }
+}
+@keyframes nr-tour-breathe {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 212, 140, 0.5);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 12px rgba(255, 212, 140, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nr-tour__ring::after {
+    animation: none;
+  }
+}

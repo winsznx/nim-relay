@@ -79,6 +79,18 @@ export const DAILY_TOP_SHARE_MIN_ENTRIES = 10
 export const SHARES_PER_ACTOR_PER_DAY = 20
 export const ANONYMOUS_SHARES_PER_DAY = 200
 
+/**
+ * Guided-tour events have their own daily caps: one walk through the product tour sends about twenty-five. Signed-out
+ * devices also share one network-wide cap, so rotating visitor keys cannot inflate the funnel.
+ */
+export const TOUR_EVENTS_PER_ACTOR_PER_DAY = 200
+export const ANONYMOUS_TOUR_EVENTS_PER_DAY = 5_000
+/** Distinct tour versions, and steps within one, counted per UTC day. Events beyond these are not counted. */
+export const MAX_TRACKED_TOURS = 8
+export const MAX_TRACKED_TOUR_STEPS = 24
+/** Tours one runner's preferences remember; a new tour past this replaces the record changed longest ago. */
+export const MAX_TOUR_PREFERENCES = 16
+
 /** UTC days in the operator report, today included. The ledger keeps exactly these days. */
 export const OPS_WINDOW_DAYS = 30
 /** Hourly buckets behind the rolling 24-hour alerts: the current hour and the 23 before it. */

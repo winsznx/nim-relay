@@ -14,8 +14,10 @@ import { LiveUpdates } from './network/live-updates'
 import { isOperator } from './network/ops'
 import { recordRefusedSubmission, type SubmissionRefusal } from './network/ops-ledger'
 import { LEG_PROGRESS_PATH } from './network/progress'
+import { handlePreferences, isPreferencesPath } from './network/preferences'
 import { isPublicNetworkPath, RelayNetworkService, type ChainLookups } from './network/service'
 import { networkStateKey } from './network/state'
+import { isTourTrack, readTourLedger, recordTourEvent, tourLedgerKey } from './network/tour-ledger'
 import { canonicalGhost, replayRace } from './race-engines'
 import { mac, signedFields, timingSafeEqual } from './signing'
 
@@ -75,6 +77,12 @@ export class StationRoom extends DurableObject<Env> {
 
   private async handleNetwork(state: State, networkPath: string, envelope: StationEnvelope): Promise<Response> {
     if (networkPath === '/ops') return Response.json(await this.opsReport(state, envelope.player), { headers: { 'Cache-Control': 'no-store' } })
+    // Preferences and tour events live on small keys of their own: neither loads, rewrites nor broadcasts the network state.
+    if (isPreferencesPath(networkPath)) {
+      if (!envelope.player) throw new ApiError('sign_in_to_join', 401)
+      return Response.json(await handlePreferences(this.ctx.storage, this.env.NIMIQ_NETWORK, networkPath, envelope.player.id, envelope.body, Date.now()), { headers: { 'Cache-Control': 'no-store' } })
+    }
+    if (networkPath === '/track' && isTourTrack(envelope.body)) return Response.json(await recordTourEvent(this.ctx.storage, this.env.NIMIQ_NETWORK, envelope.body, envelope.actorId ?? null, Date.now()))
     const network = await RelayNetworkService.load(this.ctx.storage, this.env, state, this.live)
     if (isPublicNetworkPath(networkPath)) return Response.json(await network.handlePublic(networkPath, envelope.body, envelope.actorId ?? null))
     if (!envelope.player) throw new ApiError('sign_in_to_join', 401)
@@ -112,7 +120,9 @@ export class StationRoom extends DurableObject<Env> {
     if (!player) throw new ApiError('sign_in_to_join', 401)
     if (!isOperator(this.env.OPS_PLAYERS, player)) throw new ApiError('operators_only', 403)
     const network = await RelayNetworkService.load(this.ctx.storage, this.env, state, this.live)
-    return network.opsReport(Date.now())
+    const now = Date.now()
+    const tours = await readTourLedger(this.ctx.storage, tourLedgerKey(networkStateKey(this.env.NIMIQ_NETWORK)), now)
+    return network.opsReport(now, tours)
   }
 
   private broadcast(message: NetworkBroadcast): void {

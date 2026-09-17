@@ -1,4 +1,4 @@
-import type { OpsDay, OpsReport } from '@nim-relay/shared'
+import type { OpsDay, OpsReport, OpsTour } from '@nim-relay/shared'
 import { HOUR } from './relay-fixtures'
 
 /**
@@ -41,6 +41,53 @@ function days(now: number): OpsDay[] {
       shares: counting ? wave(index + 4, 3) : null,
     }
   })
+}
+
+/** Step views narrow step by step; the skips at each step add up to the tour's mid-way skips. */
+const CORE_STEPS: [string, number, number, number][] = [
+  ['relay-world', 64, 62, 2],
+  ['featured-relay', 62, 61, 1],
+  ['open-journey', 61, 58, 3],
+  ['nav-inbox', 58, 57, 1],
+  ['inbox-turns', 57, 55, 2],
+  ['nav-play', 55, 53, 2],
+  ['ghost', 53, 50, 3],
+  ['social-modes', 50, 48, 2],
+  ['daily', 48, 45, 2],
+  ['profile-history', 45, 41, 1],
+]
+
+function tours(): OpsTour[] {
+  return [
+    {
+      tourId: 'core',
+      version: 'v1',
+      offered: 120,
+      started: 64,
+      completed: 41,
+      skipped: 19,
+      declined: 30,
+      replayed: 6,
+      steps: CORE_STEPS.map(([stepId, viewed, completed, skippedHere], index) => ({ stepId, stepNumber: index + 1, viewed, completed, skippedHere, missing: stepId === 'daily' ? 2 : 0 })),
+      entries: [
+        { section: '/', started: 51 },
+        { section: '/invite', started: 9 },
+        { section: '/relay', started: 4 },
+      ],
+    },
+    {
+      tourId: 'gameplay',
+      version: 'v1',
+      offered: 0,
+      started: 38,
+      completed: 30,
+      skipped: 8,
+      declined: 0,
+      replayed: 0,
+      steps: ['lane', 'jump', 'slide', 'ghostline', 'edge', 'flow'].map((stepId, index) => ({ stepId, stepNumber: index + 1, viewed: 38 - index * 2, completed: 37 - index * 2, skippedHere: index === 2 ? 3 : 1, missing: 0 })),
+      entries: [{ section: '/leg', started: 38 }],
+    },
+  ]
 }
 
 export function opsReport(now = Date.now(), overrides: Partial<OpsReport> = {}): OpsReport {
@@ -101,6 +148,7 @@ export function opsReport(now = Date.now(), overrides: Partial<OpsReport> = {}):
       { handle: 'lena', reason: 'INVALID_TRACE', mode: 'quick', practice: true, at: now - 30 * HOUR, attempts: 1 },
     ],
     nimFlow: [{ network: 'TestAlbatross', handoffs: 212, luna: 21_200_000, nim: 212 }],
+    onboarding: { countingSince, tours: tours() },
     ...overrides,
   }
 }

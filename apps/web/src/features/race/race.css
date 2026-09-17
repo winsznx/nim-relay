@@ -569,63 +569,6 @@
   animation: leg-sink 500ms 700ms ease-in both;
 }
 
-/* First-run hint ------------------------------------------------------- */
-
-.leg-hint {
-  position: absolute;
-  left: 0;
-  right: 0;
-  width: max-content;
-  margin: 0 auto;
-  bottom: calc(var(--leg-bottom) + 18px);
-  display: grid;
-  justify-items: center;
-  gap: 6px;
-  padding: 12px 18px 14px;
-  border-radius: 18px;
-  background: var(--leg-glass);
-  border: 1px solid var(--leg-line);
-  pointer-events: none;
-  animation: leg-rise 400ms 1100ms ease-out both, leg-sink 500ms 4200ms ease-in both;
-}
-
-.leg-hint p {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--leg-ink);
-  white-space: nowrap;
-}
-
-.leg-hint__glyph {
-  width: 72px;
-  height: 48px;
-}
-
-.leg-hint__track {
-  stroke: rgba(255, 255, 255, 0.22);
-  stroke-width: 2;
-  stroke-linecap: round;
-}
-
-.leg-hint__thumb {
-  fill: rgba(245, 166, 35, 0.9);
-  animation: leg-thumb 2400ms ease-in-out infinite;
-}
-
-.leg-hint__arrow {
-  fill: var(--leg-gold-light);
-  opacity: 0;
-}
-
-.leg-hint__arrow--up {
-  animation: leg-arrow 2400ms 900ms ease-out infinite;
-}
-
-.leg-hint__arrow--down {
-  animation: leg-arrow 2400ms 1500ms ease-out infinite;
-}
-
 /* Pause ----------------------------------------------------------------- */
 
 .leg-pause-sheet {
@@ -985,32 +928,6 @@
 @keyframes leg-breathe {
   50% {
     filter: drop-shadow(0 0 11px rgba(255, 217, 138, 1));
-  }
-}
-
-@keyframes leg-thumb {
-  0%,
-  100% {
-    transform: translateX(-26px);
-  }
-  30% {
-    transform: translateX(26px);
-  }
-  55% {
-    transform: translate(0, -18px);
-  }
-  75% {
-    transform: translate(0, 12px);
-  }
-}
-
-@keyframes leg-arrow {
-  0% {
-    opacity: 0.9;
-  }
-  30%,
-  100% {
-    opacity: 0;
   }
 }
 

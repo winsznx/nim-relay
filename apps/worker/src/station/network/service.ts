@@ -2,7 +2,6 @@ import type { LegProgressResult, NetworkHandoffIntent, OpsReport, TrackEventResu
 import { z } from 'zod'
 import type { Env } from '../../env'
 import { ApiError, type Profile, type Run, type State } from '../model'
-import { sha256Hex } from '../signing'
 import { archiveNetwork } from './archive'
 import { batonDetail, createBaton, rematchBaton } from './batons'
 import { batonChronicle } from './chronicle'
@@ -22,8 +21,8 @@ import { touchMember } from './runners'
 import { networkSnapshot } from './snapshot'
 import { acceptReservation, claimInvite, createCrew, createInvite, createRivalry, findInvite, joinCrew, markNotificationRead, recordHeartbeat, setCountryConsent } from './social'
 import { freshNetworkState, networkStateKey, normalizeNetworkState, readNetworkState, writeNetworkState } from './state'
-import { countChronicleView, countInviteOpen, countShare, readTraffic, trafficStateKey, writeTraffic } from './traffic'
-import type { NetworkContext, NetworkState } from './types'
+import { countChronicleView, countInviteOpen, countShare, readTraffic, trackActorKey, trafficStateKey, writeTraffic } from './traffic'
+import type { NetworkContext, NetworkState, TourLedger } from './types'
 
 const createBody = z.object({
   mode: z.enum(['quick', 'global', 'crew', 'rival']),
@@ -199,9 +198,9 @@ export class RelayNetworkService {
     return reportLegProgress(this.context, profile, body, Date.now())
   }
 
-  /** The operator report. A read: it never writes state, traffic or the ledger. */
-  opsReport(now: number): OpsReport {
-    return opsReport(this.context, now)
+  /** The operator report. A read: it never writes state, traffic or either ledger. */
+  opsReport(now: number, tours: TourLedger): OpsReport {
+    return opsReport(this.context, tours, now)
   }
 
   /** Network state and the ops ledger always commit together. */
@@ -339,9 +338,8 @@ export class RelayNetworkService {
 
   private async track(body: unknown, actorId: string | null, now: number): Promise<TrackEventResult> {
     const input = trackBody.parse(body)
-    const anonymous = actorId === null
-    const actorKey = actorId ? `runner:${actorId}` : `visitor:${input.visitor ? await sha256Hex(input.visitor) : 'unidentified'}`
-    const counted = countShare(this.context.traffic, { actorKey, anonymous, surface: input.surface }, now)
+    const actorKey = await trackActorKey(actorId, input.visitor)
+    const counted = countShare(this.context.traffic, { actorKey, anonymous: actorId === null, surface: input.surface }, now)
     if (counted) await this.saveTraffic()
     return { counted }
   }

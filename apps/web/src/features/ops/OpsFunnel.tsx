@@ -1,9 +1,9 @@
-import type { CSSProperties } from 'react'
 import type { HandoffRejectionReason, OpsFunnel as Funnel, OpsReport } from '@nim-relay/shared'
 import { formatCount } from '../relays/format'
 import { SectionHeader } from '../shell/ui/primitives'
 import { DEFINITIONS, REJECTION_LABELS } from './copy'
 import { utcDateTime } from './dates'
+import { percentOf, shareStyle } from './share'
 
 const STAGES = [
   { key: 'prepared', label: 'Prepared', definition: DEFINITIONS.prepared },
@@ -16,10 +16,6 @@ function isRejectionReason(value: string): value is HandoffRejectionReason {
   return Object.hasOwn(REJECTION_LABELS, value)
 }
 
-function percentOf(count: number, whole: number): string {
-  return whole === 0 ? '0%' : `${Math.round((count / whole) * 100)}%`
-}
-
 /** Seconds stay visible: a pass usually verifies within a few minutes. */
 function formatWait(ms: number): string {
   const seconds = Math.round(ms / 1000)
@@ -27,10 +23,6 @@ function formatWait(ms: number): string {
   const minutes = Math.floor(seconds / 60)
   if (minutes < 60) return seconds % 60 ? `${minutes} min ${seconds % 60} s` : `${minutes} min`
   return `${Math.floor(minutes / 60)} h ${minutes % 60} min`
-}
-
-function shareStyle(part: number, whole: number): CSSProperties {
-  return { '--nr-ops-share': whole > 0 ? part / whole : 0 } as CSSProperties
 }
 
 /** Where handoffs drop out between preparation and verification, and why submitted transactions were rejected. */

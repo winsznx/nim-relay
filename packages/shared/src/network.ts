@@ -1,4 +1,5 @@
 import type { CanonicalGhost, HandoffIntent, RaceMode, RelayEcho, RelayLegPath, RelayLegTier, StationWorld } from './station'
+import type { TourTrackInput } from './tour'
 
 export type RelayNetwork = 'TestAlbatross' | 'MainAlbatross'
 export type BatonMode = Exclude<RaceMode, 'daily'>
@@ -327,8 +328,10 @@ export interface BatonChronicle {
 }
 
 export type ShareSurface = 'chronicle' | 'result' | 'daily' | 'crew' | 'handoff'
-/** POST /network/track. `visitor` is an opaque per-device key for signed-out shares; never an IP address. */
-export interface TrackEventInput { kind: 'share'; surface: ShareSurface; visitor?: string }
+/** A share action. `visitor` is an opaque per-device key for signed-out shares; never an IP address. */
+export interface ShareTrackInput { kind: 'share'; surface: ShareSurface; visitor?: string }
+/** POST /network/track: a share or a guided-tour event. */
+export type TrackEventInput = ShareTrackInput | TourTrackInput
 export interface TrackEventResult { counted: boolean }
 
 /** Verification outcomes that only mean "check again later". */
@@ -391,6 +394,27 @@ export interface OpsFunnel {
 export interface OpsFlaggedRun { handle: string; reason: OpsFlagReason; mode: RaceMode; practice: boolean; at: number; attempts: number }
 export interface OpsNimFlow { network: RelayNetwork; handoffs: number; luna: number; nim: number }
 
+/** One step of a guided tour over the report window. `missing` counts views that found no target to point at. */
+export interface OpsTourStep { stepId: string; stepNumber: number; viewed: number; completed: number; skippedHere: number; missing: number }
+/**
+ * A guided tour version over the report window. `skipped` counts tours left mid-way and `declined` offers turned down
+ * before the first step. `entries` counts started tours by the first path segment of the page the visit began on.
+ */
+export interface OpsTour {
+  tourId: string
+  version: string
+  offered: number
+  started: number
+  completed: number
+  skipped: number
+  declined: number
+  replayed: number
+  steps: OpsTourStep[]
+  entries: { section: string; started: number }[]
+}
+/** Tour events counted since `countingSince`, most started first. Anonymous and capped per runner or device per UTC day. */
+export interface OpsOnboarding { countingSince: number; tours: OpsTour[] }
+
 export type OpsAlertId = 'verification_rejections' | 'rpc_unavailable' | 'archive_lagging' | 'stuck_handoffs' | 'stranded_batons' | 'no_handoffs' | 'archive_not_configured'
 /** `critical` alerts need action now; `warning` alerts need a look. `condition` states exactly what was measured. */
 export interface OpsAlert { id: OpsAlertId; severity: 'critical' | 'warning'; title: string; condition: string }
@@ -412,4 +436,5 @@ export interface OpsReport {
   /** Newest first, at most 50. */
   flaggedRuns: OpsFlaggedRun[]
   nimFlow: OpsNimFlow[]
+  onboarding: OpsOnboarding
 }

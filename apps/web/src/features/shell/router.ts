@@ -80,6 +80,11 @@ function safeDecode(value: string): string {
   }
 }
 
+/** A route's path with its parameters left as placeholders, e.g. `/invite/:token`. */
+export function routePattern(name: RouteName): string {
+  return ROUTES[name]
+}
+
 export function pathFor<Name extends RouteName>(name: Name, ...args: [ParamNames<(typeof ROUTES)[Name]>] extends [never] ? [] : [RouteParams<Name>]): string {
   const params: Partial<Record<string, string>> = args[0] ?? {}
   return ROUTES[name].replace(/:([a-zA-Z]+)/g, (_, key: string) => encodeURIComponent(params[key] ?? ''))
@@ -197,13 +202,14 @@ export function closeOverlay(): void {
   }
 }
 
-function subscribe(listener: () => void): () => void {
+/** Called after every change of location, including overlays opening and closing. */
+export function subscribeLocation(listener: () => void): () => void {
   listeners.add(listener)
   return () => listeners.delete(listener)
 }
 
 export function useLocation(): AppLocation {
-  return useSyncExternalStore(subscribe, getLocation, getLocation)
+  return useSyncExternalStore(subscribeLocation, getLocation, getLocation)
 }
 
 export function getLocation(): AppLocation {

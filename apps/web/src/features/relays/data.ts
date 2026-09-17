@@ -215,7 +215,8 @@ export function useForegroundHeartbeat(enabled: boolean): void {
 
 const VISITOR_KEY = 'nim-relay-visitor'
 
-function visitorKey(): string | undefined {
+/** An opaque random key for this browser, so signed-out tracking can be capped per device. Never a device identifier. */
+export function visitorKey(): string | undefined {
   try {
     const existing = localStorage.getItem(VISITOR_KEY)
     if (existing) return existing

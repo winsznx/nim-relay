@@ -4,7 +4,7 @@ import { useLiveBatonIds } from '../relays/live'
 import { navigate, pathFor } from '../shell/router'
 import type { RelayView } from '../relays/model'
 import { mountGlobe, type Framing, type GlobeHandle, type GlobeRelay } from './globe'
-import { attachGlobe, detachGlobe, markGlobeUnavailable } from './globe-bridge'
+import { attachGlobe, detachGlobe, markGlobeUnavailable, showGlobe } from './globe-bridge'
 import './world.css'
 
 export type WorldFraming = 'home' | 'peek' | 'covered'
@@ -73,6 +73,7 @@ export function WorldCanvas({ relays, featuredId, selectedId, framing, active }:
       setUnavailable(true)
       return
     }
+    showGlobe(handle)
     setGlobe(handle)
     return () => {
       detachGlobe(handle)
@@ -102,9 +103,13 @@ export function WorldCanvas({ relays, featuredId, selectedId, framing, active }:
   const label = live === 0 ? 'Globe of the relay network. No batons are moving right now.' : `Globe of the relay network with ${live} active ${live === 1 ? 'baton' : 'batons'}. Drag to turn, pinch to zoom, tap a route to open it.`
   return (
     <div className="nr-world" data-framing={framing} aria-hidden={!active || undefined}>
-      <div ref={host} className="nr-world__globe" role="img" aria-label={label} />
+      <div ref={host} className="nr-world__globe" role="img" aria-label={label} data-tour="relay-world" />
       <div className="nr-world__vignette" aria-hidden="true" />
-      {unavailable && <p className="nr-world__fallback">This device can’t draw the globe. Every relay is still listed below.</p>}
+      {unavailable && (
+        <p className="nr-world__fallback" data-tour="relay-world-fallback">
+          This device can’t draw the globe. Every relay is still listed below.
+        </p>
+      )}
     </div>
   )
 }

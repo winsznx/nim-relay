@@ -9,13 +9,14 @@ import { handoffCallout, type PassAction, type RaceMission } from './mission'
 import type { RaceFrame } from './race-frame'
 import { echoLabel, legEchoes } from './relay-echoes'
 import { ArrivalTitle } from './hud/ArrivalTitle'
-import { FirstRunHint } from './hud/FirstRunHint'
 import { FlowMeter } from './hud/FlowMeter'
 import { RaceHud } from './hud/RaceHud'
 import { ResultsPanel } from './hud/ResultsPanel'
 import { mountRelayLeg, type CeremonyState, type RelayLegSceneHandle, type SceneStats } from './scene'
 import type { CourierCosmetics } from './scene/courier'
 import type { QualityTier } from './scene/quality'
+import { GameplayCoach } from './tutorial/GameplayCoach'
+import { createRaceTutorial, type TutorialSetting } from './tutorial/gameplay-tutorial'
 import './race.css'
 
 export type { CeremonyState } from './scene'
@@ -53,6 +54,8 @@ export interface RaceScreenProps {
   lockQuality?: boolean
   /** Development only: an autopilot whose inputs are recorded like a player's. */
   autopilot?: ((state: relayLeg.State) => relayLeg.Input) | null
+  /** The first-run gameplay coach. Defaults to 'auto', the courier's saved progress; the dev lab forces it on or off. */
+  tutorial?: TutorialSetting
   onStats?(stats: SceneStats): void
   /**
    * Called once per rendered frame with the race clock on screen: negative ticks count up to 0
@@ -68,26 +71,6 @@ export const WORLD_NAMES: Readonly<Record<relayLeg.World, string>> = {
   alpine: 'Cloudline Alps',
   solar: 'Solar Frontier',
   ocean: 'Ocean Skyway',
-}
-
-const HINT_KEY = 'nim-relay:leg-controls-v6-hint'
-const HINT_TICKS = 5 * 60
-
-function readHintSeen(): boolean {
-  try {
-    return window.localStorage.getItem(HINT_KEY) === '1'
-  } catch {
-    return true
-  }
-}
-
-function writeHintSeen(): void {
-  try {
-    window.localStorage.setItem(HINT_KEY, '1')
-  } catch {
-    // Storage can be unavailable in private WebViews; the hint then shows again next time, which is harmless.
-    return
-  }
 }
 
 interface RunSession {
@@ -171,7 +154,6 @@ function RaceView(props: RaceViewProps) {
   const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot)
   const [controls] = useState(() => new RelayControls(controller))
   const [haptics] = useState(() => new RaceHaptics())
-  const [hintSeen] = useState(readHintSeen)
   const [sceneFailed, setSceneFailed] = useState(false)
   const hostRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<RelayLegSceneHandle | null>(null)
@@ -184,6 +166,9 @@ function RaceView(props: RaceViewProps) {
   const watching = mode === 'watch'
   const mission = mode === 'relay' ? (props.mission ?? null) : null
   const previousName = mission?.previous?.name ?? ghostRun?.name ?? null
+  const [tutorial] = useState(() =>
+    createRaceTutorial({ mode, setting: props.tutorial ?? 'auto', render: controller.getRenderSnapshot, ghostName: previousName }),
+  )
 
   useEffect(() => {
     const host = hostRef.current
@@ -211,7 +196,10 @@ function RaceView(props: RaceViewProps) {
         ghostline: controller.config.ghostline ? { line: controller.config.ghostline, name: previousName } : null,
         echoes: latest.current.echoes ?? [],
         onStats: stats => latest.current.onStats?.(stats),
-        onFrame: frame => latest.current.onFrame?.(frame, mode),
+        onFrame: frame => {
+          latest.current.onFrame?.(frame, mode)
+          tutorial?.frame()
+        },
       })
     } catch {
       setSceneFailed(true)
@@ -222,7 +210,7 @@ function RaceView(props: RaceViewProps) {
       const current = latest.current
       current.onCue?.(cue)
       if (cue.kind === 'events' && !watching) haptics.play(cue.tick, cue.events)
-      if (cue.kind === 'go' && !watching) writeHintSeen()
+      tutorial?.cue(cue)
       if (cue.kind === 'finish' && !watching) {
         const finished = controller.getSnapshot()
         if (finished.result && finished.trace && !finished.divergence) current.onFinished(finished.result, finished.trace)
@@ -233,7 +221,7 @@ function RaceView(props: RaceViewProps) {
       handle.dispose()
       sceneRef.current = null
     }
-  }, [controller, controls, haptics, mode, ghostRun, previousName, watching])
+  }, [controller, controls, haptics, mode, ghostRun, previousName, watching, tutorial])
 
   useEffect(() => {
     const isFormField = (target: EventTarget | null): boolean =>
@@ -282,7 +270,6 @@ function RaceView(props: RaceViewProps) {
   const opening = activePhase === 'arrival' || activePhase === 'catch'
   const arrivalStage = activePhase === 'arrival' ? 'arrival' : activePhase === 'catch' ? 'catch' : 'go'
   const showArrival = opening || (racing && snapshot.tick < (mission ? 110 : 80))
-  const showHint = !hintSeen && !watching && phase === 'racing' && snapshot.tick < HINT_TICKS
   const ghostInfo = ghostRun ? { name: ghostRun.name, timeMs: ghostRun.timeMs } : null
   const previousRun = mission?.previous ?? null
   /** Whom the results measure the run against: the ghost raced, or the previous runner's kept time. */
@@ -354,7 +341,7 @@ function RaceView(props: RaceViewProps) {
           remembered={remembered}
         />
       )}
-      {showHint && <FirstRunHint />}
+      {tutorial && <GameplayCoach tutorial={tutorial} />}
 
       {phase === 'paused' && (
         <section className="leg-pause-sheet" aria-label="Race paused">

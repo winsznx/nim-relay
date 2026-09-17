@@ -28,7 +28,7 @@ function noteOf(item: InboxItem, inbox: readonly NetworkNotification[]): string 
   return inbox.find(notice => notice.type === 'incoming_baton' && notice.note && (notice.id === item.key || item.unreadIds.includes(notice.id)))?.note ?? null
 }
 
-function Item({ item, urgent, now, note }: { item: InboxItem; urgent: boolean; now: number; note: string | null }) {
+function Item({ item, urgent, now, note, tour }: { item: InboxItem; urgent: boolean; now: number; note: string | null; tour?: string | undefined }) {
   const action = useAction()
   const refresh = useRefreshNetwork()
   const open = () => {
@@ -45,7 +45,7 @@ function Item({ item, urgent, now, note }: { item: InboxItem; urgent: boolean; n
     })
   }
   return (
-    <li>
+    <li data-tour={tour}>
       <button type="button" className={`nr-inbox-item${urgent ? ' nr-inbox-item--now' : ''}${item.highlight ? ' nr-inbox-item--highlight' : ''}`} aria-busy={action.pending || undefined} disabled={action.pending} onClick={open}>
         <span className="nr-inbox-item__dot" aria-hidden="true" />
         <span className="nr-inbox-item__body">
@@ -80,7 +80,7 @@ export function InboxScreen({ entryKey }: { entryKey: string }) {
   if (!player) {
     return (
       <Screen title="Inbox" entryKey={entryKey}>
-        <SignInPrompt title="Your batons arrive here" body="When someone passes you a baton, beats your ghost or invites you to a match, it shows up in your inbox." reason="Sign in to receive batons and challenges." />
+        <SignInPrompt title="Your batons arrive here" body="When someone passes you a baton, beats your ghost or invites you to a match, it shows up in your inbox." reason="Sign in to receive batons and challenges." tour="inbox-turns" />
       </Screen>
     )
   }
@@ -96,7 +96,7 @@ export function InboxScreen({ entryKey }: { entryKey: string }) {
   if (needsYou.length === 0 && updates.length === 0) {
     return (
       <Screen title="Inbox" entryKey={entryKey}>
-        <EmptyState title="Nothing needs you right now" body="Incoming batons, ghost battles and crew streaks land here. Ride today’s Daily or look around the Relay Station while you wait.">
+        <EmptyState title="Nothing needs you right now" body="Incoming batons, ghost battles and crew streaks land here. Ride today’s Daily or look around the Relay Station while you wait." tour="inbox-turns">
           <div className="nr-actions">
             <LinkButton variant="primary" to={pathFor('daily')}>
               Ride today’s Daily
@@ -116,14 +116,14 @@ export function InboxScreen({ entryKey }: { entryKey: string }) {
         <section aria-labelledby="inbox-now">
           <SectionHeader id="inbox-now" title="Needs you now" detail={needsYou.length === 1 ? 'One thing only you can move' : `${needsYou.length} things only you can move`} />
           <ul className="nr-inbox-list">
-            {needsYou.map(item => (
-              <Item key={item.key} item={item} urgent now={now} note={noteOf(item, snapshot.inbox)} />
+            {needsYou.map((item, index) => (
+              <Item key={item.key} item={item} urgent now={now} note={noteOf(item, snapshot.inbox)} tour={index === 0 ? 'inbox-turns' : undefined} />
             ))}
           </ul>
         </section>
       )}
       {updates.length > 0 && (
-        <section className={needsYou.length > 0 ? 'nr-section' : undefined} aria-labelledby="inbox-updates">
+        <section className={needsYou.length > 0 ? 'nr-section' : undefined} aria-labelledby="inbox-updates" data-tour="inbox-updates">
           <SectionHeader id="inbox-updates" title="Updates" />
           <ul className="nr-inbox-list nr-inbox-list--updates" aria-label="Notifications">
             {updates.map(item => (

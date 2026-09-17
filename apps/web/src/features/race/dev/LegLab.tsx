@@ -29,6 +29,7 @@ import { labEchoes } from './lab-echoes'
  *   quality=low|medium|high   (locks the tier)
  *   sheet=1         stand-in handoff sheet after a relay finish, to check the results header layout
  *   echoes=1        stand-in Relay Echoes beside the track and in the arrival
+ *   tutorial=1      the gameplay tutorial from its first step, whatever this browser saved; it saves and reports nothing
  *   preview=courier  lineup of courier poses under the world's lighting
  */
 
@@ -39,6 +40,7 @@ declare global {
     __legDist?: number
     /** The courier's locomotion as last rendered, for captures that wait on a moment. */
     __legFrame?: {
+      tick: number
       dist: number
       motion: relayLeg.Motion
       lane: number
@@ -185,6 +187,7 @@ export function LegLab() {
       mission={setup.mission}
       passAction={passAction}
       autopilot={setup.autopilot}
+      tutorial={params.get('tutorial') === '1' ? 'force' : 'off'}
       quality={setup.quality}
       lockQuality={setup.quality !== 'auto'}
       ceremony={finished && (params.get('sheet') === '1' || passed) ? <LabCeremonySheet /> : null}
@@ -200,7 +203,7 @@ export function LegLab() {
       onFrame={frame => {
         window.__legDist = frame.dist / 65_536
         window.__legFrame = {
-          dist: frame.dist / 65_536, motion: frame.motion, lane: frame.lane, targetLane: frame.targetLane, rushTicks: frame.rushTicks, edgeSide: frame.edgeSide,
+          tick: frame.tick, dist: frame.dist / 65_536, motion: frame.motion, lane: frame.lane, targetLane: frame.targetLane, rushTicks: frame.rushTicks, edgeSide: frame.edgeSide,
           running: frame.running, ghostDelta: frame.ghostDelta, drafting: frame.tick - lastDraftTick.current <= DRAFT_HOLD_TICKS,
         }
       }}

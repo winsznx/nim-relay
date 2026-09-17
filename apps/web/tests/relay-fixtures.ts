@@ -312,7 +312,22 @@ export interface MockNetwork {
   replays?: Record<string, CanonicalGhost>
 }
 
-export async function mockRelayApi(page: Page, network: MockNetwork, account?: ReturnType<typeof signedInAs>): Promise<void> {
+/**
+ * Marks the product tour as already completed on this browser before the app loads, so specs about other surfaces
+ * aren't offered the tour. The tour's own spec passes `{ tour: 'unseen' }`.
+ */
+export async function markProductTourSeen(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem('nim-relay-tour:core:v1', JSON.stringify({ state: 'completed', updatedAt: 1 }))
+    } catch {
+      // Pages without storage have no tour state to seed.
+    }
+  })
+}
+
+export async function mockRelayApi(page: Page, network: MockNetwork, account?: ReturnType<typeof signedInAs>, options: { tour?: 'seen' | 'unseen' } = {}): Promise<void> {
+  if (options.tour !== 'unseen') await markProductTourSeen(page)
   await page.routeWebSocket(/\/ws\/network$/, () => undefined)
   await page.route('**/api/**', route => {
     const url = new URL(route.request().url())
@@ -321,6 +336,7 @@ export async function mockRelayApi(page: Page, network: MockNetwork, account?: R
     if (path === '/api/station/network/public') return json(route, 200, presentSnapshot(network.snapshot, Date.now()))
     if (account && path === '/api/station/network') return json(route, 200, presentSnapshot(account.snapshot, Date.now()))
     if (account && path === '/api/station') return json(route, 200, account.station)
+    if (account && (path === '/api/station/network/preferences' || path === '/api/station/network/preferences/tour')) return json(route, 200, { tours: {} })
     const batonMatch = path.match(/^\/api\/station\/network\/(batons|chronicles)\/([^/]+)$/)
     if (batonMatch) {
       const detail = network.details?.[decodeURIComponent(batonMatch[2] ?? '')]

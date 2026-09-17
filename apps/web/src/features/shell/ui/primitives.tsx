@@ -42,9 +42,10 @@ export function SectionHeader({ title, detail, action, id }: { title: string; de
   )
 }
 
-export function EmptyState({ title, body, children }: { title: string; body: ReactNode; children?: ReactNode }) {
+/** `tour` names the empty state as a guided-tour target. */
+export function EmptyState({ title, body, children, tour }: { title: string; body: ReactNode; children?: ReactNode; tour?: string }) {
   return (
-    <div className="nr-empty">
+    <div className="nr-empty" data-tour={tour}>
       <svg width="34" height="38" viewBox="0 0 34 38" aria-hidden="true">
         <path d="M17 1.8 31.5 10v18L17 36.2 2.5 28V10L17 1.8Z" fill="none" stroke="rgba(245,166,35,0.55)" strokeWidth="1.5" />
         <path d="M17 11.5 24.5 15.8v6.4L17 26.5l-7.5-4.3v-6.4L17 11.5Z" fill="rgba(245,166,35,0.16)" />

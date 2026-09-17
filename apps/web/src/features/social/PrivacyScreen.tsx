@@ -16,6 +16,7 @@ export function PrivacyScreen({ entryKey }: { entryKey: string }) {
           <li>The inputs of your verified rides, so the server can replay them.</li>
           <li>Public handoff transactions and session records.</li>
           <li>If you allow the fair-play signal, a hashed device identifier. The raw identifier is never stored.</li>
+          <li>Whether you finished or skipped the guided tours, so another device doesn’t offer them again, and daily counts of how tours are used that name no runner.</li>
         </ul>
         <p>We don’t store raw IP addresses.</p>
 

@@ -35,7 +35,15 @@ export interface GlobeHandle {
   setActive(active: boolean): void
   /** Renders at a lower rate while a sheet covers most of the globe. */
   setBackground(background: boolean): void
+  /** Where the Earth is drawn: its center and radius in viewport pixels. Null until the first frame placed the camera. */
+  disc(): GlobeDisc | null
   dispose(): void
+}
+
+export interface GlobeDisc {
+  x: number
+  y: number
+  radius: number
 }
 
 interface Arrival {
@@ -295,6 +303,16 @@ export function mountGlobe(host: HTMLElement, options: GlobeOptions): GlobeHandl
     },
     setBackground(next) {
       background = next
+    },
+    disc() {
+      // The camera looks at the Earth's center, which the view offset puts at the framing point; the sphere's outline
+      // is then a circle of the Earth's angular radius.
+      const distance = camera.position.length()
+      if (distance <= EARTH_RADIUS || width <= 1 || height <= 1) return null
+      const angularRadius = Math.asin(EARTH_RADIUS / distance)
+      const radius = (Math.tan(angularRadius) / Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) * (height / 2)
+      const box = host.getBoundingClientRect()
+      return { x: box.left + framing.centerX * width, y: box.top + framing.centerY * height, radius }
     },
     dispose() {
       alive = false

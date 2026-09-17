@@ -7,6 +7,7 @@ import { EmptyState, Loading, Pill } from '../shell/ui/primitives'
 import { Screen } from '../shell/ui/Screen'
 import { OpsAlerts } from './OpsAlerts'
 import { OpsFunnel } from './OpsFunnel'
+import { OpsOnboarding } from './OpsOnboarding'
 import { OpsFlaggedRuns, OpsNimFlow } from './OpsRecords'
 import { OpsTotals } from './OpsTotals'
 import { OpsTrends } from './OpsTrends'
@@ -88,6 +89,7 @@ export function OpsScreen({ entryKey }: { entryKey: string }) {
         <OpsTotals totals={data.totals} />
         <OpsTrends report={data} />
         <OpsFunnel report={data} />
+        <OpsOnboarding report={data} />
         <OpsFlaggedRuns report={data} />
         <OpsNimFlow report={data} />
       </div>

@@ -1,4 +1,5 @@
 import type { ShareSurface } from '@nim-relay/shared'
+import { sha256Hex } from '../signing'
 import { keepLatestDates, utcDate } from './calendar'
 import { ANONYMOUS_SHARES_PER_DAY, OPS_WINDOW_DAYS, SHARES_PER_ACTOR_PER_DAY } from './constants'
 import type { TrafficState } from './types'
@@ -14,6 +15,15 @@ export interface ShareAction {
   actorKey: string
   anonymous: boolean
   surface: ShareSurface
+}
+
+/**
+ * Who a tracked event counts against for daily caps: the signed-in runner, or a hash of a signed-out device's visitor
+ * key. Devices that send no key share one bucket.
+ */
+export async function trackActorKey(actorId: string | null, visitor: string | undefined): Promise<string> {
+  if (actorId) return `runner:${actorId}`
+  return `visitor:${visitor ? await sha256Hex(visitor) : 'unidentified'}`
 }
 
 export function trafficStateKey(networkKey: string): string {

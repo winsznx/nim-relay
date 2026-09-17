@@ -12,6 +12,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@floating-ui/dom": "1.8.0",
     "@nim-relay/game-engine": "workspace:*",
     "@nim-relay/relay-protocol": "workspace:*",
     "@nim-relay/shared": "workspace:*",

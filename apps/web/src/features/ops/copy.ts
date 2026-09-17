@@ -32,7 +32,15 @@ export const DEFINITIONS = {
 
   flaggedRuns: 'Submissions rejected for an invalid input trace or a ticket (MAC) mismatch. Resubmissions of the same run are folded together.',
   nimFlow: 'Value moved by qualified handoffs, summed in Luna per network.',
+
+  onboarding: 'Tour events the app reported, capped per runner or device per UTC day. Replays never count as starts. Step views are a share of tours started; going back views a step again.',
 } as const
+
+/** Names for the guided tours the app ships; any other tour shows its id. */
+export const TOUR_LABELS: Partial<Record<string, string>> = {
+  core: 'Product tour',
+  gameplay: 'Gameplay tutorial',
+}
 
 export const REJECTION_LABELS: Record<HandoffRejectionReason, string> = {
   SENDER_MISMATCH: 'Sent from another wallet',

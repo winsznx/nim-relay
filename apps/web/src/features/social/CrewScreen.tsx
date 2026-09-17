@@ -167,7 +167,7 @@ export function CrewScreen({ entryKey }: { entryKey: string }) {
       title="Crew"
       entryKey={entryKey}
       actions={
-        <a className="nr-button nr-button--sm nr-button--secondary" {...linkProps(pathFor('rivals'))}>
+        <a className="nr-button nr-button--sm nr-button--secondary" data-tour="social-modes" {...linkProps(pathFor('rivals'))}>
           Rivals
         </a>
       }

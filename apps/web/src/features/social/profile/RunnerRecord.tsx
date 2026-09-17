@@ -27,7 +27,7 @@ const ROLE_LABELS: Record<RunnerProfile['historicBatons'][number]['role'], strin
 /** Every baton the runner started, holds or carried. Each opens its journey. */
 export function RelayHistory({ batons }: { batons: readonly RunnerProfile['historicBatons'][number][] }) {
   return (
-    <section className="nr-section" aria-labelledby="relay-history">
+    <section className="nr-section" aria-labelledby="relay-history" data-tour="profile-history">
       <SectionHeader id="relay-history" title="Batons" detail={batons.length > 0 ? `${formatCount(batons.length)} carried into history` : undefined} />
       {batons.length === 0 ? (
         <p className="nr-note">No batons yet. Carrying one leg puts a baton here for good.</p>

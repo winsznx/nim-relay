@@ -10,12 +10,14 @@ import type {
   NetworkInvite,
   NetworkSnapshot,
   OpsReport,
+  PlayerPreferences,
   PrepareHandoffInput,
   RaceMode,
   RaceTrace,
   RelayNote,
   RunnerProfile,
   SubmittedRace,
+  TourPreferenceInput,
   TrackEventInput,
   TrackEventResult,
 } from '@nim-relay/shared'
@@ -99,3 +101,7 @@ export const reportLegProgress = (input: LegProgressInput) => request<LegProgres
 export const loadVerifiedReplay = (runId: string) => request<CanonicalGhost>(`/replays/${encodeURIComponent(runId)}`)
 /** Operators listed in the Worker's OPS_PLAYERS only; everyone else gets 403 `operators_only`. */
 export const loadOpsReport = () => request<OpsReport>('/ops')
+/** The signed-in runner's saved preferences, such as how far they got through each guided tour. */
+export const loadPreferences = () => request<PlayerPreferences>('/preferences')
+/** Records tour progress. The server keeps completed or skipped over started and answers with every tour it holds. */
+export const saveTourPreference = (input: TourPreferenceInput) => request<PlayerPreferences>('/preferences/tour', input)

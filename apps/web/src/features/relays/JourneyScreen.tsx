@@ -250,7 +250,7 @@ export function JourneyScreen({ code, entryKey }: { code: string; entryKey: stri
         ) : (
           <>
             {relay.previousRunId && (
-              <LinkButton variant="primary" size="lg" block to={practicePath(relay.previousRunId, relay.code)}>
+              <LinkButton variant="primary" size="lg" block to={practicePath(relay.previousRunId, relay.code)} data-tour="ghost">
                 Race this ghost in practice
               </LinkButton>
             )}

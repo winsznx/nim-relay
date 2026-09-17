@@ -29,6 +29,7 @@ import { SignInSheet } from './SignInSheet'
 import { ToastViewport } from './ui/overlays'
 import { DepartureBanner } from '../leg/DepartureBanner'
 import { getAudioDirector } from '../audio/director'
+import { TourHost } from '../tour/TourHost'
 
 const LegHost = lazy(() => import('./LegHost').then(module => ({ default: module.LegHost })))
 const StationScreen = lazy(() => import('./StationScreen').then(module => ({ default: module.StationScreen })))
@@ -97,7 +98,7 @@ function selectedCode(route: RouteMatch): string | null {
 export function AppShell() {
   const location = useLocation()
   const route = matchRoute(location.pathname)
-  const { player } = useSession()
+  const { player, checking } = useSession()
   const { relays, featured, state } = useRelays()
   useLiveUpdates()
   useForegroundHeartbeat(player !== null)
@@ -133,6 +134,7 @@ export function AppShell() {
       <SignInSheet open={location.overlay === SIGN_IN_OVERLAY} />
       <DepartureBanner />
       <ToastViewport />
+      <TourHost route={route} location={location} player={player} checking={checking} featured={featured} network={state} />
     </div>
   )
 }

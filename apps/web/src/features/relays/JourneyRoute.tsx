@@ -81,7 +81,7 @@ export function JourneyRecords({ relay, detail }: { relay: RelayView; detail: Ba
               <span className="nr-row__title">{run.name}</span>
               <span className="nr-row__meta nr-num">{formatCount(run.score)} points</span>
             </span>
-            <a className="nr-button nr-button--sm nr-button--secondary" {...linkProps(practicePath(run.runId, relay.code))}>
+            <a className="nr-button nr-button--sm nr-button--secondary" data-tour={index === 0 ? 'ghost' : undefined} {...linkProps(practicePath(run.runId, relay.code))}>
               Race ghost
             </a>
           </li>

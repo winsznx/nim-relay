@@ -3,7 +3,8 @@ import { OPS_WINDOW_DAYS } from './constants'
 import { networkMetrics } from './metrics'
 import { opsDays, opsFunnel } from './ops-activity'
 import { alertFacts, opsAlerts } from './ops-alerts'
-import type { NetworkContext } from './types'
+import { onboardingReport } from './tour-ledger'
+import type { NetworkContext, TourLedger } from './types'
 
 /** Whether `OPS_PLAYERS` lists the player by id, or by handle with or without "@" in any case. Unset lists nobody. */
 export function isOperator(opsPlayers: string | undefined, player: { id: string; handle: string }): boolean {
@@ -16,9 +17,9 @@ export function isOperator(opsPlayers: string | undefined, player: { id: string;
 
 /**
  * The operator report for this Worker's network. Built from recorded facts only and read-only: nothing here
- * writes network state, traffic or the ledger. Runners appear by handle, never by wallet or id.
+ * writes network state, traffic or either ledger. Runners appear by handle, never by wallet or id.
  */
-export function opsReport(context: NetworkContext, now: number): OpsReport {
+export function opsReport(context: NetworkContext, tours: TourLedger, now: number): OpsReport {
   const { env, state, ops, product } = context
   const archiveConfigured = Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY)
   return {
@@ -32,6 +33,7 @@ export function opsReport(context: NetworkContext, now: number): OpsReport {
     funnel: opsFunnel(context, now),
     flaggedRuns: ops.flaggedRuns.map((run): OpsFlaggedRun => ({ handle: run.handle, reason: run.reason, mode: run.mode, practice: run.practice, at: run.at, attempts: run.attempts })),
     nimFlow: nimFlow(context),
+    onboarding: onboardingReport(tours, now),
   }
 }
 
