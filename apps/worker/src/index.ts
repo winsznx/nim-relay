@@ -4,6 +4,7 @@ import { RelayRoom } from './durable/relay-room'
 import { authRoutes } from './auth/routes'
 import { runRoutes } from './runs/routes'
 
+import { shareRoutes } from './share/routes'
 import { stationRoutes } from './station/routes'
 export { StationRoom } from './station/room'
 export { RelayRoom }
@@ -27,6 +28,9 @@ app.get('/ws/relays/:code', async (c) => {
   return stub.fetch(c.req.raw)
 })
 
+app.route('/', shareRoutes)
+
+// Other deep links the Worker sees first still get the plain app shell.
 for (const path of ['/r/*', '/invite/*', '/proof/*']) app.get(path, c => c.env.ASSETS.fetch(new Request(new URL('/index.html', c.req.url))))
 
 export default {

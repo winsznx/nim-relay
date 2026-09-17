@@ -812,6 +812,42 @@
         "quantized and compressed with EXT_meshopt_compression (medium)"
       ],
       "bytes": 119100
+    },
+    {
+      "path": "../og/default.png",
+      "name": "Link preview image (default)",
+      "source": "Rendered from the NIM Relay race scene by scripts/submission/og.mjs",
+      "author": "NIM Relay contributors",
+      "license": "Same as the scene assets it depicts (CC0 courier and original procedural geometry)",
+      "modifications": "1200x630 composite with brand text",
+      "production": "apps/web/public/og/default.png"
+    },
+    {
+      "path": "../og/relay.png",
+      "name": "Link preview image (relay)",
+      "source": "Rendered from the NIM Relay race scene by scripts/submission/og.mjs",
+      "author": "NIM Relay contributors",
+      "license": "Same as the scene assets it depicts (CC0 courier and original procedural geometry)",
+      "modifications": "1200x630 composite with brand text",
+      "production": "apps/web/public/og/relay.png"
+    },
+    {
+      "path": "../og/daily.png",
+      "name": "Link preview image (daily)",
+      "source": "Rendered from the NIM Relay race scene by scripts/submission/og.mjs",
+      "author": "NIM Relay contributors",
+      "license": "Same as the scene assets it depicts (CC0 courier and original procedural geometry)",
+      "modifications": "1200x630 composite with brand text",
+      "production": "apps/web/public/og/daily.png"
+    },
+    {
+      "path": "../og/invite.png",
+      "name": "Link preview image (invite)",
+      "source": "Rendered from the NIM Relay race scene by scripts/submission/og.mjs",
+      "author": "NIM Relay contributors",
+      "license": "Same as the scene assets it depicts (CC0 courier and original procedural geometry)",
+      "modifications": "1200x630 composite with brand text",
+      "production": "apps/web/public/og/invite.png"
     }
   ]
 }
