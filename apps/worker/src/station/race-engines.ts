@@ -1,4 +1,4 @@
-import { relayLeg, stationRace } from '@nim-relay/game-engine'
+import { relayLegV5, stationRace } from '@nim-relay/game-engine'
 import type { GhostRunner, CanonicalGhost, RaceConfig, RaceResult, RaceTrace, RelayLegConfig, RelayLegMetrics, RelayLegPath, RelayLegTrace } from '@nim-relay/shared'
 import type { Run } from './model'
 
@@ -6,10 +6,10 @@ import type { Run } from './model'
 type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false
 type Assert<Condition extends true> = Condition
 export type RelayLegContractMirror = [
-  Assert<Exact<RelayLegConfig, relayLeg.Config>>,
-  Assert<Exact<RelayLegTrace, relayLeg.InputTrace>>,
-  Assert<Exact<RelayLegMetrics, relayLeg.Metrics>>,
-  Assert<Exact<RelayLegPath, relayLeg.Path>>,
+  Assert<Exact<RelayLegConfig, relayLegV5.Config>>,
+  Assert<Exact<RelayLegTrace, relayLegV5.InputTrace>>,
+  Assert<Exact<RelayLegMetrics, relayLegV5.Metrics>>,
+  Assert<Exact<RelayLegPath, relayLegV5.Path>>,
 ]
 
 export interface VerifiedReplay {
@@ -20,9 +20,9 @@ export interface VerifiedReplay {
 /** Replays a submitted trace with the engine named by the signed config. Null when the trace is malformed. */
 export function replayRace(config: RaceConfig, submittedTrace: unknown): VerifiedReplay | null {
   if (config.engineVersion === '5') {
-    const checked = relayLeg.validateTrace(submittedTrace)
+    const checked = relayLegV5.validateTrace(submittedTrace)
     if (!checked.ok) return null
-    return { inputTrace: checked.trace, result: relayLeg.replay({ ...config, inputTrace: checked.trace }) }
+    return { inputTrace: checked.trace, result: relayLegV5.replay({ ...config, inputTrace: checked.trace }) }
   }
   const checked = stationRace.validateTrace(submittedTrace)
   if (!checked.ok) return null

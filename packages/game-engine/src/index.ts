@@ -12,3 +12,5 @@ export * as relayRace from './relay-race'
 export * as stationRace from './station-race'
 
 export * as relayLeg from './relay-leg'
+/** Frozen Relay Leg v5, kept so verified v5 runs replay forever. */
+export * as relayLegV5 from './relay-leg-v5'
