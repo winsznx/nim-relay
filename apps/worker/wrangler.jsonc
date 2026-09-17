@@ -60,7 +60,8 @@
       "vars": {
         "NIMIQ_NETWORK": "TestAlbatross",
         "NIMIQ_RPC_URL": "https://rpc.testnet.nimiqwatch.com/",
-        "TREASURY_ENABLED": "false"
+        // Testnet treasury NQ57LPC3U86LY3BR5EU6RGH51JMGBQ86XNDS, funded from the public testnet faucet.
+        "TREASURY_ENABLED": "true"
       },
       "durable_objects": {
         "bindings": [
