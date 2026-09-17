@@ -35,7 +35,9 @@ export function coreTour({ featuredCode, ghostOnJourney }: CoreTourContext): Tou
       fallbackTargets: [{ target: tourTarget('relay-world-fallback'), shape: 'rect', padding: 10, copy: { body: 'Batons pass between real people. This device can’t draw the globe, so relays are listed below.' } }],
       category: 'The relay world',
       title: 'Watch NIM move',
-      body: featuredCode ? 'Every route on this globe is a real NIM baton passing from person to person.' : 'Routes light up here as real NIM batons pass from person to person.',
+      body: featuredCode
+        ? 'This is the Relay Atlas: stations in the game world and the routes between them. Batons travel them as real NIM passes from person to person.'
+        : 'This is the Relay Atlas: stations in the game world and the routes between them. Routes light up as real NIM batons pass from person to person.',
       interaction: 'next',
     },
     {

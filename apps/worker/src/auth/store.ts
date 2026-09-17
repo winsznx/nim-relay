@@ -27,6 +27,8 @@ export interface SessionRecord {
   playerId: string
   expiresAt: number
   revokedAt: number | null
+  /** HMAC of the Nimiq Pay device identifier the runner shared for this session, or null. Never the raw identifier. */
+  deviceHash: string | null
 }
 
 export interface CreatePlayerInput {
@@ -53,6 +55,8 @@ export interface AuthStore {
   getSession(sessionId: string): Promise<SessionRecord | null>
   revokeSession(sessionId: string): Promise<void>
   touchSession(sessionId: string): Promise<void>
+  /** Links a device signal to a session that has none. Returns the session as it stands afterwards. */
+  attachDevice(sessionId: string, playerId: string, deviceHash: string): Promise<SessionRecord | null>
 }
 
 function shortWalletHandle(walletAddress: string): string {
@@ -113,6 +117,7 @@ export class InMemoryAuthStore implements AuthStore {
       playerId: input.playerId,
       expiresAt: input.expiresAt,
       revokedAt: null,
+      deviceHash: input.deviceHash,
     }
     this.sessions.set(record.id, record)
     return record
@@ -125,6 +130,13 @@ export class InMemoryAuthStore implements AuthStore {
   async revokeSession(sessionId: string): Promise<void> {
     const s = this.sessions.get(sessionId)
     if (s && s.revokedAt === null) s.revokedAt = Date.now()
+  }
+
+  async attachDevice(sessionId: string, playerId: string, deviceHash: string): Promise<SessionRecord | null> {
+    const session = this.sessions.get(sessionId)
+    if (!session || session.playerId !== playerId) return null
+    session.deviceHash ??= deviceHash
+    return session
   }
 
   async touchSession(): Promise<void> {

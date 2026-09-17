@@ -1,4 +1,4 @@
-import type { NetworkBaton, NetworkCrew, NetworkMetrics, NetworkRival, NetworkRunner, NetworkSnapshot, StationProfile, StationSnapshot, StationWorld } from '@nim-relay/shared'
+import type { AtlasLeg, NetworkBaton, NetworkCrew, NetworkMetrics, NetworkRival, NetworkRunner, NetworkSnapshot, StationProfile, StationSnapshot, StationWorld } from '@nim-relay/shared'
 
 /**
  * Development fixtures for the Station lab and view-model tests. Every name and
@@ -21,6 +21,11 @@ export const YUKI = fixtureRunner('yuki', 'Yuki', 'JP')
 
 type BatonSeed = Partial<NetworkBaton> & Pick<NetworkBaton, 'id' | 'mode' | 'origin' | 'holder'>
 
+/** Consecutive Atlas legs through `stations`, which must follow catalogue routes. */
+function fixtureHops(stations: readonly string[]): AtlasLeg[] {
+  return stations.slice(1).map((destination, index) => ({ routeId: `${stations[index]}-to-${destination}`, origin: stations[index]!, destination }))
+}
+
 export function fixtureBaton(seed: BatonSeed): NetworkBaton {
   const handoffCount = seed.handoffCount ?? 0
   const createdAt = seed.createdAt ?? FIXTURE_NOW - 3 * DAY
@@ -39,7 +44,7 @@ export function fixtureBaton(seed: BatonSeed): NetworkBaton {
     status: 'active',
     handoffCount,
     world,
-    route: { seed: `fixture-${seed.id}`, world, tier: 0, sector: 0, sectorStartedLeg: 0 },
+    route: { seed: `fixture-${seed.id}`, world, tier: 0, sector: 0, sectorStartedLeg: 0, routeId: 'genesis-to-meridian-yard', origin: 'genesis', destination: 'meridian-yard' },
     previousRunId: handoffCount > 0 ? `run-${seed.id}-${handoffCount}` : null,
     crewId: null,
     rivalId: null,
@@ -52,7 +57,7 @@ export function fixtureBaton(seed: BatonSeed): NetworkBaton {
     appearance: { handoffCount, ageMs: FIXTURE_NOW - createdAt, countries: countries.length, ghostWins: 0, milestones: [] },
     aliveMs: FIXTURE_NOW - createdAt,
     transactingWallets: handoffCount > 0 ? handoffCount + 1 : 0,
-    stops: [{ countryCode: seed.origin.country }],
+    hops: [{ routeId: 'genesis-to-meridian-yard', origin: 'genesis', destination: 'meridian-yard' }],
     ...seed,
   }
 }
@@ -166,7 +171,7 @@ export function busyScenario(): { network: NetworkSnapshot; station: StationSnap
     updatedAt: FIXTURE_NOW - 3 * HOUR,
     lineage: { countries: ['DE', 'NG', 'GH', 'BR', 'JP'], runners: 21, ghostWins: 9 },
     appearance: { handoffCount: 34, ageMs: 70 * DAY, countries: 5, ghostWins: 9, milestones: [10, 25] },
-    stops: ['DE', 'NG', 'GH', 'NG', 'BR', 'JP', 'DE', 'BR'].map(countryCode => ({ countryCode })),
+    hops: fixtureHops(['genesis', 'meridian-yard', 'fjordgate', 'polar-drift', 'gobi-mirror', 'kuroshio', 'pacific-arc', 'atacama-field']),
   })
   const yourLeg = fixtureBaton({
     id: 'sunrise',
@@ -178,7 +183,7 @@ export function busyScenario(): { network: NetworkSnapshot; station: StationSnap
     handoffCount: 6,
     updatedAt: FIXTURE_NOW - 40 * 60_000,
     lineage: { countries: ['GH', 'NG', 'DE'], runners: 5, ghostWins: 2 },
-    stops: [{ countryCode: 'GH' }, { countryCode: 'NG' }, { countryCode: null }, { countryCode: 'DE' }, { countryCode: 'NG' }],
+    hops: fixtureHops(['genesis', 'dune-array', 'cape-horizon', 'monsoon-deck', 'neon-delta']),
   })
   const quick = fixtureBaton({
     id: 'duel',

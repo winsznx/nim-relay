@@ -1,7 +1,7 @@
 import { relayLeg } from '@nim-relay/game-engine'
-import { isRelayLegResult, type BatonRoute, type RaceConfig, type RelayLegGhostline, type RelayLegTier, type RelayLegV6Config, type StationWorld } from '@nim-relay/shared'
+import { atlasLegOf, atlasRoute, isRelayLegResult, type AtlasRoute, type BatonRoute, type RaceConfig, type RelayLegGhostline, type RelayLegTier, type RelayLegV6Config } from '@nim-relay/shared'
 import type { Run } from '../model'
-import { NEW_COURIER_COMPLETED_RUNS, SECTOR_HANDOFFS, VETERAN_QUALIFIED_HANDOFFS } from './constants'
+import { NEW_COURIER_COMPLETED_RUNS, VETERAN_QUALIFIED_HANDOFFS } from './constants'
 import { handoffsSentBy } from './lookups'
 import type { BatonRecord, NetworkState } from './types'
 
@@ -18,26 +18,24 @@ export function sectorSeed(code: string, sector: number): string {
   return `relay-${code}-s${sector}`
 }
 
-export function openingRoute(code: string, world: StationWorld, tier: RelayLegTier): BatonRoute {
-  return { seed: sectorSeed(code, 0), world, tier, sector: 0, sectorStartedLeg: 0 }
+/** A new baton's first leg: sector 0 on its Atlas route's own course. */
+export function openingRoute(route: AtlasRoute): BatonRoute {
+  return { seed: route.seed, world: route.world, tier: route.tier, sector: 0, sectorStartedLeg: 0, ...atlasLegOf(route) }
 }
 
-export function worldAfter(world: StationWorld): StationWorld {
-  const index = relayLeg.WORLDS.indexOf(world)
-  return relayLeg.WORLDS[(index + 1) % relayLeg.WORLDS.length]!
+/** Whether the course is the Atlas route's own course, rather than a pre-Atlas sector course placed on it. */
+export function isAtlasCourse(route: BatonRoute): boolean {
+  return atlasRoute(route.routeId)?.seed === route.seed
 }
 
 /**
- * Opens the next sector (next world, new seed) once the current one has seen SECTOR_HANDOFFS qualified
- * handoffs. The runner receiving the baton opens it, so their experience sets its tier. Quick matches keep one sector.
+ * Moves the baton onto the Atlas route its next leg races, once custody moved. The same route on its own course keeps
+ * the sector, so the next runner chases the previous runner's ghost; any other route opens a new sector at this leg.
  */
-export function advanceRoute(baton: BatonRecord, openerTier: RelayLegTier): void {
-  if (baton.mode === 'quick') return
-  if (baton.handoffCount - baton.route.sectorStartedLeg < SECTOR_HANDOFFS) return
-  const sector = baton.route.sector + 1
-  const world = worldAfter(baton.route.world)
-  baton.route = { seed: sectorSeed(baton.code, sector), world, tier: openerTier, sector, sectorStartedLeg: baton.handoffCount }
-  baton.world = world
+export function moveToAtlasRoute(baton: BatonRecord, route: AtlasRoute): void {
+  if (route.id === baton.route.routeId && isAtlasCourse(baton.route)) return
+  baton.route = { ...openingRoute(route), sector: baton.route.sector + 1, sectorStartedLeg: baton.handoffCount }
+  baton.world = route.world
 }
 
 export function isFirstLegOfSector(baton: Pick<BatonRecord, 'handoffCount'>, route: BatonRoute): boolean {
@@ -46,13 +44,14 @@ export function isFirstLegOfSector(baton: Pick<BatonRecord, 'handoffCount'>, rou
 
 /**
  * The route the baton's next leg races. A sector that already has legs continues only while the previous canonical
- * run can be raced on it; after a v5 leg, or without the run, a new sector starts at this leg on the same world,
- * opened at `openerTier`, with no ghost. Every mode rolls over, Quick matches included.
+ * run can be raced on it; after a v5 leg, or without the run, a new sector starts at this leg on the same Atlas route
+ * with no ghost. An Atlas course keeps its seed and tier; a pre-Atlas course gets a new seed, opened at `openerTier`.
  */
 export function nextLegRoute(baton: BatonRecord, previousRun: Run | undefined, openerTier: RelayLegTier): BatonRoute {
   if (isFirstLegOfSector(baton, baton.route) || sectorGhostRun(baton, baton.route, previousRun)) return baton.route
   const sector = baton.route.sector + 1
-  return { seed: sectorSeed(baton.code, sector), world: baton.route.world, tier: openerTier, sector, sectorStartedLeg: baton.handoffCount }
+  const course = isAtlasCourse(baton.route) ? { seed: baton.route.seed, tier: baton.route.tier } : { seed: sectorSeed(baton.code, sector), tier: openerTier }
+  return { ...baton.route, ...course, sector, sectorStartedLeg: baton.handoffCount }
 }
 
 /** The previous runner's canonical run when the next leg on `route` races it as a ghost. */

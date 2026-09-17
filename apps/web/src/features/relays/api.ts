@@ -1,4 +1,6 @@
 import type {
+  AtlasRouteDetail,
+  AtlasSnapshot,
   BatonChronicle,
   BatonDetail,
   CanonicalGhost,
@@ -57,6 +59,9 @@ export const loadNetwork = () => request<NetworkSnapshot>('')
 export const loadPublicNetwork = () => request<NetworkSnapshot>('/public')
 export const loadBaton = (code: string) => request<BatonDetail>(`/batons/${encodeURIComponent(code)}`)
 export const loadChronicle = (code: string) => request<BatonChronicle>(`/chronicles/${encodeURIComponent(code)}`)
+/** Public Atlas aggregates: route and station stats and the community's light-the-world progress. */
+export const loadAtlas = () => request<AtlasSnapshot>('/atlas')
+export const loadAtlasRoute = (routeId: string) => request<AtlasRouteDetail>(`/atlas/routes/${encodeURIComponent(routeId)}`)
 export const loadRunnerProfile = (handle: string) => request<RunnerProfile>(`/runners/${encodeURIComponent(handle.replace(/^@/, ''))}`)
 export const createBaton = (input: { mode: Exclude<RaceMode, 'daily'>; title: string; recipient?: string; bestOf?: 3 | 5; crewId?: string }) =>
   request<BatonDetail>('/create', input)
@@ -72,9 +77,12 @@ export const submitNetworkRace = (issued: IssuedRace, inputTrace: RaceTrace) => 
   delete signed.echoes
   return send<SubmittedRace>('/api/station/submit', { issued: signed, inputTrace })
 }
-/** Locks a pass to one runner. The note, when there is one, is moderated and bound into the handoff by the server. */
-export const prepareNetworkHandoff = (runId: string, recipient: string, launch?: { angle: number; power: number }, note?: RelayNote | null) =>
-  request<NetworkHandoffIntent>('/handoff/prepare', { runId, recipient, ...(launch ? { throw: launch } : {}), ...(note ? { note } : {}) } satisfies PrepareHandoffInput)
+/**
+ * Locks a pass to one runner. The note, when there is one, is moderated and bound into the handoff by the server, and so
+ * is the Atlas route; without a route the relay picks one.
+ */
+export const prepareNetworkHandoff = (runId: string, recipient: string, launch?: { angle: number; power: number }, note?: RelayNote | null, routeId?: string | null) =>
+  request<NetworkHandoffIntent>('/handoff/prepare', { runId, recipient, ...(launch ? { throw: launch } : {}), ...(note ? { note } : {}), ...(routeId ? { routeId } : {}) } satisfies PrepareHandoffInput)
 export const attemptNetworkHandoff = (id: string) => request<NetworkHandoffIntent>('/handoff/attempt', { id })
 export const cancelNetworkHandoff = (id: string) => request<NetworkHandoffIntent>('/handoff/cancel', { id })
 export const confirmNetworkHandoff = (id: string, txHash: string) => request<NetworkConfirmation>('/handoff/confirm', { id, txHash })

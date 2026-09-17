@@ -38,13 +38,14 @@ export function ArrivalTitle({ mode, stage, sender, ghost, mission, worldName, r
           <p className="leg-arrival__kicker">{copy.kicker}</p>
           <h1 className="leg-arrival__title">{copy.title}</h1>
           {note && <p className="leg-arrival__note">{note}</p>}
-          {mode === 'relay' && sender?.country && <p className="leg-arrival__place">{sender.country}</p>}
+          {header?.route && <p className="leg-arrival__place">{header.route}</p>}
           {remembered.length > 0 && <p className="leg-arrival__echoes">THIS SECTOR REMEMBERS: {remembered.join(', ')}</p>}
         </div>
       )}
       {stage !== 'arrival' && header && (
         <div className="leg-mission">
           <h2 className="leg-mission__title">{header.title}</h2>
+          {header.route && <p className="leg-mission__handoff">{header.route}</p>}
           {header.previous && <p className="leg-mission__previous">{header.previous}</p>}
           {header.handoff && <p className="leg-mission__handoff">{header.handoff}</p>}
         </div>

@@ -19,6 +19,8 @@ export interface RunnerKey {
 
 export const TIM: RunnerKey = { name: 'Tim', seedHex: '45b9c6d7c241ce9c7ab653681d9485b5fd4420a4720893f5e8c1c8ee7c9b0128' }
 export const MARIANA: RunnerKey = { name: 'Mariana', seedHex: 'ed5800c325124529612de78b167f2f4a351ad4d7e2042232921c9ea9dec4a100' }
+/** A runner who first signs in during the Relay Grants scenario, so no earlier scenario has given them a baton. */
+export const NOOR: RunnerKey = { name: 'Noor', seedHex: '8a1f3c5e7b9d2f4a6c8e0b2d4f6a8c0e1b3d5f7a9c2e4b6d8f0a1c3e5b7d9f21' }
 /** A wallet no runner in the test signs in with, for transfers that reach the wrong recipient. */
 const STRANGER_SEED = '49d62ef6db86d3fe880ffa75b67c1cd90ac04b7beaefca5bc894f07b808d51a9'
 

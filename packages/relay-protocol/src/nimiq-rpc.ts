@@ -44,6 +44,12 @@ export interface AddressHistoryEntry {
   transaction: NimiqTransaction | null
 }
 
+export interface AccountBalance {
+  luna: bigint
+  /** The block the balance was read at. */
+  blockNumber: number
+}
+
 /** The head block a node serves. */
 export interface ChainHead {
   blockNumber: number
@@ -88,6 +94,10 @@ export class NimiqRpcClient {
   }
 
   private async call<T>(method: string, params: unknown[]): Promise<T> {
+    return (await this.callWithMetadata(method, params)).data as T
+  }
+
+  private async callWithMetadata(method: string, params: unknown[]): Promise<{ data: unknown; metadata: unknown }> {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), this.timeoutMs)
     // Called unbound: the Workers runtime throws "Illegal invocation" when fetch runs as a method of this client.
@@ -103,7 +113,7 @@ export class NimiqRpcClient {
         throw new NimiqRpcError(`RPC HTTP ${res.status}`, null, null)
       }
       const json = (await res.json()) as {
-        result?: { data: T; metadata: unknown }
+        result?: { data: unknown; metadata: unknown }
         error?: { code: number; message: string; data?: unknown }
       }
       if (json.error) {
@@ -115,7 +125,7 @@ export class NimiqRpcClient {
       if (!json.result) {
         throw new NimiqRpcError('RPC response missing result', null, json)
       }
-      return json.result.data
+      return json.result
     } finally {
       clearTimeout(timer)
     }
@@ -153,6 +163,26 @@ export class NimiqRpcClient {
     const raw = await this.call<unknown>('getTransactionsByAddress', [address, max, startAt])
     if (!Array.isArray(raw)) throw new Error('RPC transaction history invalid')
     return raw.map(historyEntry)
+  }
+
+  /**
+   * The spendable balance of `address` in Luna, with the block it was read at (`get_account_by_address` in
+   * core-rs-albatross rpc-interface/src/blockchain.rs). An address that never received anything reads as zero.
+   */
+  async getAccountBalance(address: string): Promise<AccountBalance> {
+    const { data, metadata } = await this.callWithMetadata('getAccountByAddress', [address])
+    if (!data || typeof data !== 'object') throw new Error('RPC account invalid')
+    const { balance } = data as Record<string, unknown>
+    const blockNumber = metadata && typeof metadata === 'object' ? (metadata as Record<string, unknown>).blockNumber : null
+    if (!isWholeNumber(balance) || !isWholeNumber(blockNumber)) throw new Error('RPC account balance invalid')
+    return { luna: BigInt(balance), blockNumber }
+  }
+
+  /** Broadcasts a signed transaction and returns the hash the node computed for it. */
+  async sendRawTransaction(serializedHex: string): Promise<string> {
+    const hash = await this.call<unknown>('sendRawTransaction', [serializedHex])
+    if (typeof hash !== 'string' || !/^[a-f0-9]{64}$/i.test(hash)) throw new Error('RPC broadcast returned no transaction hash')
+    return hash.toLowerCase()
   }
 
   async getLatestBlock(): Promise<ChainHead> {

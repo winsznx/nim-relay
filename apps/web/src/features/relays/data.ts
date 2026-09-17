@@ -16,6 +16,8 @@ export const relayKeys = {
   runner: (handle: string) => ['runner', handle] as const,
   invite: (token: string) => ['invite', token] as const,
   replay: (runId: string) => ['replay', runId] as const,
+  atlas: ['atlas'] as const,
+  atlasRoute: (routeId: string) => ['atlas-route', routeId] as const,
 }
 
 /** Minute-resolution clock for ages and "time alive". */
@@ -120,6 +122,15 @@ export function useChronicle(code: string) {
   return useQuery({ queryKey: relayKeys.chronicle(code), queryFn: () => api.loadChronicle(code), retry: retryUnlessRefused, staleTime: 5 * 60_000, refetchOnWindowFocus: false })
 }
 
+/** Public Atlas aggregates. They change only when a handoff verifies, so live updates refresh them. */
+export function useAtlas(enabled = true) {
+  return useQuery({ queryKey: relayKeys.atlas, queryFn: api.loadAtlas, enabled, refetchInterval: 60_000, staleTime: 15_000, retry: retryUnlessRefused })
+}
+
+export function useAtlasRoute(routeId: string | null) {
+  return useQuery({ queryKey: relayKeys.atlasRoute(routeId ?? ''), queryFn: () => api.loadAtlasRoute(routeId ?? ''), enabled: !!routeId, staleTime: 15_000, retry: retryUnlessRefused })
+}
+
 export function useRunnerProfile(handle: string | null) {
   return useQuery({ queryKey: relayKeys.runner(handle ?? ''), queryFn: () => api.loadRunnerProfile(handle ?? ''), enabled: !!handle, retry: retryUnlessRefused })
 }
@@ -127,7 +138,7 @@ export function useRunnerProfile(handle: string | null) {
 /** `liveOnly` when only legs in progress changed, which leaves the station profile as it was. */
 function refreshNetwork(client: QueryClient, liveOnly = false): void {
   // Chronicles are left out on purpose: every Chronicle load is counted as a view.
-  for (const queryKey of [relayKeys.network, relayKeys.publicNetwork, ['baton'], ...(liveOnly ? [] : [relayKeys.station])]) void client.invalidateQueries({ queryKey })
+  for (const queryKey of [relayKeys.network, relayKeys.publicNetwork, ['baton'], ...(liveOnly ? [] : [relayKeys.station, relayKeys.atlas, ['atlas-route']])]) void client.invalidateQueries({ queryKey })
 }
 
 

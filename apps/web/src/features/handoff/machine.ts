@@ -1,4 +1,4 @@
-import { MAX_RELAY_NOTE_CHARS, type NetworkBaton, type NetworkConfirmation, type NetworkHandoffIntent, type RelayNote } from '@nim-relay/shared'
+import { MAX_RELAY_NOTE_CHARS, type AtlasNextRoute, type NetworkBaton, type NetworkConfirmation, type NetworkHandoffIntent, type RelayNote } from '@nim-relay/shared'
 
 /**
  * The handoff ceremony as an explicit state machine. The baton only leaves the
@@ -38,7 +38,11 @@ export type VerificationFailure =
   | 'NOT_SENT'
   | 'UNKNOWN'
 
+/** The relay refused the chosen Atlas route, e.g. because the baton moved on. */
+export type RouteNotice = 'route-unavailable'
+
 export type HandoffStage =
+  | { stage: 'route'; notice: RouteNotice | null }
   | { stage: 'choose'; notice: ChooseNotice | null }
   | { stage: 'note'; recipient: RunnerChoice; draft: RelayNote | null; refusal: NoteRefusal | null }
   | { stage: 'aiming'; recipient: RunnerChoice; note: RelayNote | null }
@@ -61,8 +65,11 @@ export interface TransferRecord {
 }
 
 export interface HandoffDeps {
-  /** Locks the pass on the server. `note` is already trimmed and within the length limit, or null for none. */
-  prepare(runId: string, recipientId: string, launch: LaunchParameters, note: RelayNote | null): Promise<NetworkHandoffIntent>
+  /**
+   * Locks the pass on the server. `note` is already trimmed and within the length limit, or null for none. `routeId` is
+   * the holder's Atlas route, or null to let the relay pick.
+   */
+  prepare(runId: string, recipientId: string, launch: LaunchParameters, note: RelayNote | null, routeId: string | null): Promise<NetworkHandoffIntent>
   attempt(intentId: string): Promise<NetworkHandoffIntent>
   cancel(intentId: string): Promise<NetworkHandoffIntent>
   confirm(intentId: string, hash: string): Promise<NetworkConfirmation>
@@ -153,14 +160,38 @@ function errorCode(error: unknown): string {
 export const CONFIRM_BACKOFF = [2500, 3500, 5000, 6000, 8000, 10000, 12000, 15000, 15000, 20000] as const
 
 export class HandoffOrchestrator {
-  private state: HandoffStage = { stage: 'choose', notice: null }
+  private state: HandoffStage
   private listeners = new Set<() => void>()
   private generation = 0
+  /** The Atlas route the holder picked; null while the relay picks. */
+  private route: string | null = null
 
+  /**
+   * `routes` is how the relay lets this pass set the next leg's Atlas route. When the holder may choose, the ceremony
+   * opens on the route step; otherwise the relay applies its route and the ceremony opens on the runner.
+   */
   constructor(
     private readonly deps: HandoffDeps,
     private readonly runId: string,
-  ) {}
+    private readonly routes: AtlasNextRoute | null = null,
+  ) {
+    this.state = this.choosesRoute ? { stage: 'route', notice: null } : { stage: 'choose', notice: null }
+  }
+
+  /** Whether this pass offers a choice of route. */
+  get choosesRoute(): boolean {
+    return this.routes?.policy === 'choose' && this.routes.routeIds.length > 0
+  }
+
+  /** How this pass sets the next leg's route, as the relay offered it. */
+  get nextRoutes(): AtlasNextRoute | null {
+    return this.routes
+  }
+
+  /** The route the holder picked for the next leg, or null when the relay picks. */
+  get chosenRoute(): string | null {
+    return this.route
+  }
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener)
@@ -226,6 +257,21 @@ export class HandoffOrchestrator {
     this.set({ stage: 'recovery', intent, invalidHash: false })
   }
 
+  /** Picks the next leg's Atlas route, or leaves it to the relay with null, and moves on to the runner. */
+  chooseRoute(routeId: string | null): void {
+    if (this.state.stage !== 'route') return
+    if (routeId !== null && !this.routes?.routeIds.includes(routeId)) return
+    this.route = routeId
+    this.set({ stage: 'choose', notice: null })
+  }
+
+  /** Back to the route step from the runner, note or throw, keeping the current pick until another is made. */
+  changeRoute(): void {
+    const { stage } = this.state
+    if (!this.choosesRoute || (stage !== 'choose' && stage !== 'note' && stage !== 'aiming')) return
+    this.set({ stage: 'route', notice: null })
+  }
+
   /** Locks the next runner locally and opens the relay note; nothing is sent to the server until the throw. */
   select(recipient: RunnerChoice): void {
     const { stage } = this.state
@@ -262,9 +308,14 @@ export class HandoffOrchestrator {
     this.set({ stage: 'preparing', recipient, note })
     let intent: NetworkHandoffIntent
     try {
-      intent = await this.deps.prepare(this.runId, recipient.id, launch, note)
+      intent = await this.deps.prepare(this.runId, recipient.id, launch, note, this.route)
     } catch (error) {
       const code = errorCode(error)
+      if (code === 'route_not_available' && this.choosesRoute) {
+        this.route = null
+        this.set({ stage: 'route', notice: 'route-unavailable' })
+        return
+      }
       const refusal = noteRefusalForError(code)
       if (refusal) {
         this.set({ stage: 'note', recipient, draft: note, refusal })

@@ -26,9 +26,9 @@ describe('baton history', () => {
     const journey = await createBaton(a, { mode: 'global', title: 'History in the making' })
     batonId = journey.baton.id
     batonCode = journey.baton.code
-    passes.push(await passBaton(a, b, batonId, issued => finishingTrace(issued.config, 'risk')))
-    passes.push(await passBaton(b, a, batonId, issued => finishingTrace(issued.config, 'safe')))
-    passes.push(await passBaton(a, b, batonId, issued => finishingTrace(issued.config, 'safe')))
+    passes.push(await passBaton(a, b, batonId, issued => finishingTrace(issued.config, 'risk'), 'same'))
+    passes.push(await passBaton(b, a, batonId, issued => finishingTrace(issued.config, 'safe'), 'same'))
+    passes.push(await passBaton(a, b, batonId, issued => finishingTrace(issued.config, 'safe'), 'same'))
   }, 30_000)
 
   it('draws the sector echoes in the next issued race', async () => {

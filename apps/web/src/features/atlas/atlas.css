@@ -1,0 +1,196 @@
+/* Relay Atlas: stations are game-world destinations, routes glow with verified heat. */
+.nr-routeline {
+  --nr-route-ink: rgba(159, 178, 214, 0.45);
+  margin: 2px 0 var(--nr-space-4);
+}
+.nr-routeline[data-heat='warm'] {
+  --nr-route-ink: rgba(245, 166, 35, 0.55);
+}
+.nr-routeline[data-heat='hot'] {
+  --nr-route-ink: var(--nr-gold);
+}
+.nr-routeline[data-heat='blazing'] {
+  --nr-route-ink: var(--nr-gold-light);
+}
+.nr-routeline__arc {
+  display: block;
+  width: 100%;
+  height: 56px;
+  overflow: visible;
+}
+.nr-routeline__arc path {
+  fill: none;
+  stroke: var(--nr-route-ink);
+  stroke-width: 2;
+  stroke-dasharray: 6 5;
+  vector-effect: non-scaling-stroke;
+}
+.nr-routeline[data-heat='hot'] .nr-routeline__arc path,
+.nr-routeline[data-heat='blazing'] .nr-routeline__arc path {
+  stroke-dasharray: none;
+  filter: drop-shadow(0 0 6px var(--nr-gold-glow));
+}
+.nr-routeline__arc circle {
+  fill: var(--nr-night-900);
+  stroke: var(--nr-route-ink);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.nr-routeline__ends {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--nr-space-3);
+  margin-top: 6px;
+  font-weight: 650;
+}
+.nr-routeline__ends span:last-child {
+  text-align: right;
+}
+.nr-routeline__meta {
+  margin: 4px 0 0;
+  color: var(--nr-mist);
+  font-size: var(--nr-text-sm);
+}
+.nr-atlas-lede {
+  margin: 0 0 var(--nr-space-4);
+  color: var(--nr-ink-soft);
+}
+
+/* Light the world */
+.nr-light {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: var(--nr-space-3);
+  padding: 10px 14px;
+  border-radius: var(--nr-radius-md);
+  border: 1px solid rgba(245, 166, 35, 0.22);
+  background: rgba(9, 13, 25, 0.72);
+  -webkit-backdrop-filter: var(--nr-blur);
+  backdrop-filter: var(--nr-blur);
+  color: inherit;
+  text-decoration: none;
+}
+.nr-light__title {
+  margin: 0;
+  font-size: var(--nr-text-sm);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.nr-light__count {
+  margin: 0;
+  color: var(--nr-gold-light);
+  font-size: var(--nr-text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.nr-light__bar {
+  grid-column: 1 / -1;
+  position: relative;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(206, 220, 255, 0.1);
+  overflow: hidden;
+}
+.nr-light__bar span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--nr-gold-deep), var(--nr-gold-light));
+  box-shadow: 0 0 10px var(--nr-gold-glow);
+}
+
+/* Journey across the Atlas */
+.nr-atlas-journey__scrub {
+  display: grid;
+  gap: 6px;
+  margin: var(--nr-space-3) 0;
+}
+.nr-atlas-journey__scrub input[type='range'] {
+  width: 100%;
+  accent-color: var(--nr-gold);
+}
+.nr-atlas-journey__now {
+  margin: 0;
+  font-weight: 650;
+}
+.nr-atlas-journey__detail {
+  margin: 0;
+  color: var(--nr-mist);
+  font-size: var(--nr-text-sm);
+}
+.nr-atlas-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.nr-atlas-step {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--nr-line);
+}
+.nr-atlas-step::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  margin-top: 5px;
+  border-radius: 50%;
+  border: 2px solid var(--nr-gold);
+}
+.nr-atlas-step[data-current='true']::before {
+  background: var(--nr-gold);
+  box-shadow: 0 0 10px var(--nr-gold-glow);
+}
+.nr-atlas-step[data-progress='true']::before {
+  border-style: dashed;
+}
+.nr-atlas-step__title {
+  margin: 0;
+  font-weight: 620;
+}
+.nr-atlas-step__meta {
+  margin: 1px 0 0;
+  color: var(--nr-mist);
+  font-size: var(--nr-text-sm);
+}
+
+/* Profile missions */
+.nr-missions {
+  display: grid;
+  gap: 8px;
+  margin: var(--nr-space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.nr-mission {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 12px;
+  padding: 10px 12px;
+  border-radius: var(--nr-radius-md);
+  border: 1px solid var(--nr-line);
+}
+.nr-mission[data-done='true'] {
+  border-color: rgba(245, 166, 35, 0.35);
+  background: var(--nr-gold-wash);
+}
+.nr-mission__title {
+  margin: 0;
+  font-weight: 700;
+}
+.nr-mission__progress {
+  margin: 0;
+  color: var(--nr-gold-light);
+  font-variant-numeric: tabular-nums;
+}
+.nr-mission__meta {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--nr-mist);
+  font-size: var(--nr-text-sm);
+}
+.nr-stat-row + .nr-atlas-lede {
+  margin-top: var(--nr-space-3);
+}

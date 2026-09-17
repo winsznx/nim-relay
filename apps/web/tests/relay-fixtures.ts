@@ -1,4 +1,5 @@
 import type { Page, Route } from '@playwright/test'
+import { ATLAS_ROUTES, ATLAS_STATIONS, type AtlasJourneyEntry, type AtlasLeg, type AtlasProfile, type AtlasRouteStats, type AtlasSnapshot } from '@nim-relay/shared'
 import type { BatonChronicle, BatonDetail, BatonHandoff, BatonLive, CanonicalGhost, NetworkBaton, NetworkMetrics, NetworkRunner, NetworkSnapshot, RunnerProfile, StationSnapshot } from '@nim-relay/shared'
 
 /**
@@ -74,6 +75,15 @@ export function emptySnapshot(network: NetworkSnapshot['network'] = 'TestAlbatro
   }
 }
 
+/** Stations a fixture baton travels through, in order; every consecutive pair is a catalogue route. */
+export const FIXTURE_STATIONS = ['genesis', 'cape-verdigris', 'meridian-yard', 'fjordgate', 'polar-drift', 'aurora-ridge', 'lakeshore-grid'] as const
+
+export function fixtureLeg(index: number): AtlasLeg {
+  const origin = FIXTURE_STATIONS[index % (FIXTURE_STATIONS.length - 1)]!
+  const destination = FIXTURE_STATIONS[(index % (FIXTURE_STATIONS.length - 1)) + 1]!
+  return { routeId: `${origin}-to-${destination}`, origin, destination }
+}
+
 export function baton(input: { id: string; code: string; serial: number; mode: NetworkBaton['mode']; title: string; path: NetworkRunner[]; createdAt: number; updatedAt: number; status?: NetworkBaton['status']; crewId?: string | null; rivalId?: string | null; recipientId?: string | null; ghostWins?: number }): NetworkBaton {
   const origin = input.path[0] ?? RUNNERS.ada
   const holder = input.path.at(-1) ?? origin
@@ -96,7 +106,7 @@ export function baton(input: { id: string; code: string; serial: number; mode: N
     status: input.status ?? 'active',
     handoffCount,
     world: 'coast',
-    route: { seed: `baton-${input.code}-v4`, world: 'coast', tier: 0, sector: 0, sectorStartedLeg: 0 },
+    route: { seed: `baton-${input.code}-v4`, world: 'coast', tier: 0, sector: handoffCount, sectorStartedLeg: handoffCount, ...fixtureLeg(handoffCount) },
     previousRunId: handoffCount > 0 ? `run-${input.code}-${handoffCount}` : null,
     crewId: input.crewId ?? null,
     rivalId: input.rivalId ?? null,
@@ -109,7 +119,7 @@ export function baton(input: { id: string; code: string; serial: number; mode: N
     appearance: { handoffCount, ageMs: input.updatedAt - input.createdAt, countries: countries.length, ghostWins: input.ghostWins ?? 0, milestones: [] },
     aliveMs: (input.status === 'completed' ? input.updatedAt : Date.now()) - input.createdAt,
     transactingWallets: handoffCount === 0 ? 0 : new Set(input.path.map(item => item.wallet)).size,
-    stops: input.path.map(item => ({ countryCode: item.country })),
+    hops: Array.from({ length: input.status === 'completed' ? handoffCount : handoffCount + 1 }, (_, index) => fixtureLeg(index)),
   }
 }
 
@@ -140,6 +150,7 @@ export function populatedNetwork(now = Date.now()): { snapshot: NetworkSnapshot;
       race: { engineVersion: '4', world: 'coast', timeMs: 61_200 - index * 830, score: 18_400 + index * 950, completed: true, ghostRunId: index ? `run-${global.code}-${index}` : null, ghostTimeMs: null, beatGhost: index > 0 ? index % 2 === 1 : null },
       rescue: false,
       note: null,
+      atlas: { ...fixtureLeg(index), backfilled: false, onCourse: true },
     }
   })
   const snapshot: NetworkSnapshot = {
@@ -162,11 +173,77 @@ export function populatedNetwork(now = Date.now()): { snapshot: NetworkSnapshot;
       ghost: null,
       pendingHandoff: null,
       notableRuns: handoffs.map(item => ({ runId: item.runId, name: item.from.name, score: item.race?.score ?? 0, resultHash: item.resultHash })),
+      atlas: batonAtlasOf(global, handoffs),
       echoes: [{ id: 'echo-1', batonId: global.id, kind: 'ghost-record', runner: { id: mei.id, name: mei.name }, leg: 3, runId: handoffs[2]?.runId ?? '', sector: 0, dist: null, at: now - 14 * HOUR }],
       live: null,
     },
   }
   return { snapshot, details }
+}
+
+/** The baton's Atlas journey as the Worker presents it: verified legs, then the leg in progress. */
+export function batonAtlasOf(item: NetworkBaton, handoffs: readonly BatonHandoff[]): BatonDetail['atlas'] {
+  const journey: AtlasJourneyEntry[] = handoffs.map(handoff => ({ kind: 'leg', leg: handoff.leg, ...fixtureLeg(handoff.leg - 1), runner: { name: handoff.from.name, handle: handoff.from.handle }, timeMs: handoff.race?.timeMs ?? null, txHash: handoff.txHash, at: handoff.at, backfilled: false }))
+  if (item.status !== 'completed') journey.push({ kind: 'leg', leg: item.handoffCount + 1, ...fixtureLeg(item.handoffCount), runner: { name: item.holder.name, handle: item.holder.handle }, timeMs: null, txHash: null, at: item.updatedAt, backfilled: false })
+  const current = fixtureLeg(item.handoffCount)
+  const onward = ATLAS_ROUTES.filter(route => route.from === current.destination).map(route => route.id)
+  // A Quick round's opening pass keeps its route, as the Worker rules.
+  const fixed = item.mode === 'quick' && (item.handoffCount + 1) % 2 === 1
+  return {
+    journey,
+    current,
+    next: item.status === 'completed' ? null : fixed ? { policy: 'fixed', station: current.destination, routeIds: [current.routeId], rerunRouteId: current.routeId, defaultRouteId: current.routeId } : { policy: 'choose', station: current.destination, routeIds: [current.routeId, ...onward], rerunRouteId: current.routeId, defaultRouteId: onward[0] ?? current.routeId },
+  }
+}
+
+/** Atlas aggregates for a fixture network: legs of the detailed batons light their routes and stations. */
+export function atlasSnapshotOf(network: { snapshot: NetworkSnapshot; details: Record<string, BatonDetail> }, now = Date.now()): AtlasSnapshot {
+  const legs = Object.values(network.details).flatMap(detail => detail.handoffs)
+  const routes: AtlasRouteStats[] = ATLAS_ROUTES.map(route => {
+    const onRoute = legs.filter(leg => leg.atlas.routeId === route.id)
+    const fastest = [...onRoute].sort((a, b) => (a.race?.timeMs ?? Infinity) - (b.race?.timeMs ?? Infinity))[0]
+    const batonCode = (batonId: string) => network.snapshot.batons.find(item => item.id === batonId)?.code ?? ''
+    return {
+      routeId: route.id,
+      verifiedRuns: onRoute.length,
+      qualifiedRunners: new Set(onRoute.map(leg => leg.from.id)).size,
+      fastest: fastest?.race ? { runnerName: fastest.from.name, runnerHandle: fastest.from.handle, timeMs: fastest.race.timeMs, runId: fastest.runId, batonCode: batonCode(fastest.batonId), leg: fastest.leg, at: fastest.at } : null,
+      ghostRecord: null,
+      activeBatons: network.snapshot.batons.filter(item => item.status === 'active' && item.route.routeId === route.id).map(item => ({ code: item.code, displayName: item.displayName })),
+      heat: onRoute.length,
+      heatLevel: onRoute.length === 0 ? 0 : Math.min(1, 0.4 + onRoute.length * 0.2),
+      lit: onRoute.length > 0,
+      lastRunAt: onRoute.at(-1)?.at ?? null,
+    }
+  })
+  const litStations = new Set(legs.flatMap(leg => [leg.atlas.origin, leg.atlas.destination]))
+  const stations = ATLAS_STATIONS.map(station => ({ stationId: station.id, lit: litStations.has(station.id), legs: legs.filter(leg => leg.atlas.origin === station.id || leg.atlas.destination === station.id).length }))
+  return {
+    version: 1,
+    generatedAt: now,
+    routes,
+    stations,
+    lightTheWorld: { stationsLit: litStations.size, stationsTotal: stations.length, routesLit: routes.filter(route => route.lit).length, routesTotal: routes.length },
+  }
+}
+
+export function atlasProfileOf(legs: number): AtlasProfile {
+  const routes = Array.from({ length: legs }, (_, index) => fixtureLeg(index).routeId)
+  const stations = [...new Set(Array.from({ length: legs }, (_, index) => [fixtureLeg(index).origin, fixtureLeg(index).destination]).flat())]
+  return {
+    stationsVisited: stations.length,
+    routesCompleted: routes.length,
+    routesDiscovered: routes.length + 2,
+    journeys: legs > 0 ? 1 : 0,
+    stations,
+    routes,
+    missions: [
+      { id: 'explorer', title: 'EXPLORER', description: 'Complete 3 distinct routes', target: 3, progress: Math.min(3, routes.length), completedAt: routes.length >= 3 ? Date.now() - HOUR : null, reward: 'Explorer trail mark' },
+      { id: 'station-hopper', title: 'STATION HOPPER', description: 'Visit 5 stations', target: 5, progress: Math.min(5, stations.length), completedAt: stations.length >= 5 ? Date.now() - HOUR : null, reward: 'Station stamp on your baton history' },
+      { id: 'lamplighter', title: 'LAMPLIGHTER', description: 'Light a dark route with the first qualified leg on it', target: 1, progress: 0, completedAt: null, reward: 'Lamplighter artifact' },
+      { id: 'legs-25', title: '25 RELAY LEGS', description: 'Race 25 qualified relay legs', target: 25, progress: legs, completedAt: null, reward: 'Bronze baton history mark' },
+    ],
+  }
 }
 
 /** Mirrors LIVE_LEG_WINDOW_MS: the Worker stops presenting a live leg once its latest report is this old. */
@@ -255,6 +332,7 @@ export function profileOf(item: NetworkRunner, snapshot: NetworkSnapshot): Runne
     artifacts: [],
     cosmetics: { suit: 'solar', helmet: 'visor', board: 'vector', trail: 'comet' },
     recentRunners: [],
+    atlas: atlasProfileOf(batons.length),
   }
 }
 
@@ -354,6 +432,14 @@ export async function mockRelayApi(page: Page, network: MockNetwork, account?: R
     if (replayMatch) {
       const replay = network.replays?.[decodeURIComponent(replayMatch[1] ?? '')]
       return replay ? json(route, 200, replay) : json(route, 404, { error: 'verified_replay_not_found' })
+    }
+    if (path === '/api/station/network/atlas') return json(route, 200, atlasSnapshotOf({ snapshot: network.snapshot, details: network.details ?? {} }))
+    const atlasRouteMatch = path.match(/^\/api\/station\/network\/atlas\/routes\/([^/]+)$/)
+    if (atlasRouteMatch) {
+      const routeId = decodeURIComponent(atlasRouteMatch[1] ?? '')
+      const atlasRoute = ATLAS_ROUTES.find(candidate => candidate.id === routeId)
+      const stats = atlasSnapshotOf({ snapshot: network.snapshot, details: network.details ?? {} }).routes.find(candidate => candidate.routeId === routeId)
+      return atlasRoute && stats ? json(route, 200, { version: 1, route: atlasRoute, stats }) : json(route, 404, { error: 'route_not_found' })
     }
     if (path.startsWith('/api/station/network/track')) return json(route, 200, { counted: true })
     return json(route, 401, { error: 'no_session' })

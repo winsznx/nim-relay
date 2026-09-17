@@ -84,6 +84,21 @@ authRoutes.post('/verify', async (c) => {
   return c.json({ player: publicPlayer(player) })
 })
 
+const deviceBody = z.object({ deviceId: z.string().min(1).max(512) }).strict()
+
+/**
+ * Links a Nimiq Pay device signal to the current session, for runners who signed in without one and now need it (a
+ * Relay Grant claim). Only the HMAC is stored; a session keeps the first device it was linked to.
+ */
+authRoutes.post('/device', requireSession, async (c) => {
+  const parsed = deviceBody.safeParse(await c.req.json().catch(() => null))
+  if (!parsed.success) return c.json({ error: 'bad_request' }, 400)
+  const deviceHash = await hashDeviceId(c.env, parsed.data.deviceId)
+  const session = await getAuthStore(c.env).attachDevice(c.get('session').id, c.get('playerId'), deviceHash)
+  if (!session) return c.json({ error: 'session_expired' }, 401)
+  return c.json({ deviceSignal: session.deviceHash !== null })
+})
+
 authRoutes.post('/logout', requireSession, async (c) => {
   await getAuthStore(c.env).revokeSession(c.get('session').id)
   c.header('Set-Cookie', clearSessionCookieHeader())

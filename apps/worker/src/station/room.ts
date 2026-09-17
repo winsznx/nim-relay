@@ -6,7 +6,7 @@ import { isFailedLeg, type CanonicalGhost, type HandoffIntent, type IssuedRace, 
 import type { Env } from '../env'
 import type { PlayerRecord } from '../auth/store'
 import { ApiError, type Profile, type Run, type State } from './model'
-import { HANDOFF_CHECK_COOLDOWN_MS, MAX_UNSENT_PASS_LOOKUPS, RECONCILE_INTERVAL_MS, UNSENT_PASS_LOOKUP_AFTER_MS, UNSENT_PASS_RECHECK_MS } from './network/constants'
+import { HANDOFF_CHECK_COOLDOWN_MS, MAX_UNSENT_PASS_LOOKUPS, RECONCILE_INTERVAL_MS, RECONCILE_RETRY_MS, UNSENT_PASS_LOOKUP_AFTER_MS, UNSENT_PASS_RECHECK_MS } from './network/constants'
 import { lookupTransaction, type TransactionLookup } from './network/handoff'
 import { attemptedPass, AttemptLookupPacer, HANDOFF_CHECK_PATH, lookUpAttemptedPass, type AttemptEvidence } from './network/handoff-recovery'
 import { LiveLegs, liveKeyPrefix } from './network/live'
@@ -15,6 +15,7 @@ import { isOperator } from './network/ops'
 import { recordRefusedSubmission, type SubmissionRefusal } from './network/ops-ledger'
 import { LEG_PROGRESS_PATH } from './network/progress'
 import { handlePreferences, isPreferencesPath } from './network/preferences'
+import { GrantDesk } from './network/grants/desk'
 import { isPublicNetworkPath, RelayNetworkService, type ChainLookups } from './network/service'
 import { networkStateKey } from './network/state'
 import { isTourTrack, readTourLedger, recordTourEvent, tourLedgerKey } from './network/tour-ledger'
@@ -27,6 +28,8 @@ interface StationEnvelope {
   body: unknown
   country?: string
   actorId?: string | null
+  /** Relay Grants paths only: the HMAC device signal of the session, or null when it has none. */
+  deviceHash?: string | null
 }
 
 /** Asks open clients to refetch. `live` marks a change to legs in progress only, which leaves the network version as it was. */
@@ -40,6 +43,7 @@ const cosmetics: StationSnapshot['cosmetics'] = [
   { id: 'gold', category: 'trail', name: 'Gold Wake', xp: 0 }, { id: 'aurora', category: 'trail', name: 'Aurora Wake', xp: 1000 },
 ]
 /** Network writes that other open clients should refetch after. */
+const GRANTS_PATH = '/network/grants'
 const QUIET_NETWORK_PATHS = ['/', '/heartbeat', '/inbox/read']
 const initial = (): State => ({ players: {}, crews: [], challenges: [], chronicles: [], global: { holderId: null, holderName: null, leg: 0, world: 'coast', seed: 'route-coast-v4' }, latest: {}, intents: {}, usedTx: {} })
 const issueSchema = z.object({ mode: z.enum(['quick', 'global', 'crew', 'rival', 'daily']), world: z.enum(worlds), target: z.string().max(80).optional() })
@@ -50,11 +54,14 @@ export class StationRoom extends DurableObject<Env> {
   private readonly live = new LiveLegs(this.ctx.storage, liveKeyPrefix(networkStateKey(this.env.NIMIQ_NETWORK)))
   private readonly liveUpdates = new LiveUpdates(() => this.broadcast({ type: 'network_updated', live: true }))
   private readonly attemptLookups = new AttemptLookupPacer()
+  private readonly grants = new GrantDesk({ storage: this.ctx.storage, env: this.env, exclusively: work => this.exclusively(work), loadNetwork: () => this.loadNetwork() })
 
   override async fetch(request: Request): Promise<Response> {
     if (request.headers.get('Upgrade') === 'websocket') { const pair = new WebSocketPair(); this.ctx.acceptWebSocket(pair[1]); return new Response(null, { status: 101, webSocket: pair[0] }) }
     // A handoff check reads the chain, which must never hold the critical section.
     if (new URL(request.url).pathname === `/network${HANDOFF_CHECK_PATH}`) return this.respond(async () => Response.json(await this.checkHandoff(await request.json() as StationEnvelope)))
+    // Grant claims read and write the chain between critical sections of their own.
+    if (new URL(request.url).pathname.startsWith(GRANTS_PATH)) return this.respond(async () => Response.json(await this.handleGrants(new URL(request.url).pathname, await request.json() as StationEnvelope), { headers: { 'Cache-Control': 'no-store' } }))
     return this.ctx.blockConcurrencyWhile(() => this.respond(() => this.handle(request)))
   }
 
@@ -113,6 +120,25 @@ export class StationRoom extends DurableObject<Env> {
     const result = await network.reportProgress(profile, body)
     if (result.accepted) this.liveUpdates.changed(Date.now())
     return result
+  }
+
+  private async handleGrants(path: string, envelope: StationEnvelope): Promise<unknown> {
+    if (path === `${GRANTS_PATH}/summary`) return this.grants.summary()
+    const { player } = envelope
+    if (!player) throw new ApiError('sign_in_to_join', 401)
+    const claimant = { player, deviceHash: envelope.deviceHash ?? null }
+    switch (path) {
+      case GRANTS_PATH:
+        return this.grants.view(claimant)
+      case `${GRANTS_PATH}/claim`:
+        return this.grants.claim(claimant, envelope.body)
+      case `${GRANTS_PATH}/ops`:
+        return this.grants.opsReport(player)
+      case `${GRANTS_PATH}/pause`:
+        return this.grants.setPaused(player, envelope.body)
+      default:
+        throw new ApiError('not_found', 404)
+    }
   }
 
   /** Operators listed in OPS_PLAYERS only, checked before any network state loads. Reads without writing anything. */
@@ -274,12 +300,15 @@ export class StationRoom extends DurableObject<Env> {
    */
   override async alarm(): Promise<void> {
     const lookups = await this.lookUpChain()
-    await this.exclusively(async () => {
+    const grantEvidence = await this.grants.gatherEvidence()
+    const grantsOpen = await this.exclusively(async () => {
       const network = await this.loadNetwork()
       await network.reconcile(lookups)
       await this.live.prune(Date.now())
+      return this.grants.applyEvidence(network, grantEvidence)
     })
-    if (await this.archiveNetworkState()) await this.ctx.storage.setAlarm(Date.now() + RECONCILE_INTERVAL_MS)
+    if (grantsOpen) await this.ctx.storage.setAlarm(Date.now() + RECONCILE_RETRY_MS)
+    if (await this.archiveNetworkState()) await this.ctx.storage.setAlarm(Date.now() + (grantsOpen ? RECONCILE_RETRY_MS : RECONCILE_INTERVAL_MS))
     await this.archiveStationRaces()
   }
 

@@ -35,7 +35,7 @@ function intent(state: NetworkHandoffIntent['state'], attemptedAt: number | null
   return {
     id: crypto.randomUUID(), batonId: 'baton-1', runId: 'run-1', recipientId: 'b', recipientName: 'B', sender: 'NQ00A', recipient: 'NQ00B', value: 100_000,
     data: 'NR1.CODE000001.1.AAAAAAAAAAAAAAAAAAAAAA', network: 'TestAlbatross', leg: 1, status: state === 'verified' ? 'verified' : 'pending', state,
-    txHash: null, createdAt: NOW - DAY, expiresAt: NOW - DAY + 5 * MINUTE, attemptedAt, failure: null, note: null,
+    txHash: null, createdAt: NOW - DAY, expiresAt: NOW - DAY + 5 * MINUTE, attemptedAt, failure: null, note: null, route: null,
   }
 }
 
@@ -52,7 +52,7 @@ function courier(id: string): NetworkRunner {
 }
 
 function handoff(at: number): BatonHandoff {
-  return { id: `handoff-${at}`, batonId: 'baton-1', leg: 1, from: courier('a'), to: courier('b'), value: 100_000, txHash: 'a'.repeat(64), network: 'TestAlbatross', at, runId: 'run-1', resultHash: 'hash', qualified: true, confirmations: 2, blockNumber: 1, sector: 0, race: null, rescue: false, note: null }
+  return { id: `handoff-${at}`, batonId: 'baton-1', leg: 1, from: courier('a'), to: courier('b'), value: 100_000, txHash: 'a'.repeat(64), network: 'TestAlbatross', at, runId: 'run-1', resultHash: 'hash', qualified: true, confirmations: 2, blockNumber: 1, sector: 0, race: null, rescue: false, note: null, atlas: { routeId: 'genesis-to-cape-verdigris', origin: 'genesis', destination: 'cape-verdigris', backfilled: false, onCourse: true } }
 }
 
 describe('operator access', () => {

@@ -46,7 +46,7 @@ describe('relay network custody', () => {
     expect((await api(b.cookie, '/network/issue', {batonId:journey.baton.id})).status).toBe(403)
     const issued = await (await api(a.cookie, '/network/issue', {batonId:journey.baton.id})).json() as IssuedRace
     expect((await api(a.cookie, '/submit', {issued,inputTrace:finishingTrace(issued.config)})).status).toBe(200)
-    const intent = await (await api(a.cookie, '/network/handoff/prepare', {runId:issued.runId,recipient:b.p.id})).json() as NetworkHandoffIntent
+    const intent = await (await api(a.cookie, '/network/handoff/prepare', {runId:issued.runId,recipient:b.p.id,routeId:issued.atlas?.routeId})).json() as NetworkHandoffIntent
     expect(intent.data).toContain(journey.baton.code)
     expect((await api(b.cookie, '/network/handoff/attempt', {id:intent.id})).status).toBe(404)
     const hash = 'd'.repeat(64)

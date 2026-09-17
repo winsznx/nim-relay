@@ -1,5 +1,6 @@
 import type { HandoffReasonCode } from '@nim-relay/shared'
 import { NimiqPayError } from '../../lib/nimiq'
+import { GRANT_API_COPY } from '../grants/copy'
 
 /**
  * Every refusal the relay server or Nimiq Pay can return, in the words a player
@@ -78,6 +79,8 @@ const API_COPY: Record<string, string> = {
   too_many_active_invites: 'You have 20 open invites. Wait for one to be used or to expire.',
   transaction_already_used: 'That transaction already counts for another handoff.',
   unknown_nonce: 'The sign-in request expired. Sign in again.',
+  // Relay Grants refusals, as the claim sheet words them.
+  ...GRANT_API_COPY,
   verified_replay_not_found: 'That verified ride isn’t available to watch.',
 }
 

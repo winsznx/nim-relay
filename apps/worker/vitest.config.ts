@@ -26,6 +26,9 @@ export default defineConfig({
           APP_ORIGIN: 'http://localhost:5173',
           // A test-only handle; see `operator()` in src/station/network/testing.ts.
           OPS_PLAYERS: 'runner-0ps0ps',
+          // Relay Grants run enabled in tests with a throwaway key that never held funds. Chain calls are stubbed per test.
+          TREASURY_ENABLED: 'true',
+          TREASURY_PRIVATE_KEY: '5a'.repeat(32),
         },
       },
     }),

@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
+import { AtlasProfileSection } from '../atlas/AtlasProfile'
 import { useNetwork, useRunnerProfile, useStationProfile } from '../relays/data'
 import { linkProps, navigate, pathFor } from '../shell/router'
 import { signOut, useSession } from '../shell/session'
@@ -8,6 +9,7 @@ import { Button, LinkButton } from '../shell/ui/Button'
 import { Loading } from '../shell/ui/primitives'
 import { Screen } from '../shell/ui/Screen'
 import { replayProductTour } from '../tour/launch'
+import { RelayGrantsPanel } from '../grants/RelayGrantsPanel'
 import { ArtifactTiles, AchievementShelf } from './profile/Collection'
 import { Locker, ProfileSettings, ProofDisclosure } from './profile/OwnerTools'
 import { LevelPlate, ProfileHeader } from './profile/ProfileHeader'
@@ -77,8 +79,11 @@ export function ProfileScreen({ entryKey }: { entryKey: string }) {
         </Button>
       </div>
 
+      <RelayGrantsPanel />
+
       {runner && (
         <>
+          <AtlasProfileSection atlas={runner.atlas} />
           <RelayHistory batons={runner.historicBatons} />
           <AchievementShelf achievements={runner.achievements} />
           <ArtifactTiles artifacts={runner.artifacts} codes={lookups.batonCodes} />

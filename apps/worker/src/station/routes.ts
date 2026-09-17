@@ -13,9 +13,20 @@ const crossOrigin = (origin: string | undefined, env: Env, url: string) => Boole
 
 stationRoutes.get('/public', c => stationRoom(c.env).fetch(new Request('https://station/public')))
 stationRoutes.get('/network/public', c => stationRoom(c.env).fetch(new Request('https://station/network/public', { method: 'POST', body: '{}' })))
+for (const path of ['/network/atlas', '/network/atlas/routes/:routeId']) {
+  // Atlas reads are public aggregates of verified legs; a short shared cache absorbs globe traffic.
+  stationRoutes.get(path, async c => {
+    const response = await stationRoom(c.env).fetch(new Request(`https://station${c.req.path.slice('/api/station'.length)}`, { method: 'POST', body: '{}' }))
+    if (!response.ok) return response
+    return new Response(response.body, { status: response.status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=15' } })
+  })
+}
 for (const path of ['/network/replays/:id', '/network/invites/:token', '/network/runners/:handle', '/network/chronicles/:code']) {
   stationRoutes.get(path, c => stationRoom(c.env).fetch(new Request(`https://station${c.req.path.slice('/api/station'.length)}`, { method: 'POST', body: '{}' })))
 }
+
+/** Public treasury status: totals and a coarse headroom level, never a player's address or device data. */
+stationRoutes.get('/network/grants/summary', c => stationRoom(c.env).fetch(new Request('https://station/network/grants/summary', { method: 'POST', body: '{}' })))
 
 /** Baton pages work signed in or out; the sender and recipient of a handoff also read its private note. */
 stationRoutes.get('/network/batons/:code', async c => {
@@ -46,5 +57,8 @@ stationRoutes.all('*', async c => {
   if (text.length > MAX_BODY_CHARS) return c.json({ error: 'request_too_large' }, 413)
   let body: unknown = null
   try { body = text ? JSON.parse(text) : null } catch { return c.json({ error: 'bad_request' }, 400) }
-  return stationRoom(c.env).fetch(new Request(`https://station${c.req.path.slice('/api/station'.length) || '/'}`, { method: 'POST', body: JSON.stringify({ player, body, country: c.req.raw.cf?.country }) }))
+  const path = c.req.path.slice('/api/station'.length) || '/'
+  // Only Relay Grants read the session's device signal, and only as its HMAC.
+  const deviceHash = path.startsWith('/network/grants') ? c.get('session').deviceHash : undefined
+  return stationRoom(c.env).fetch(new Request(`https://station${path}`, { method: 'POST', body: JSON.stringify({ player, body, country: c.req.raw.cf?.country, deviceHash }) }))
 })

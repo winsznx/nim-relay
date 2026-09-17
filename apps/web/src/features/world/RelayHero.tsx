@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { BatonLive, RelayNetwork } from '@nim-relay/shared'
-import { countryName, formatAgo, formatCount, formatDuration, formatNim } from '../relays/format'
+import { stationName } from '../atlas/model'
+import { formatAgo, formatCount, formatDuration, formatNim } from '../relays/format'
 import { carryingLine, liveNumbers } from '../relays/live'
 import { journeyHeadline, type Moment, type RelayView } from '../relays/model'
 import { linkProps, navigate, pathFor } from '../shell/router'
@@ -94,7 +95,7 @@ export function RelayHero({ relay, playerId, latestReplay, moments, now, live }:
       <StatRow label="Relay statistics" relay>
         <Stat value={<span className="nr-num">{formatCount(relay.handoffCount)}</span>} label="verified handoffs" />
         <Stat value={<span className="nr-num">{formatCount(relay.transactingWallets)}</span>} label="transacting wallets" />
-        <Stat value={<span className="nr-num">{formatCount(relay.countries.length)}</span>} label="network-observed countries" />
+        <Stat value={<span className="nr-num">{formatCount(relay.stations)}</span>} label="Atlas stations" />
         <Stat value={<span className="nr-num">{formatDuration(relay.aliveMs)}</span>} label={relay.status === 'active' ? 'alive' : 'journey time'} />
       </StatRow>
       <div className="nr-hero__tear" aria-hidden="true" />
@@ -105,7 +106,7 @@ export function RelayHero({ relay, playerId, latestReplay, moments, now, live }:
             <RunnerAvatar name={relay.holder.name} wallet={relay.holder.wallet} country={relay.holder.country} holder size={34} />
             <span>
               <span className="nr-hero__runner-name">{isHolder ? 'You' : relay.holder.name}</span>
-              <span className="nr-hero__runner-place">{countryName(relay.holder.country)}</span>
+              <span className="nr-hero__runner-place">{relay.hops.at(-1) ? `Carrying from ${stationName(relay.hops.at(-1)?.origin ?? '')}` : ' '}</span>
             </span>
           </div>
         </div>

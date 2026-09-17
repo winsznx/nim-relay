@@ -1,3 +1,4 @@
+import type { AtlasLeg, AtlasProfile, BatonAtlas, AtlasStarterGrant } from './atlas'
 import type { CanonicalGhost, HandoffIntent, RaceMode, RelayEcho, RelayLegPath, RelayLegTier, StationWorld } from './station'
 import type { TourTrackInput } from './tour'
 
@@ -43,6 +44,16 @@ export interface PrepareHandoffInput {
   recipient: string
   throw?: { angle: number; power: number }
   note?: RelayNote | null
+  /** Atlas route the next runner races, from `BatonDetail.atlas.next.routeIds`. The server picks the default without one. */
+  routeId?: string
+}
+
+/** The Atlas route a handoff's canonical leg raced. */
+export interface HandoffAtlas extends AtlasLeg {
+  /** Raced before the Atlas: placed on the Genesis route into the world it raced. */
+  backfilled: boolean
+  /** Raced on the route's own course, so its time counts toward the route's records. */
+  onCourse: boolean
 }
 
 export interface BatonHandoff {
@@ -67,16 +78,16 @@ export interface BatonHandoff {
   rescue: boolean
   /** The sender's note. A private note is null for everyone but the sender and the recipient. */
   note: RelayNote | null
+  atlas: HandoffAtlas
 }
 
 /**
- * Every leg of a sector races the same seed, world and tier, so each runner meets the previous runner's
- * verified ghost. A new sector starts every 10 qualified handoffs; Quick matches keep one sector.
+ * The course the baton's current leg races, on its Atlas route. Every leg of a sector races the same seed, world and
+ * tier, so each runner meets the previous runner's verified ghost. A new sector starts whenever the route changes.
  */
-export interface BatonRoute { seed: string; world: StationWorld; tier: RelayLegTier; sector: number; sectorStartedLeg: number }
+export interface BatonRoute extends AtlasLeg { seed: string; world: StationWorld; tier: RelayLegTier; sector: number; sectorStartedLeg: number }
 /** Verified history the baton's look is derived from. `countries` counts consented network-observed countries. */
 export interface BatonAppearance { handoffCount: number; ageMs: number; countries: number; ghostWins: number; milestones: number[] }
-export interface BatonStop { countryCode: string | null }
 
 export interface NetworkBaton {
   id: string
@@ -113,10 +124,18 @@ export interface NetworkBaton {
   /** Creation to completion, or to now while the baton is still in play. */
   aliveMs: number
   transactingWallets: number
-  /** Ordered country stops for globe routes: origin, then each recipient. Included in snapshots and baton pages. */
-  stops?: BatonStop[]
+  /**
+   * The baton's Atlas legs in order: every verified leg, then the leg in progress unless the baton completed. Stations
+   * are game-world destinations, never runner locations. Included in snapshots and baton pages.
+   */
+  hops?: AtlasLeg[]
   /** The leg the holder is racing right now, or null. Included in snapshots and baton pages. */
   live?: BatonLive | null
+  /**
+   * Set on a treasury starter baton: the confirmed Relay Grant that handed it to its first holder at Genesis Station.
+   * Never a handoff: no handoff count, transacting wallet, relay metric or Atlas statistic includes it.
+   */
+  starterGrant?: AtlasStarterGrant
 }
 
 /** A live leg drops out of snapshots and baton pages once its latest progress report is this old. */
@@ -188,6 +207,8 @@ export interface NetworkHandoffIntent extends HandoffIntent {
   failure: HandoffReasonCode | null
   /** Normalized note bound into the commitment when the intent was prepared. Never changes. */
   note: RelayNote | null
+  /** Atlas route of the next leg, bound into the commitment when the intent was prepared. Null only on intents prepared before the Atlas. */
+  route: AtlasLeg | null
 }
 /**
  * pending: retry later (NOT_INCLUDED, INSUFFICIENT_CONFIRMATIONS, RPC_UNAVAILABLE).
@@ -249,6 +270,7 @@ export interface BatonDetail {
   echoes: RelayEcho[]
   /** Same as `baton.live`. */
   live: BatonLive | null
+  atlas: BatonAtlas
 }
 
 export type AchievementId =
@@ -287,6 +309,7 @@ export interface RunnerProfile {
   artifacts: RelayArtifact[]
   cosmetics: { suit: string; helmet: string; board: string; trail: string }
   recentRunners: { name: string; handle: string }[]
+  atlas: AtlasProfile
 }
 
 export type ChronicleMomentKind = 'fastest-leg' | 'closest-ghost-race' | 'longest-surviving-ghost' | 'first-new-country' | 'rescue' | 'milestone' | 'final-runner'

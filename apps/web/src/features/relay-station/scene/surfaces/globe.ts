@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
+import { atlasStation } from '@nim-relay/shared'
 import type { WorldRoute } from '../../view-model'
 import type { StationKit } from '../kit'
 import { COLOR } from '../palette'
@@ -24,7 +25,7 @@ export interface Globe {
   dispose(): void
 }
 
-/** A small holographic Earth with glowing routes between the countries runners chose to share. */
+/** A small holographic Earth with glowing baton routes between Relay Atlas stations. */
 export function createGlobe(kit: StationKit): Globe {
   const object = new THREE.Group()
   const spin = new THREE.Group()
@@ -164,7 +165,6 @@ export function createGlobe(kit: StationKit): Globe {
   const stops = new THREE.Points(emptyGeometry(), stopMaterial)
   spin.add(stops)
 
-  let countries: ReadonlyMap<string, Country> = new Map()
   let routes: readonly WorldRoute[] = []
   let alive = true
   let aimed = false
@@ -172,7 +172,6 @@ export function createGlobe(kit: StationKit): Globe {
   void loadCountries().then(
     loaded => {
       if (!alive) return
-      countries = loaded
       paintLand(landCanvas, loaded)
       landTexture.needsUpdate = true
       rebuild()
@@ -185,7 +184,7 @@ export function createGlobe(kit: StationKit): Globe {
   function rebuild(): void {
     arcs.geometry.dispose()
     stops.geometry.dispose()
-    const built = buildRoutes(routes, countries)
+    const built = buildRoutes(routes)
     arcs.geometry = built.arcs
     stops.geometry = built.stops
     if (!aimed && built.focusLongitude !== null) {
@@ -284,29 +283,36 @@ function toSphere(lat: number, lon: number, radius: number, target = new THREE.V
   return target.set(Math.cos(phi) * Math.sin(theta), Math.sin(phi), Math.cos(phi) * Math.cos(theta)).multiplyScalar(radius)
 }
 
-function buildRoutes(routes: readonly WorldRoute[], countries: ReadonlyMap<string, Country>): { arcs: THREE.BufferGeometry; stops: THREE.BufferGeometry; focusLongitude: number | null } {
+interface Place {
+  code: string
+  lat: number
+  lon: number
+}
+
+function placeOf(stationId: string): Place | null {
+  const station = atlasStation(stationId)
+  return station ? { code: station.id, lat: station.lat, lon: station.lon } : null
+}
+
+function buildRoutes(routes: readonly WorldRoute[]): { arcs: THREE.BufferGeometry; stops: THREE.BufferGeometry; focusLongitude: number | null } {
   const tubes: THREE.BufferGeometry[] = []
   const stopPositions: number[] = []
   const seen = new Set<string>()
   let focusLongitude: number | null = null
 
   routes.forEach((route, routeIndex) => {
-    const located = route.stops.flatMap(code => {
-      const country = countries.get(code)
-      return country ? [country] : []
+    route.hops.forEach(([origin, destination], i) => {
+      const from = placeOf(origin)
+      const to = placeOf(destination)
+      if (!from || !to) return
+      for (const place of [from, to]) {
+        focusLongitude ??= place.lon
+        if (seen.has(place.code)) continue
+        seen.add(place.code)
+        toSphere(place.lat, place.lon, GLOBE_RADIUS * 1.01).toArray(stopPositions, stopPositions.length)
+      }
+      if (from.code !== to.code) tubes.push(arcTube(from, to, route.live, (routeIndex * 0.37 + i * 0.13) % 1))
     })
-    for (const country of located) {
-      focusLongitude ??= country.lon
-      if (seen.has(country.code)) continue
-      seen.add(country.code)
-      toSphere(country.lat, country.lon, GLOBE_RADIUS * 1.01).toArray(stopPositions, stopPositions.length)
-    }
-    for (let i = 1; i < located.length; i++) {
-      const from = located[i - 1]
-      const to = located[i]
-      if (!from || !to || from.code === to.code) continue
-      tubes.push(arcTube(from, to, route.live, (routeIndex * 0.37 + i * 0.13) % 1))
-    }
   })
 
   const stops = new THREE.BufferGeometry()
@@ -316,7 +322,7 @@ function buildRoutes(routes: readonly WorldRoute[], countries: ReadonlyMap<strin
   return { arcs: merged ?? emptyGeometry(), stops, focusLongitude }
 }
 
-function arcTube(from: Country, to: Country, live: boolean, offset: number): THREE.BufferGeometry {
+function arcTube(from: Place, to: Place, live: boolean, offset: number): THREE.BufferGeometry {
   const start = toSphere(from.lat, from.lon, 1)
   const end = toSphere(to.lat, to.lon, 1)
   const angle = start.angleTo(end)

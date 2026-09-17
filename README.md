@@ -18,6 +18,10 @@ NIM Relay is a Nimiq Pay Mini App: an asynchronous social skill game where a rea
 
 Full product/engineering specification: [`NIM_RELAY_PRD_v1.md`](./NIM_RELAY_PRD_v1.md).
 
+## Relay Atlas
+
+The globe is the Relay Atlas: 24 Relay Stations and 55 routes between them. Stations are game-world destinations, never where a player is. Every route is a real relay-leg course, and after a qualified leg the holder picks where the baton goes next. Routes and stations light up only through qualified legs. See [`docs/atlas.md`](./docs/atlas.md).
+
 ## Four authorities
 
 ```text

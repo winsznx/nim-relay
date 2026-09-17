@@ -33,6 +33,7 @@ function handoff(leg: number, from: NetworkRunner, to: NetworkRunner, at: number
     race: null,
     rescue: false,
     note: null,
+    atlas: { routeId: 'genesis-to-cape-verdigris', origin: 'genesis', destination: 'cape-verdigris', backfilled: false, onCourse: true },
   }
 }
 

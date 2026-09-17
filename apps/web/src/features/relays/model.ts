@@ -1,6 +1,7 @@
-import type { BatonDetail, NetworkBaton, NetworkRival, NetworkRunner, NetworkSnapshot, RelayEcho } from '@nim-relay/shared'
+import type { AtlasLeg, BatonDetail, NetworkBaton, NetworkRival, NetworkRunner, NetworkSnapshot, RelayEcho } from '@nim-relay/shared'
+import { stationName, stationsOnJourney } from '../atlas/model'
 import { batonAppearance, type BatonAppearance } from '../baton/baton-appearance'
-import { countryName, modeLabel, serialLabel } from './format'
+import { modeLabel, serialLabel } from './format'
 
 /** View models the screens and the globe share, derived only from the server's verified record. */
 
@@ -30,10 +31,6 @@ export function echoText(echo: Pick<RelayEcho, 'kind' | 'leg' | 'runner'>): stri
   }
 }
 
-export interface RouteStop {
-  countryCode: string | null
-}
-
 export type RelayTeam = 'gold' | 'cyan' | null
 
 export interface RelayView {
@@ -61,7 +58,10 @@ export interface RelayView {
   expiresAt: number
   aliveMs: number
   transactingWallets: number
-  stops: RouteStop[]
+  /** Atlas legs in order: verified legs, then the leg in progress. Stations are game-world destinations. */
+  hops: AtlasLeg[]
+  /** Distinct Atlas stations on the journey. */
+  stations: number
   previousRunId: string | null
   crewId: string | null
   rivalId: string | null
@@ -86,8 +86,7 @@ export interface RelayContext {
 
 export function toRelayView(baton: NetworkBaton, context: RelayContext): RelayView {
   const detail = context.detail?.baton.id === baton.id ? context.detail : undefined
-  // Snapshots carry the stop list; single-baton responses rebuild it from the verified handoffs.
-  const stops = baton.stops ?? [{ countryCode: baton.origin.country }, ...(detail?.handoffs ?? []).map(handoff => ({ countryCode: handoff.to.country }))]
+  const hops = baton.hops ?? detail?.baton.hops ?? [{ routeId: baton.route.routeId, origin: baton.route.origin, destination: baton.route.destination }]
   // aliveMs is measured when the server answers; an active baton keeps ageing on screen.
   const aliveMs = baton.status === 'active' ? Math.max(baton.aliveMs, context.now - baton.createdAt) : baton.aliveMs
   const reserved = baton.recipientId && baton.recipientId !== baton.holder.id ? baton.recipientId : null
@@ -115,7 +114,8 @@ export function toRelayView(baton: NetworkBaton, context: RelayContext): RelayVi
     expiresAt: baton.expiresAt,
     aliveMs,
     transactingWallets: baton.transactingWallets,
-    stops,
+    hops,
+    stations: stationsOnJourney(hops).length,
     previousRunId: baton.previousRunId,
     crewId: baton.crewId,
     rivalId: baton.rivalId,
@@ -135,24 +135,12 @@ export function featuredRelay(relays: readonly RelayView[]): RelayView | null {
   return byRecent.find(relay => relay.status === 'active' && relay.mode === 'global') ?? byRecent.find(relay => relay.status === 'active') ?? byRecent[0] ?? null
 }
 
-/** "Nigeria → Germany", built only from consented countries on the route. */
-export function routeLine(stops: readonly RouteStop[]): string {
-  const first = stops[0]?.countryCode ?? null
-  const last = stops.at(-1)?.countryCode ?? null
-  if (stops.length <= 1 || first === last) return countryName(first)
-  return `${countryName(first)} → ${countryName(last)}`
-}
-
-/**
- * The journey's headline: where it travelled when runners share their country,
- * otherwise who it travelled between. Unknown places are never the headline.
- */
-export function journeyHeadline(relay: Pick<RelayView, 'stops' | 'origin' | 'holder'>): string {
-  const first = relay.stops[0]?.countryCode ?? null
-  const last = relay.stops.at(-1)?.countryCode ?? null
-  if (first && last) return routeLine(relay.stops)
-  if (relay.origin.id === relay.holder.id) return relay.origin.name
-  return `${relay.origin.name} → ${relay.holder.name}`
+/** The journey's headline across the Atlas: the station it started from and the station its latest leg heads for. */
+export function journeyHeadline(relay: Pick<RelayView, 'hops'>): string {
+  const first = relay.hops[0]
+  const last = relay.hops.at(-1)
+  if (!first || !last) return 'Genesis Station'
+  return `${stationName(first.origin)} → ${stationName(last.destination)}`
 }
 
 /** Recent real events for the world ticker: echoes, verified handoffs and relay starts. */

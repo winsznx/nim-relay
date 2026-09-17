@@ -1,8 +1,10 @@
 import { expect, test as base, type Page, type Response } from '@playwright/test'
-import { ceremonyHeading, expectDeparture, finishLeg, joinNetwork, journeyPath, journeyStats, keepNetworkBusy, mainNav, openLeg, startQuickRelay, statValue, throwBaton } from './lifecycle/flows'
+import { nimiqAddressFromPrivateKey } from '@nim-relay/relay-protocol'
+import { ceremonyHeading, chooseOnwardRoute, expectDeparture, finishLeg, joinNetwork, journeyPath, journeyStats, keepNetworkBusy, mainNav, openLeg, startQuickRelay, statValue, throwBaton } from './lifecycle/flows'
 import { milestones, RelayHarness, shot, type Runner } from './lifecycle/harness'
+import { TREASURY_TEST_KEY } from './lifecycle/env'
 import { mockChain } from './lifecycle/rpc'
-import { MARIANA, TIM } from './lifecycle/wallet'
+import { MARIANA, NOOR, TIM } from './lifecycle/wallet'
 
 /**
  * The relay lifecycle in real browsers against an isolated Worker (playwright.lifecycle.config.ts):
@@ -89,6 +91,7 @@ test('two runners carry a Quick relay there and back through verified handoffs',
   // #when Tim carries leg 1 and the server verifies the run
   await openLeg(tim, code)
   await shot(tim.page, 'lifecycle-01-tim-leg1-arrival')
+  // A Quick round's opening pass keeps its Atlas route, so no route step is offered.
   const handoff = await finishLeg(tim)
   await expect(handoff.getByText('Your match opponent')).toBeVisible()
 
@@ -117,6 +120,9 @@ test('two runners carry a Quick relay there and back through verified handoffs',
   await expect(tim.page.getByText(/Mariana holds it/)).toBeVisible()
   await expect(statValue(journeyStats(tim.page), 'verified handoffs')).toHaveText('1')
   await expect(tim.page.getByText('Tim passed to Mariana')).toBeVisible()
+  const atlas = tim.page.getByRole('region', { name: 'Across the Atlas' })
+  const firstLeg = (await atlas.getByRole('listitem').first().locator('.nr-atlas-step__title').innerText()).replace(/^Leg 1: /, '')
+  await expect(atlas.getByRole('listitem').nth(1)).toContainText(`Leg 2: ${firstLeg}`)
   const proof = tim.page.getByRole('link', { name: 'Transaction proof' })
   await expect(proof).toHaveAttribute('href', `/proof/relay/${code}#tx-${firstHash}`)
   await shot(tim.page, 'lifecycle-07-journey-after-handoff1')
@@ -142,7 +148,13 @@ test('two runners carry a Quick relay there and back through verified handoffs',
   const relayProgress = mariana.page.getByRole('progressbar', { name: 'Distance to the handoff gate' })
   await expect(relayProgress).toBeVisible({ timeout: 30_000 })
   await expect(relayProgress).toHaveAttribute('aria-valuetext', /^\d+%/)
-  const marianaHandoff = await finishLeg(mariana)
+  // The round closes with this pass, so Mariana sends leg 3 onward from the station leg 2 reached.
+  let chosen = { from: '', to: '' }
+  const marianaHandoff = await finishLeg(mariana, {
+    route: async page => {
+      chosen = await chooseOnwardRoute(page, 'lifecycle-11a-mariana-route-step')
+    },
+  })
   expect(await milestones(mariana.page, '.leg-arrival__kicker')).toContain('BATON INCOMING')
   expect(await milestones(mariana.page, '.leg-relay__name--previous')).toContain('TIM')
   await shot(mariana.page, 'lifecycle-11-mariana-results')
@@ -163,6 +175,14 @@ test('two runners carry a Quick relay there and back through verified handoffs',
   await expect(tim.page.getByText(/You hold it/)).toBeVisible()
   await expect(statValue(journeyStats(tim.page), 'verified handoffs')).toHaveText('2')
   await expect(tim.page.getByText('1 of 3 rounds played', { exact: false })).toBeVisible()
+
+  // #then the Atlas journey moved from leg 2's route to the route Mariana bound for leg 3
+  const timAtlas = tim.page.getByRole('region', { name: 'Across the Atlas' })
+  await expect(timAtlas.getByRole('listitem')).toHaveCount(3)
+  await expect(timAtlas.getByRole('listitem').nth(1)).toContainText(`Leg 2: ${firstLeg}`)
+  await expect(timAtlas.getByRole('listitem').nth(1)).toContainText(firstLeg.split(' to ')[1] ?? '')
+  await expect(timAtlas.getByRole('listitem').nth(2)).toContainText(`Leg 3: ${chosen.from} to ${chosen.to}`)
+  await expect(timAtlas.getByRole('listitem').nth(2)).toContainText('Tim is carrying it now')
   await shot(tim.page, 'lifecycle-15-tim-journey-round-one')
 
   // #then the public proof and Chronicle record both handoffs for anyone
@@ -315,5 +335,60 @@ test('a confirmed handoff departs on time while other runners keep the network b
   await expectDeparture(tim.page, 1, 'Mariana', { withinMs: 8_000 })
   await expect(tim.page).toHaveURL(new RegExp(`${journeyPath(code)}$`))
   await stopWriting()
+  expect(relay.problems()).toEqual([])
+})
+
+test('a new runner claims the Starter Baton, sees it confirm, then passes it on through a verified handoff', async ({ relay }) => {
+  // #given a funded grant treasury, Mariana on the network, and Noor signing in for the first time with an empty wallet
+  await mockChain.balance(await nimiqAddressFromPrivateKey(TREASURY_TEST_KEY), 50 * 100_000)
+  const mariana = await relay.runner(MARIANA)
+  await joinNetwork(mariana)
+  await relay.leave(mariana.page)
+  const noor = await relay.runner(NOOR)
+  await joinNetwork(noor)
+
+  // #when the World home offers the Starter Baton and she claims it
+  await mainNav(noor.page).getByRole('link', { name: /^World/ }).click()
+  const offer = noor.page.locator('[data-tour="starter-baton-banner"]')
+  await expect(offer).toContainText('Your first relay is on us', { timeout: 30_000 })
+  await shot(noor.page, 'grant-01-offer')
+  await offer.getByRole('button', { name: 'Claim' }).click()
+  await noor.page.getByRole('dialog', { name: 'Starter Baton' }).getByRole('button', { name: 'Claim Starter Baton' }).click()
+  await expect(noor.page.getByText('Confirming on Nimiq')).toBeVisible({ timeout: 30_000 })
+  await shot(noor.page, 'grant-02-confirming')
+
+  // #then the Worker broadcast one treasury transfer; once the chain confirms it, the baton is revealed
+  await expect.poll(() => mockChain.sent(), { timeout: 20_000 }).toHaveLength(1)
+  const [grantHash] = await mockChain.sent()
+  await mockChain.confirm(grantHash!, 2)
+  const reveal = noor.page.getByRole('dialog', { name: 'You received your first baton' })
+  await expect(reveal).toBeVisible({ timeout: 60_000 })
+  await shot(noor.page, 'grant-03-reveal')
+  expect(noor.wallet.transfers).toHaveLength(0)
+
+  // #when she carries the Starter Baton and passes it to Mariana
+  await reveal.getByRole('button', { name: 'Carry it' }).click()
+  await expect(noor.page).toHaveURL(/\/leg\/[A-Z0-9]+$/)
+  const code = new URL(noor.page.url()).pathname.split('/').at(-1) ?? ''
+  await expect(noor.page.locator('main.leg')).toHaveAttribute('data-phase', 'finished', { timeout: 240_000 })
+  await noor.page.getByRole('button', { name: /^PASS / }).click({ timeout: 30_000 })
+  await noor.page.getByRole('button', { name: 'Let the relay choose' }).click()
+  await noor.page.getByRole('button', { name: 'Find a runner by handle' }).click()
+  await noor.page.getByRole('searchbox', { name: 'Runner handle or name' }).fill('Mariana')
+  await noor.page.getByRole('list', { name: 'Matching runners' }).getByRole('button', { name: /Mariana/ }).click()
+  await shot(noor.page, 'grant-04-choose-mariana')
+  await throwBaton(noor, 'Mariana', 'grant-05-handoff', { picked: true })
+  await expect(ceremonyHeading(noor.page, 'Handoff confirmed')).toBeVisible({ timeout: 30_000 })
+
+  // #then that pass is the first verified handoff; the grant never counted as one
+  await expectDeparture(noor.page, 1, 'Mariana')
+  expect(noor.wallet.lastTransfer()).toMatchObject({ value: 100_000, data: expect.stringMatching(new RegExp(`^NR1\\.${code}\\.1\\.`)) })
+  await expect(noor.page).toHaveURL(new RegExp(`${journeyPath(code)}$`), { timeout: 15_000 })
+  await expect(statValue(journeyStats(noor.page), 'verified handoffs')).toHaveText('1')
+  const visitor = await relay.visitor()
+  await visitor.goto(`/proof/relay/${code}`)
+  await expect(visitor.locator('[data-kind="treasury_starter_grant"]')).toContainText(grantHash!)
+  await expect(visitor.locator(`[id="tx-${broadcastHash(noor)}"]`)).toContainText('Leg 1')
+  await shot(visitor, 'grant-06-proof')
   expect(relay.problems()).toEqual([])
 })

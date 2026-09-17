@@ -149,7 +149,7 @@ function paintCaption(context: CanvasRenderingContext2D, world: WorldView): void
     return
   }
   const stats: [string, string][] = [
-    [String(world.countries), world.countries === 1 ? 'COUNTRY' : 'COUNTRIES'],
+    [String(world.stations), world.stations === 1 ? 'STATION' : 'STATIONS'],
     [String(world.activeRelays), world.activeRelays === 1 ? 'ACTIVE RELAY' : 'ACTIVE RELAYS'],
   ]
   let right = width - 18

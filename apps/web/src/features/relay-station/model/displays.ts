@@ -1,3 +1,4 @@
+import { stationsOnJourney } from '../../atlas/model'
 import type { RelayView } from '../../relays/model'
 import { formatCount, formatDuration, worldName } from '../../relays/format'
 import type { StationContext } from './context'
@@ -14,34 +15,19 @@ const ACHIEVEMENTS = 6
 
 export function worldView(context: StationContext): WorldView {
   const { relays } = context
-  const countries = new Set<string>()
-  let hiddenStops = false
-  for (const relay of relays) {
-    for (const stop of relay.stops) {
-      if (stop.countryCode) countries.add(stop.countryCode)
-      else hiddenStops = true
-    }
-  }
+  const stations = new Set<string>()
+  for (const relay of relays) for (const station of stationsOnJourney(relay.hops)) stations.add(station)
   const routes: WorldRoute[] = [...relays]
     .sort((a, b) => Number(b.status === 'active') - Number(a.status === 'active') || b.handoffCount - a.handoffCount)
-    .map(relay => ({ id: relay.id, stops: knownStops(relay), live: relay.status === 'active' }))
-    .filter(route => route.stops.length > 0)
+    .map(relay => ({ id: relay.id, hops: relay.hops.map(hop => [hop.origin, hop.destination] as const), live: relay.status === 'active' }))
+    .filter(route => route.hops.length > 0)
     .slice(0, WORLD_ROUTES)
   return {
     activeRelays: relays.filter(relay => relay.status === 'active').length,
-    countries: countries.size,
+    stations: stations.size,
     confirmedHandoffs: context.snapshot.metrics.qualifiedHandoffs,
     routes,
-    hiddenStops,
   }
-}
-
-function knownStops(relay: RelayView): string[] {
-  const stops: string[] = []
-  for (const stop of relay.stops) {
-    if (stop.countryCode && stops.at(-1) !== stop.countryCode) stops.push(stop.countryCode)
-  }
-  return stops
 }
 
 export function vaultView(context: StationContext): VaultView {
@@ -66,7 +52,7 @@ function vaultBaton(relay: RelayView): VaultBaton {
     code: relay.code,
     name: relay.name,
     handoffs: relay.handoffCount,
-    countries: relay.countries.length,
+    stations: relay.stations,
     status: relay.status,
     appearance: relay.appearance,
   }
@@ -104,8 +90,8 @@ function chronicleMoments(context: StationContext): ChronicleEntry[] {
   const longest = topRelay(context.relays, relay => relay.handoffCount)
   if (longest) moments.push({ heading: 'Longest journey', detail: `${longest.name}, ${countNoun(longest.handoffCount, 'handoff')}` })
 
-  const widest = topRelay(context.relays, relay => (relay.countries.length >= 2 ? relay.countries.length : 0))
-  if (widest && widest.id !== longest?.id) moments.push({ heading: 'Widest reach', detail: `${widest.name}, ${countNoun(widest.countries.length, 'country', 'countries')}` })
+  const widest = topRelay(context.relays, relay => (relay.stations >= 3 ? relay.stations : 0))
+  if (widest && widest.id !== longest?.id) moments.push({ heading: 'Widest reach', detail: `${widest.name}, ${countNoun(widest.stations, 'Atlas station')}` })
 
   const match = [...context.relays]
     .filter(relay => relay.mode === 'quick' && relay.status === 'completed' && relay.quick?.winnerId)

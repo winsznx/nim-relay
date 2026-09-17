@@ -113,6 +113,7 @@ describe('relay note visibility', () => {
   const handoff = (note: RelayNote | null): BatonHandoff => ({
     id: 'h1', batonId: 'b1', leg: 1, from: runner('sender'), to: runner('recipient'), value: 100_000, txHash: 'a'.repeat(64), network: 'TestAlbatross', at: 0,
     runId: 'r1', resultHash: 'hash', qualified: true, confirmations: 2, blockNumber: 1, sector: 0, race: null, rescue: false, note,
+    atlas: { routeId: 'genesis-to-cape-verdigris', origin: 'genesis', destination: 'cape-verdigris', backfilled: false, onCourse: true },
   })
 
   it('shows a private note to its sender and recipient only', () => {

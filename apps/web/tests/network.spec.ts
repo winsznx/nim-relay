@@ -117,7 +117,7 @@ test('a live network: world, journey and Chronicle, then the runner’s inbox an
   await mockRelayApi(page, network, signedInAs(RUNNERS.mateo, network.snapshot))
   await page.goto('/')
   await expect(page.locator(GLOBE)).toHaveAttribute('data-map-ready', 'true', { timeout: 20_000 })
-  await expect(page.getByRole('link', { name: 'Nigeria → Brazil' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Genesis Station → Aurora Ridge' })).toBeVisible()
   await expect(page.getByText('Your turn')).toBeVisible()
   await expect(nav(page).getByRole('link', { name: /Inbox, 2 unread/ })).toBeVisible()
   await page.waitForTimeout(1500)
@@ -268,6 +268,7 @@ test('a holder back at a pass Nimiq Pay never reported has the chain checked, th
     attemptedAt,
     failure: null,
     note: null,
+    route: null,
   }
   detail.pendingHandoff = intent
   account.snapshot.pendingHandoff = intent

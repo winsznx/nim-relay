@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import type { Anchor } from './anchors'
+import { atlasStation, type AtlasLeg } from '@nim-relay/shared'
 import { arcPoints, EARTH_RADIUS, latLonToVector } from './geo'
 import type { QualityTier } from './quality'
 
@@ -13,8 +13,8 @@ export interface GlobeRelay {
   status: 'active' | 'completed' | 'stranded'
   /** Its holder is racing a leg right now. */
   live: boolean
-  /** Consented country codes in route order; null where the runner did not share one. */
-  stops: readonly (string | null)[]
+  /** Atlas legs in order, the leg in progress last. Stations are game-world destinations, never runner locations. */
+  hops: readonly AtlasLeg[]
 }
 
 export interface RouteEmphasis {
@@ -95,7 +95,10 @@ const pointVertex = /* glsl */ `
   }
 `
 
-/** kind 0: route stop, 1: current holder with a pulse ring, 2: comet particle, 3: arrival burst, 4: holder racing a leg now. */
+/**
+ * kind 0: route stop, 1: current holder with a pulse ring, 2: comet particle, 3: arrival burst, 4: holder racing a leg now,
+ * 5: Atlas station, drawn as a ring whose fill brightens with `alpha` once lit.
+ */
 const pointFragment = /* glsl */ `
   uniform float uTime;
   uniform float uMotion;
@@ -110,6 +113,14 @@ const pointFragment = /* glsl */ `
     float strength;
     if (vKind < 0.5) {
       strength = smoothstep(1.0, 0.15, d) * 0.85;
+    } else if (vKind > 4.5) {
+      float ring = smoothstep(0.16, 0.0, abs(d - 0.72));
+      float core = smoothstep(0.42, 0.0, d);
+      strength = ring * 0.85 + core * vAlpha;
+      color = mix(vColor, vec3(1.0, 0.97, 0.9), core * vAlpha * 0.6);
+      gl_FragColor = vec4(color, strength * max(vAlpha, 0.45));
+      #include <colorspace_fragment>
+      return;
     } else if (vKind < 1.5 || vKind > 3.5) {
       float core = smoothstep(0.3, 0.1, d);
       float pulsesPerSecond = vKind > 3.5 ? 1.35 : 0.42;
@@ -135,7 +146,7 @@ interface BuiltRelay {
   color: THREE.Color
   /** Sampled points of every drawn hop, oldest first. */
   hops: THREE.Vector3[][]
-  /** The hop that delivered the baton to its current holder, when both ends are located. */
+  /** The latest hop: the leg in progress, or the leg that finished the journey. */
   lastHop: THREE.Vector3[] | null
   holder: THREE.Vector3 | null
   stops: THREE.Vector3[]
@@ -219,45 +230,52 @@ export function samplePolyline(points: readonly THREE.Vector3[], t: number, targ
   return target.copy(start).lerp(end, scaled - index)
 }
 
+/** A station's position on the globe, lifted just above the surface. */
+export function stationPoint(stationId: string, lift = 0.012): THREE.Vector3 | null {
+  const station = atlasStation(stationId)
+  return station ? latLonToVector(station.lat, station.lon, EARTH_RADIUS + lift) : null
+}
+
 export interface RouteLayer {
   group: THREE.Group
   built: BuiltRelay[]
-  /** Relays whose current holder has no located country. */
-  unlocated: GlobeRelay[]
   update(time: number, motion: number): void
   dispose(): void
 }
 
 const MAX_COMETS = 48
 
-/** Arcs, stop nodes and travelling comets for every relay with located stops. */
-export function buildRoutes(relays: readonly GlobeRelay[], locate: (code: string | null) => Anchor | null, emphasis: RouteEmphasis, tier: QualityTier, pointMaterial: THREE.ShaderMaterial): RouteLayer {
+/** Baton arcs drawn per relay, oldest hops dropped first: long journeys would otherwise flood the globe. */
+const MAX_HOPS_PER_RELAY = 12
+
+/** Arcs along each baton's real Atlas legs, station nodes and a comet on each active baton's current leg. */
+export function buildRoutes(relays: readonly GlobeRelay[], emphasis: RouteEmphasis, tier: QualityTier, pointMaterial: THREE.ShaderMaterial): RouteLayer {
   const group = new THREE.Group()
   const disposables: { dispose(): void }[] = []
   const arcMaterials: THREE.ShaderMaterial[] = []
   const built: BuiltRelay[] = []
-  const unlocated: GlobeRelay[] = []
-  const position = (code: string | null, lift: number) => {
-    const anchor = locate(code)
-    return anchor ? latLonToVector(anchor.lat, anchor.lon, EARTH_RADIUS + lift) : null
-  }
 
   relays.forEach((relay, index) => {
     const color = relayColor(relay)
-    const located = relay.stops.map(code => position(code, 0.012))
-    const holder = located.at(-1) ?? null
-    if (!holder) unlocated.push(relay)
-    const highlighted = relay.id === emphasis.selectedId || relay.id === emphasis.featuredId
+    const drawn = relay.hops.slice(-MAX_HOPS_PER_RELAY)
+    const last = drawn.at(-1)
     const quiet = relay.status !== 'active'
+    // An active baton's holder carries it from the start of its current leg; a finished one rests where it arrived.
+    const holder = last ? stationPoint(quiet ? last.destination : last.origin) : null
+    const highlighted = relay.id === emphasis.selectedId || relay.id === emphasis.featuredId
     const hops: THREE.Vector3[][] = []
     let lastHop: THREE.Vector3[] | null = null
-    for (let i = 1; i < located.length; i++) {
-      const from = located[i - 1]
-      const to = located[i]
-      if (!from || !to || from.distanceTo(to) < 1e-3) continue
+    const stops: THREE.Vector3[] = []
+    for (let i = 0; i < drawn.length; i++) {
+      const hop = drawn[i]!
+      const from = stationPoint(hop.origin)
+      const to = stationPoint(hop.destination)
+      if (!from || !to) continue
+      for (const point of [from, to]) if (!stops.some(stop => stop.distanceTo(point) < 1e-3)) stops.push(point)
+      if (from.distanceTo(to) < 1e-3) continue
       const points = arcPoints(from, to, tier.arcSegments)
       hops.push(points)
-      const isLast = i === located.length - 1
+      const isLast = i === drawn.length - 1
       if (isLast) lastHop = points
       const intensity = quiet ? 0.35 : isLast ? (highlighted ? 1.45 : 1) : highlighted ? 0.7 : 0.45
       const radius = (relay.mode === 'global' || highlighted ? 0.0085 : 0.0055) * (isLast ? 1 : 0.7)
@@ -280,7 +298,11 @@ export function buildRoutes(relays: readonly GlobeRelay[], locate: (code: string
       disposables.push(geometry, material)
       arcMaterials.push(material)
     }
-    const stops = located.filter((point): point is THREE.Vector3 => point !== null)
+    if (holder) {
+      const at = stops.findIndex(stop => stop.distanceTo(holder) < 1e-3)
+      if (at >= 0) stops.splice(at, 1)
+      stops.push(holder)
+    }
     built.push({ relay, color, hops, lastHop, holder, stops, phase: (index * 0.37) % 1 })
   })
 
@@ -309,7 +331,6 @@ export function buildRoutes(relays: readonly GlobeRelay[], locate: (code: string
   return {
     group,
     built,
-    unlocated,
     update(time, motion) {
       for (const material of arcMaterials) material.uniforms.uTime!.value = time * motion
       let index = 0

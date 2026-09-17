@@ -16,12 +16,16 @@ export function PrivacyScreen({ entryKey }: { entryKey: string }) {
           <li>The inputs of your verified rides, so the server can replay them.</li>
           <li>Public handoff transactions and session records.</li>
           <li>If you allow the fair-play signal, a hashed device identifier. The raw identifier is never stored.</li>
+          <li>If you claim a Relay Grant, the grant record: your wallet address, the milestone, the transfer and a hashed device identifier. Claims need that device signal so each phone claims once; the raw identifier is never stored.</li>
           <li>Whether you finished or skipped the guided tours, so another device doesn’t offer them again, and daily counts of how tours are used that name no runner.</li>
         </ul>
         <p>We don’t store raw IP addresses.</p>
 
+        <SectionHeader title="Relay Grants" />
+        <p>Relay Grants are small NIM transfers from NIM Relay’s own grant treasury wallet, up to 5 NIM per runner and per device. The relay signs them itself and never needs your keys. Refused claims are logged for abuse review with shortened one-way hashes of the wallet and device, never the address or the identifier. The public treasury summary shows totals only.</p>
+
         <SectionHeader title="Countries" />
-        <p>Showing your country on relay routes is optional and off until you turn it on in your profile. It comes from your network connection, so a VPN can change it, and it is never an exact location. Runners who don’t share appear as “Location not shared”.</p>
+        <p>Showing your country on your runner card is optional and off until you turn it on in your profile. It comes from your network connection, so a VPN can change it, and it is never an exact location. The globe never uses it: batons travel between Relay Atlas stations, which are places in the game world, not where anyone is.</p>
 
         <SectionHeader title="What we can’t change" />
         <p>Transactions on the Nimiq blockchain are public and permanent. A wallet isn’t proof of a unique person, and testnet activity is always reported separately from mainnet usage.</p>

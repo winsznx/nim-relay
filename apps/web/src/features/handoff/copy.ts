@@ -1,11 +1,12 @@
 import { messageForCode } from '../shell/errors'
-import type { ChooseNotice, HandoffStage, NoteRefusal, VerificationFailure } from './machine'
+import type { ChooseNotice, HandoffStage, NoteRefusal, RouteNotice, VerificationFailure } from './machine'
 
 export type CeremonySceneState = 'approach' | 'armed' | 'frozen' | 'launch'
 
 /** How the 3D scene should hold the baton for each ceremony stage. */
 export function sceneStateFor(stage: HandoffStage['stage']): CeremonySceneState {
   switch (stage) {
+    case 'route':
     case 'choose':
     case 'note':
       return 'approach'
@@ -24,6 +25,13 @@ export function sceneStateFor(stage: HandoffStage['stage']): CeremonySceneState 
       return 'frozen'
     case 'confirmed':
       return 'launch'
+  }
+}
+
+export function routeNoticeCopy(notice: RouteNotice): string {
+  switch (notice) {
+    case 'route-unavailable':
+      return 'That route isn’t open from this station anymore. Choose another.'
   }
 }
 

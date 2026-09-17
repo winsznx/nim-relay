@@ -79,10 +79,8 @@ function departuresAction(context: StationContext): StationAction {
 function worldCard(context: StationContext, world: WorldView): StationCard {
   const facts: StationFact[] = []
   if (world.activeRelays === 0) facts.push({ text: 'No active relays yet.', tone: 'idle' })
-  else if (world.countries === 0) facts.push({ text: `${countNoun(world.activeRelays, 'relay')} in play. No runner has shared a country yet.`, tone: 'live' })
-  else facts.push({ text: `${countNoun(world.activeRelays, 'relay')} in play, seen in ${countNoun(world.countries, 'country', 'countries')}.`, tone: 'live' })
+  else facts.push({ text: `${countNoun(world.activeRelays, 'relay')} in play across ${countNoun(world.stations, 'Atlas station')}.`, tone: 'live' })
   facts.push({ text: `${countNoun(world.confirmedHandoffs, 'confirmed handoff')} on ${networkLabel(context.snapshot.network)}.`, tone: 'idle' })
-  if (world.hiddenStops) facts.push({ text: 'Countries appear only for runners who share them.', tone: 'idle' })
 
   const latest = [...context.relays].filter(relay => relay.status === 'active').sort((a, b) => b.updatedAt - a.updatedAt)[0]
   const action = context.liveGlobal

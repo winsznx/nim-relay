@@ -1,7 +1,7 @@
 import { runInDurableObject } from 'cloudflare:test'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { relayLeg, relayLegV5 } from '@nim-relay/game-engine'
-import { isFailedLeg, isRelayLegResult, type BatonDetail, type CanonicalGhost, type IssuedRace, type RaceConfig, type RelayLegGhostline, type RelayLegResult, type RelayLegV6Result, type RelayLegV6Trace, type RunnerProfile, type SubmittedRace } from '@nim-relay/shared'
+import { atlasRoute, isFailedLeg, isRelayLegResult, type BatonDetail, type CanonicalGhost, type IssuedRace, type RaceConfig, type RelayLegGhostline, type RelayLegResult, type RelayLegV6Result, type RelayLegV6Trace, type RunnerProfile, type SubmittedRace } from '@nim-relay/shared'
 import type { Run } from '../model'
 import {
   api,
@@ -102,15 +102,16 @@ describe('v6 relay legs', () => {
     expect(submitted.result).toEqual(replayed(issued, tampered))
   })
 
-  it('opens standard courses once a runner has three completed verified runs', async () => {
+  it('opens standard free rides once a runner has three completed verified runs', async () => {
     // #given a courier who completes three verified practice-free runs
     const courier = await runner()
+    const firstRide = v6Config((await call<IssuedRace>(courier.cookie, '/network/issue', {})).config).tier
     const warmup = await createBaton(courier, { mode: 'global', title: 'Warm up' })
     for (let run = 0; run < 3; run++) await raceLeg(courier, warmup.baton.id)
-    // #when they open a new baton
-    const journey = await createBaton(courier, { mode: 'global', title: 'Standard course' })
-    // #then its route and the tier of the first warm-up course differ
-    expect([warmup.baton.route.tier, journey.baton.route.tier]).toEqual([0, 1])
+    // #when they ride again without a baton
+    const laterRide = v6Config((await call<IssuedRace>(courier.cookie, '/network/issue', {})).config).tier
+    // #then the forgiving course gives way to the standard one, while the baton keeps its Genesis route tier
+    expect([firstRide, laterRide, warmup.baton.route.tier]).toEqual([0, 1, 0])
   })
 })
 
@@ -176,9 +177,10 @@ describe('baton sector continuity', () => {
     await joinNetwork(a, b)
     const journey = await createBaton(a, { mode: 'global', title: '' })
     batonId = journey.baton.id
+    // Nine passes keep the route so each runner chases the previous ghost; the tenth lets the server send it onward.
     for (let leg = 0; leg < 10; leg++) {
       const [from, to] = leg % 2 === 0 ? [a, b] : [b, a]
-      passes.push(await passBaton(from, to, batonId, issued => finishingTrace(issued.config, leg % 3 === 0 ? 'risk' : 'safe')))
+      passes.push(await passBaton(from, to, batonId, issued => finishingTrace(issued.config, leg % 3 === 0 ? 'risk' : 'safe'), leg < 9 ? 'same' : undefined))
     }
   }, 120_000)
 
@@ -241,16 +243,17 @@ describe('baton sector continuity', () => {
     expect(JSON.stringify({ issued: second.issued, inputTrace: second.trace }).length).toBeLessThan(50_000)
   })
 
-  it('opens a new sector on the next world after ten qualified handoffs', async () => {
-    // #when the baton is read after its tenth handoff
+  it('opens a new sector on the route the tenth pass bound', async () => {
+    // #when the baton is read after its tenth handoff, which bound the server's default route
     const detail = await call<BatonDetail>('', `/network/batons/${batonId}`)
-    const opening = v6Config(passes[0]!.issued.config)
-    // #then sector 1 starts at leg 10 on the next world with a new seed
-    expect({ sector: detail.baton.route.sector, startedLeg: detail.baton.route.sectorStartedLeg, world: detail.baton.route.world, newSeed: detail.baton.route.seed !== opening.seed }).toEqual({
+    const bound = passes[9]!.intent.route
+    const route = bound && atlasRoute(bound.routeId)
+    // #then sector 1 starts at leg 10 on that route's world, tier and seed, leaving the station the ninth leg reached
+    expect({ sector: detail.baton.route.sector, startedLeg: detail.baton.route.sectorStartedLeg, course: [detail.baton.route.world, detail.baton.route.tier, detail.baton.route.seed], origin: detail.baton.route.origin }).toEqual({
       sector: 1,
       startedLeg: 10,
-      world: relayLeg.WORLDS[(relayLeg.WORLDS.indexOf(opening.world) + 1) % relayLeg.WORLDS.length],
-      newSeed: true,
+      course: [route?.world, route?.tier, route?.seed],
+      origin: passes[0]!.issued.atlas?.destination,
     })
   })
 
@@ -307,16 +310,16 @@ describe('historic v5 legs', () => {
     const historic = await plantV5Leg(a, journey.baton)
     const v5Result = (await call<SubmittedRace>(a.cookie, '/submit', { issued: historic, inputTrace: V5_IDLE_TRACE })).result
     if (!isRelayLegResult(v5Result)) throw new Error('The v5 leg did not replay as a relay leg')
-    const intent = await prepareAndAttempt(a, b, historic.runId)
+    const intent = await prepareAndAttempt(a, b, historic.runId, journey.baton.route.routeId)
     const hash = randomTxHash()
     await confirmWith(a, intent, hash, chainTransfer(intent, hash))
-    // #when the new holder issues the next leg
+    // #when the new holder issues the next leg on the same Atlas route
     const issued = await call<IssuedRace>(b.cookie, '/network/issue', { batonId: journey.baton.id })
     const detail = await call<BatonDetail>('', `/network/batons/${journey.baton.id}`)
-    // #then sector 1 opens at leg 1 on the same world at the new holder's tier, while the v5 leg keeps sector 0
-    const route = { seed: `relay-${journey.baton.code}-s1`, world: journey.baton.route.world, tier: 0, sector: 1, sectorStartedLeg: 1 }
+    // #then sector 1 opens at leg 1 on the route's own course, while the v5 leg keeps sector 0
+    const route = { ...journey.baton.route, sector: 1, sectorStartedLeg: 1 }
     expect({ config: issued.config, ghost: issued.ghost, sector: issued.sector, route: detail.baton.route, detailGhost: detail.ghost, v5Sector: detail.handoffs[0]?.sector }).toEqual({
-      config: { engineVersion: '6', challenge: 'relay-leg', challengeVersion: '6', seed: route.seed, world: route.world, tier: 0, openingFlow: openingFlowAfter(v5Result), tetherSaves: 1, ghostline: null },
+      config: { engineVersion: '6', challenge: 'relay-leg', challengeVersion: '6', seed: route.seed, world: route.world, tier: route.tier, openingFlow: openingFlowAfter(v5Result), tetherSaves: 1, ghostline: null },
       ghost: null,
       sector: { index: 1, startedLeg: 1, firstLeg: true },
       route,

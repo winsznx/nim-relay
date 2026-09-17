@@ -1,3 +1,4 @@
+import type { AtlasLeg } from './atlas'
 export type StationWorld = 'coast' | 'alpine' | 'metro' | 'solar' | 'ocean'
 export type RaceMode = 'quick' | 'global' | 'crew' | 'rival' | 'daily'
 
@@ -217,7 +218,14 @@ export interface IssuedRace {
   sector?: RaceSector
   /** Relay Echoes on this leg's sector for the renderer, most meaningful first, at most 4. Not signed and not stored with the run. */
   echoes?: RelayEcho[]
+  /** Baton legs only. The Atlas route this leg races and why it has a ghost or none. Not signed and not stored with the run. */
+  atlas?: RaceAtlas
 }
+/**
+ * `previous-runner`: the previous runner raced this same route and the leg drafts their Ghostline. `different-route`:
+ * they raced another route, so the leg runs without one. `none`: no earlier leg on this route can be raced as a ghost.
+ */
+export interface RaceAtlas extends AtlasLeg { ghost: 'previous-runner' | 'different-route' | 'none' }
 export interface StationProfile { id: string; name: string; handle: string; xp: number; level: number; seasonRank: string; runs: number; handoffs: number; achievements: string[]; unlocked: string[]; equipped: { suit: string; helmet: string; board: string; trail: string }; crewId: string | null }
 export interface StationCrew { id: string; name: string; code: string; members: string[] }
 export interface StationChallenge { id: string; from: string; fromName: string; to: string; runId: string; status: 'pending' | 'completed'; createdAt: number }

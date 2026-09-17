@@ -150,11 +150,13 @@ function HandoffLab() {
   const sceneRef = useRef<RelayLegSceneHandle | null>(null)
   const [finished, setFinished] = useState(!withScene)
   const [ceremonyState, setCeremonyState] = useState<CeremonyState>('none')
-  const [machine] = useState(() => new HandoffOrchestrator(createLabDeps(), 'run-lab'))
+  const [machine, setMachine] = useState<HandoffOrchestrator | null>(null)
   const showDeparture = useDeparture(state => state.show)
   const { player } = useSession()
   const { snapshot } = useNetwork()
   const detail = useBatonDetail(code).data
+  // The pass offers the routes the baton's first loaded page offered, as a real leg does when it is prepared.
+  if (!machine && detail) setMachine(new HandoffOrchestrator(createLabDeps(), 'run-lab', detail.atlas.next))
   const selfHandle = snapshot?.runners.find(runner => runner.id === player?.id)?.handle ?? null
   const partners = useRunnerProfile(selfHandle).data?.recentRunners
   const now = useNow()
@@ -184,7 +186,7 @@ function HandoffLab() {
     }
   }, [withScene])
 
-  useEffect(() => () => machine.dispose(), [machine])
+  useEffect(() => () => machine?.dispose(), [machine])
 
   const roster = useMemo(
     () => (snapshot && baton ? handoffRoster({ snapshot, baton, selfId: player?.id ?? null, handoffs: detail?.handoffs ?? [], partners: partners ?? [], now }) : null),
@@ -214,7 +216,7 @@ function HandoffLab() {
           </p>
         </section>
       )}
-      {finished && baton && (
+      {finished && baton && machine && (
         <div className="leg-ceremony-layer">
           <HandoffCeremony
             machine={machine}

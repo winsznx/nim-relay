@@ -127,6 +127,7 @@ function readSetup(search: string): LabSetup {
           previous: ghost ? { name: ghost.name, timeMs: ghost.timeMs } : null,
           next: params.get('next') === 'open' ? null : { name: 'Yasmine', context: null },
           note: { from: senderName ?? 'Tim', text: 'Keep it gold for Lisbon' },
+          route: { from: 'Genesis Station', to: 'Cape Verdigris', ghost: ghost ? 'previous-runner' : 'none' },
         }
       : null
   const at = Math.max(20, Number(params.get('at') ?? '120') || 120)

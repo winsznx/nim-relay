@@ -1,5 +1,5 @@
 import { defineConfig } from '@playwright/test'
-import { APP_ORIGIN, APP_PORT, E2E_ROOT, LOGS_DIR, RPC_ORIGIN, RPC_PORT, STATE_DIR, VIEWPORT, WORKER_ORIGIN, WORKER_PORT } from './tests/lifecycle/env'
+import { APP_ORIGIN, APP_PORT, E2E_ROOT, LOGS_DIR, RPC_ORIGIN, RPC_PORT, STATE_DIR, TREASURY_TEST_KEY, VIEWPORT, WORKER_ORIGIN, WORKER_PORT } from './tests/lifecycle/env'
 
 /**
  * The relay lifecycle end to end in real browsers, fully local: a mock Nimiq RPC
@@ -47,6 +47,8 @@ export default defineConfig({
         `--name nim-relay-e2e --ip 127.0.0.1 --port ${WORKER_PORT} --persist-to ${STATE_DIR}`,
         `--var NIMIQ_NETWORK:TestAlbatross --var NIMIQ_RPC_URL:${RPC_ORIGIN}/ --var APP_ORIGIN:${APP_ORIGIN}`,
         '--var SUPABASE_URL: --var SUPABASE_SERVICE_ROLE_KEY:',
+        // Relay Grants on, signing with a key that only exists on the mock chain.
+        `--var TREASURY_ENABLED:true --var TREASURY_PRIVATE_KEY:${TREASURY_TEST_KEY}`,
         `> ${LOGS_DIR}/worker.log 2>&1`,
       ].join(' '),
       env: { WRANGLER_SEND_METRICS: 'false' },

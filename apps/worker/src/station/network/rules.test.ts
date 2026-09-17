@@ -8,7 +8,8 @@ import { pickDailyGhostEntry } from './daily'
 import { batonEchoes, legEchoes, recordLegEchoes } from './echoes'
 import { isRaced } from './lookups'
 import { storedReason, verifierReason } from './reasons'
-import { advanceRoute, inheritedOpeningFlow, nextLegRoute, openingRoute, sectorSeed, tierFor } from './route'
+import { atlasRoute, genesisRouteFor, type AtlasRoute } from '@nim-relay/shared'
+import { inheritedOpeningFlow, moveToAtlasRoute, nextLegRoute, openingRoute, sectorSeed, tierFor } from './route'
 import { freshNetworkState, normalizeNetworkState, type StoredNetworkState } from './state'
 import { countInviteOpen, countShare } from './traffic'
 import type { BatonRecord, DailyEntry, Member, TrafficState } from './types'
@@ -24,12 +25,21 @@ function member(completedRuns: number): Member {
   return { consent: false, country: null, firstSeen: NOW, lastSeen: NOW, days: [], foreground: 0, lastHeartbeat: NOW, completedRuns, legs: 0, legMarks: {} }
 }
 
+/** A pre-Atlas coast sector course, placed on the Genesis route into the coast. */
+const LEGACY_COAST_ROUTE = { ...openingRoute(genesisRouteFor('coast')), seed: sectorSeed('CODE000001', 0), tier: 1 as const }
+
+function atlas(id: string): AtlasRoute {
+  const route = atlasRoute(id)
+  if (!route) throw new Error(`unknown route ${id}`)
+  return route
+}
+
 function batonRecord(overrides: Partial<BatonRecord> = {}): BatonRecord {
   const origin = courier('origin')
   return {
     id: 'baton-1', code: 'CODE000001', serial: 1, title: '', displayName: 'Global Relay #001', mode: 'global', network: 'TestAlbatross', value: 100_000,
     origin, holder: origin, createdAt: NOW, updatedAt: NOW, completedAt: null, status: 'active', handoffCount: 0, world: 'coast',
-    route: openingRoute('CODE000001', 'coast', 1), previousRunId: null, crewId: null, rivalId: null,
+    route: LEGACY_COAST_ROUTE, previousRunId: null, crewId: null, rivalId: null,
     recipientId: null, recipientReservedAt: null, recipientAcceptedAt: null, expiresAt: NOW + DAY,
     lineage: { countries: [], runners: 1, ghostWins: 0 }, quick: null,
     ...overrides,
@@ -44,7 +54,7 @@ function handoff(leg: number, fromId: string, overrides: Partial<BatonHandoff> =
   return {
     id: `handoff-${leg}`, batonId: 'baton-1', leg, from: courier(fromId), to: courier(`${fromId}-next`), value: 100_000, txHash: 'a'.repeat(64),
     network: 'TestAlbatross', at: NOW + leg, runId: `run-${leg}`, resultHash: 'hash', qualified: true, confirmations: 2, blockNumber: 100 + leg,
-    sector: 0, race: race(), rescue: false, note: null,
+    sector: 0, race: race(), rescue: false, note: null, atlas: { ...LEGACY_COAST_ROUTE, backfilled: true, onCourse: false },
     ...overrides,
   }
 }
@@ -131,37 +141,37 @@ describe('inherited opening FLOW', () => {
   })
 })
 
-describe('route sectors', () => {
-  it('keeps the sector course before ten qualified handoffs', () => {
-    // #given a global baton after nine handoffs
-    const baton = batonRecord({ handoffCount: 9 })
+describe('atlas route sectors', () => {
+  it('keeps the sector when the next leg races the same route on its own course', () => {
+    // #given a baton on the Genesis route to Cape Verdigris after three handoffs
+    const route = atlas('genesis-to-cape-verdigris')
+    const baton = batonRecord({ handoffCount: 3, route: openingRoute(route) })
     const before = baton.route
-    // #when the route advances
-    advanceRoute(baton, 2)
-    // #then the course is unchanged
-    expect(baton.route).toEqual(before)
+    // #when its next leg is sent along the same route
+    moveToAtlasRoute(baton, route)
+    // #then the course and sector are unchanged, so the next runner chases the ghost
+    expect(baton.route).toBe(before)
   })
 
-  it('opens the next world on a new seed at ten qualified handoffs', () => {
-    // #given a global baton reaching its tenth handoff on the coast
-    const baton = batonRecord({ handoffCount: 10 })
-    // #when the route advances for an opener on tier 2
-    advanceRoute(baton, 2)
-    // #then sector 1 starts on the next world in rotation with its own seed
+  it('opens a new sector on the world, tier and seed of the chosen route', () => {
+    // #given a baton that reached Cape Verdigris on its third handoff
+    const baton = batonRecord({ handoffCount: 3, route: openingRoute(atlas('genesis-to-cape-verdigris')) })
+    // #when the next leg is sent on to Meridian Yard
+    moveToAtlasRoute(baton, atlas('cape-verdigris-to-meridian-yard'))
+    // #then sector 1 starts at this leg on the metro course of that route
     expect({ route: baton.route, world: baton.world }).toEqual({
-      route: { seed: sectorSeed('CODE000001', 1), world: relayLeg.WORLDS[1], tier: 2, sector: 1, sectorStartedLeg: 10 },
-      world: relayLeg.WORLDS[1],
+      route: { seed: 'atlas-v1-cape-verdigris-to-meridian-yard', world: 'metro', tier: 1, sector: 1, sectorStartedLeg: 3, routeId: 'cape-verdigris-to-meridian-yard', origin: 'cape-verdigris', destination: 'meridian-yard' },
+      world: 'metro',
     })
   })
 
-  it('keeps a Quick match on one sector for the whole match', () => {
-    // #given a quick baton at ten handoffs
-    const baton = batonRecord({ mode: 'quick', handoffCount: 10 })
-    const before = baton.route
-    // #when the route advances
-    advanceRoute(baton, 0)
-    // #then the match keeps its opening course
-    expect(baton.route).toEqual(before)
+  it('moves a pre-Atlas course onto its route course even when the route id matches', () => {
+    // #given a legacy coast sector placed on the Genesis route into the coast
+    const baton = batonRecord({ handoffCount: 4 })
+    // #when the next leg is sent along that same route
+    moveToAtlasRoute(baton, atlas(LEGACY_COAST_ROUTE.routeId))
+    // #then the leg races the route's own course on a new sector
+    expect([baton.route.seed, baton.route.tier, baton.route.sector, baton.route.sectorStartedLeg]).toEqual(['atlas-v1-genesis-to-cape-verdigris', 0, 1, 4])
   })
 })
 
@@ -178,7 +188,7 @@ describe('sector rollover to v6', () => {
 
   it('keeps the route for the first leg of a sector whatever raced before it', () => {
     // #given a sector that started at the current leg after a v5 leg
-    const baton = batonRecord({ handoffCount: 3, previousRunId: 'previous', route: { ...openingRoute('CODE000001', 'coast', 1), sectorStartedLeg: 3 } })
+    const baton = batonRecord({ handoffCount: 3, previousRunId: 'previous', route: { ...LEGACY_COAST_ROUTE, sectorStartedLeg: 3 } })
     // #then no new sector opens
     expect(nextLegRoute(baton, previous(v5Run({}, {}, course)), 2)).toBe(baton.route)
   })
@@ -189,8 +199,16 @@ describe('sector rollover to v6', () => {
     // #when the previous canonical run is v5, or cannot be loaded
     const routes = [nextLegRoute(baton, previous(v5Run({}, {}, course)), 2), nextLegRoute(baton, undefined, 2)]
     // #then the next leg opens sector 1 at this leg, at the opener's tier, with its own seed
-    const rolled = { seed: sectorSeed('CODE000001', 1), world: 'coast', tier: 2, sector: 1, sectorStartedLeg: 3 }
+    const rolled = { ...LEGACY_COAST_ROUTE, seed: sectorSeed('CODE000001', 1), world: 'coast', tier: 2, sector: 1, sectorStartedLeg: 3 }
     expect(routes).toEqual([rolled, rolled])
+  })
+
+  it('keeps an Atlas course and tier when a new sector opens on it', () => {
+    // #given a baton three legs into an Atlas route, whose previous run cannot be loaded
+    const route = openingRoute(atlas('meridian-yard-to-fjordgate'))
+    const baton = batonRecord({ handoffCount: 3, previousRunId: 'previous', route })
+    // #then the new sector races the same route course
+    expect(nextLegRoute(baton, undefined, 2)).toEqual({ ...route, sector: 1, sectorStartedLeg: 3 })
   })
 })
 
@@ -429,7 +447,7 @@ describe('stored network state', () => {
     // #when legacy state loads
     const baton = normalizeNetworkState(legacy).batons.later
     // #then the baton continues its world on a standard course that starts now
-    expect(baton?.route).toEqual({ seed: sectorSeed('LATER00001', 0), world: 'alpine', tier: 1, sector: 0, sectorStartedLeg: 3 })
+    expect(baton?.route).toEqual({ seed: sectorSeed('LATER00001', 0), world: 'alpine', tier: 1, sector: 0, sectorStartedLeg: 3, routeId: 'genesis-to-highland-kibo', origin: 'genesis', destination: 'highland-kibo' })
   })
 
   it('treats reservations made after a handoff as accepted and earlier ones as waiting', () => {

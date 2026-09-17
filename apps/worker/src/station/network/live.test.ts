@@ -88,7 +88,7 @@ describe('live leg progress', () => {
     const [a, b] = [await runner(), await runner()]
     await joinNetwork(a, b)
     const journey = await createBaton(a, { mode: 'global', title: 'Chasing a ghost' })
-    await passBaton(a, b, journey.baton.id)
+    await passBaton(a, b, journey.baton.id, undefined, 'same')
     const issued = await call<IssuedRace>(b.cookie, '/network/issue', { batonId: journey.baton.id })
     // #when they report trailing the ghost by 310 ms
     await report(b, reportAfter(issued, 600, 310))

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { useNetwork } from '../relays/data'
+import type { AtlasSnapshot } from '@nim-relay/shared'
+import { useAtlas, useNetwork } from '../relays/data'
 import { useLiveBatonIds } from '../relays/live'
 import { navigate, pathFor } from '../shell/router'
 import type { RelayView } from '../relays/model'
-import { mountGlobe, type Framing, type GlobeHandle, type GlobeRelay } from './globe'
+import { mountGlobe, type Framing, type GlobeAtlas, type GlobeHandle, type GlobeRelay } from './globe'
 import { attachGlobe, detachGlobe, markGlobeUnavailable, showGlobe } from './globe-bridge'
 import './world.css'
 
@@ -47,7 +48,15 @@ interface WorldCanvasProps {
 }
 
 function toGlobeRelay(relay: RelayView, live: boolean): GlobeRelay {
-  return { id: relay.id, mode: relay.mode, team: relay.team, crewKey: relay.crewId, status: relay.status, live, stops: relay.stops.map(stop => stop.countryCode) }
+  return { id: relay.id, mode: relay.mode, team: relay.team, crewKey: relay.crewId, status: relay.status, live, hops: relay.hops }
+}
+
+function toGlobeAtlas(snapshot: AtlasSnapshot | undefined): GlobeAtlas | null {
+  if (!snapshot) return null
+  return {
+    routes: new Map(snapshot.routes.map(route => [route.routeId, { lit: route.lit, heatLevel: route.heatLevel }])),
+    litStations: new Set(snapshot.stations.filter(station => station.lit).map(station => station.stationId)),
+  }
 }
 
 /** The persistent Earth behind every screen. Mounted once by the app shell. */
@@ -64,7 +73,7 @@ export function WorldCanvas({ relays, featuredId, selectedId, framing, active }:
     const element = host.current
     if (!element) return
     const handle = mountGlobe(element, {
-      onSelect: relayId => navigate(pathFor('relay', { code: codes.current.get(relayId) ?? relayId })),
+      onSelect: target => navigate(target.kind === 'relay' ? pathFor('relay', { code: codes.current.get(target.id) ?? target.id }) : pathFor('atlasRoute', { routeId: target.id })),
       onReady: attachGlobe,
       onUnavailable: markGlobeUnavailable,
     })
@@ -85,9 +94,11 @@ export function WorldCanvas({ relays, featuredId, selectedId, framing, active }:
   const { snapshot, receivedAt } = useNetwork()
   const liveIds = useLiveBatonIds(snapshot?.batons, receivedAt)
   const globeRelays = useMemo(() => relays.map(relay => toGlobeRelay(relay, liveIds.has(relay.id))), [relays, liveIds])
+  const atlas = useAtlas().data
+  const globeAtlas = useMemo(() => toGlobeAtlas(atlas), [atlas])
   useEffect(() => {
-    globe?.update({ relays: globeRelays, featuredId, selectedId })
-  }, [globe, globeRelays, featuredId, selectedId])
+    globe?.update({ relays: globeRelays, featuredId, selectedId, atlas: globeAtlas })
+  }, [globe, globeRelays, featuredId, selectedId, globeAtlas])
 
   const layout = useWideLayout() ? 'wide' : 'narrow'
   useEffect(() => {
@@ -100,7 +111,10 @@ export function WorldCanvas({ relays, featuredId, selectedId, framing, active }:
   }, [globe, active])
 
   const live = relays.filter(relay => relay.status === 'active').length
-  const label = live === 0 ? 'Globe of the relay network. No batons are moving right now.' : `Globe of the relay network with ${live} active ${live === 1 ? 'baton' : 'batons'}. Drag to turn, pinch to zoom, tap a route to open it.`
+  const label =
+    live === 0
+      ? 'Globe of the Relay Atlas: stations and the routes between them. No batons are moving right now. Tap a route to open it.'
+      : `Globe of the Relay Atlas with ${live} active ${live === 1 ? 'baton' : 'batons'} travelling between stations. Drag to turn, pinch to zoom, tap a baton or a route to open it.`
   return (
     <div className="nr-world" data-framing={framing} aria-hidden={!active || undefined}>
       <div ref={host} className="nr-world__globe" role="img" aria-label={label} data-tour="relay-world" />

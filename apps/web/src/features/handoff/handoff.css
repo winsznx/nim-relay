@@ -1230,3 +1230,111 @@
     animation: none;
   }
 }
+
+/* Atlas route step: a compact list of routes out of the station the leg reached */
+.handoff-route {
+  gap: 12px;
+}
+
+.handoff-routes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.handoff .handoff-route-option {
+  --route-heat: rgba(159, 178, 214, 0.5);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--holo-line);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.015));
+  color: var(--holo-ink);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.handoff .handoff-route-option[data-heat='warm'] {
+  --route-heat: rgba(245, 166, 35, 0.6);
+}
+
+.handoff .handoff-route-option[data-heat='hot'],
+.handoff .handoff-route-option[data-heat='blazing'] {
+  --route-heat: var(--holo-gold);
+}
+
+.handoff .handoff-route-option:hover,
+.handoff .handoff-route-option:active {
+  border-color: rgba(255, 214, 140, 0.62);
+  background-color: rgba(245, 166, 35, 0.12);
+}
+
+.handoff .handoff-route-option:focus-visible {
+  outline: 2px solid var(--holo-cyan);
+  outline-offset: 2px;
+}
+
+.handoff-route-option__heat {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--route-heat);
+}
+
+.handoff-route-option[data-heat='hot'] .handoff-route-option__heat,
+.handoff-route-option[data-heat='blazing'] .handoff-route-option__heat {
+  background: var(--route-heat);
+  box-shadow: 0 0 10px var(--route-heat);
+}
+
+.handoff-route-option__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.handoff-route-option__name {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.handoff-route-option__meta {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--holo-mist);
+}
+
+.handoff-route-option__tag {
+  flex: none;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 214, 140, 0.4);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--holo-gold-light);
+}
+
+.handoff-route-chip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 2px 10px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--holo-ink-soft);
+  text-align: center;
+}

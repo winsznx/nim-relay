@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { NetworkConfirmation, NetworkHandoffIntent, RelayNote } from '@nim-relay/shared'
+import type { AtlasNextRoute, NetworkConfirmation, NetworkHandoffIntent, RelayNote } from '@nim-relay/shared'
 import { classifyWalletError, HandoffOrchestrator, noteLength, type HandoffDeps, type TransferRecord } from './machine'
 
 const HASH = 'a'.repeat(64)
@@ -27,6 +27,7 @@ function intent(overrides: Partial<NetworkHandoffIntent> = {}): NetworkHandoffIn
     attemptedAt: null,
     failure: null,
     note: null,
+    route: null,
     ...overrides,
   }
 }
@@ -37,7 +38,15 @@ class ApiError extends Error {
   }
 }
 
-function harness(overrides: Partial<HandoffDeps> = {}) {
+const ROUTES: AtlasNextRoute = {
+  policy: 'choose',
+  station: 'cape-verdigris',
+  routeIds: ['genesis-to-cape-verdigris', 'cape-verdigris-to-meridian-yard', 'cape-verdigris-to-trade-wind-quay'],
+  rerunRouteId: 'genesis-to-cape-verdigris',
+  defaultRouteId: 'cape-verdigris-to-meridian-yard',
+}
+
+function harness(overrides: Partial<HandoffDeps> = {}, routes: AtlasNextRoute | null = null) {
   const records = new Map<string, TransferRecord>()
   const deps: HandoffDeps = {
     prepare: vi.fn(async () => intent()),
@@ -53,7 +62,7 @@ function harness(overrides: Partial<HandoffDeps> = {}) {
     wait: async () => undefined,
     ...overrides,
   }
-  const machine = new HandoffOrchestrator(deps, 'run-1')
+  const machine = new HandoffOrchestrator(deps, 'run-1', routes)
   return { deps, machine, records }
 }
 
@@ -63,6 +72,54 @@ function aim(machine: HandoffOrchestrator, note: RelayNote | null = null): void 
   machine.attachNote(note)
 }
 
+describe('handoff route step', () => {
+  it('opens on the route when the holder may choose, and binds the chosen route into the pass', async () => {
+    // #given a pass that offers routes out of Cape Verdigris
+    const { deps, machine } = harness({}, ROUTES)
+    expect(machine.getSnapshot()).toEqual({ stage: 'route', notice: null })
+    // #when the holder picks the trade winds route, then a runner, and throws
+    machine.chooseRoute('cape-verdigris-to-trade-wind-quay')
+    expect(machine.getSnapshot()).toEqual({ stage: 'choose', notice: null })
+    aim(machine)
+    await machine.throwBaton(launch)
+    // #then the pass is prepared with that route
+    expect(deps.prepare).toHaveBeenCalledWith('run-1', runner.id, launch, null, 'cape-verdigris-to-trade-wind-quay')
+  })
+
+  it('ignores a route the relay did not offer and lets the relay pick when asked', async () => {
+    const { deps, machine } = harness({}, ROUTES)
+    machine.chooseRoute('aurora-ridge-to-fjordgate')
+    expect(machine.getSnapshot().stage).toBe('route')
+    machine.chooseRoute(null)
+    aim(machine)
+    await machine.throwBaton(launch)
+    expect(deps.prepare).toHaveBeenCalledWith('run-1', runner.id, launch, null, null)
+  })
+
+  it('goes back to the route from the runner and the throw, keeping the runner step after', () => {
+    const { machine } = harness({}, ROUTES)
+    machine.chooseRoute('genesis-to-cape-verdigris')
+    aim(machine)
+    machine.changeRoute()
+    expect([machine.getSnapshot(), machine.chosenRoute]).toEqual([{ stage: 'route', notice: null }, 'genesis-to-cape-verdigris'])
+  })
+
+  it('returns to the route step when the relay refuses the route', async () => {
+    const { machine } = harness({ prepare: vi.fn(async () => Promise.reject(new ApiError('route_not_available'))) }, ROUTES)
+    machine.chooseRoute('cape-verdigris-to-meridian-yard')
+    aim(machine)
+    await machine.throwBaton(launch)
+    expect([machine.getSnapshot(), machine.chosenRoute]).toEqual([{ stage: 'route', notice: 'route-unavailable' }, null])
+  })
+
+  it('skips the route step when the route is fixed for this pass', () => {
+    const { machine } = harness({}, { ...ROUTES, policy: 'fixed', routeIds: ['genesis-to-cape-verdigris'], defaultRouteId: 'genesis-to-cape-verdigris' })
+    expect(machine.getSnapshot()).toEqual({ stage: 'choose', notice: null })
+    machine.changeRoute()
+    expect(machine.getSnapshot().stage).toBe('choose')
+  })
+})
+
 describe('handoff ceremony', () => {
   it('locks the recipient, opens Nimiq Pay once, and confirms only after server verification', async () => {
     const { deps, machine, records } = harness()
@@ -71,7 +128,7 @@ describe('handoff ceremony', () => {
     machine.attachNote(null)
     expect(machine.getSnapshot()).toEqual({ stage: 'aiming', recipient: runner, note: null })
     await machine.throwBaton(launch)
-    expect(deps.prepare).toHaveBeenCalledWith('run-1', runner.id, launch, null)
+    expect(deps.prepare).toHaveBeenCalledWith('run-1', runner.id, launch, null, null)
     expect(deps.send).toHaveBeenCalledTimes(1)
     expect(machine.getSnapshot()).toMatchObject({ stage: 'confirmed', hash: HASH })
     expect(records.get('intent-1')).toEqual({ id: 'intent-1', hash: HASH, state: 'verified' })
@@ -288,7 +345,7 @@ describe('relay note', () => {
     await machine.throwBaton(launch)
 
     // #then the prepared intent carries exactly that note
-    expect(deps.prepare).toHaveBeenCalledWith('run-1', runner.id, launch, { text: 'Don’t drop the baton.', visibility: 'private' })
+    expect(deps.prepare).toHaveBeenCalledWith('run-1', runner.id, launch, { text: 'Don’t drop the baton.', visibility: 'private' }, null)
     expect(machine.getSnapshot().stage).toBe('confirmed')
   })
 
@@ -297,7 +354,7 @@ describe('relay note', () => {
     aim(machine, { text: '   ', visibility: 'public' })
     expect(machine.getSnapshot()).toEqual({ stage: 'aiming', recipient: runner, note: null })
     await machine.throwBaton(launch)
-    expect(deps.prepare).toHaveBeenCalledWith('run-1', runner.id, launch, null)
+    expect(deps.prepare).toHaveBeenCalledWith('run-1', runner.id, launch, null, null)
   })
 
   it('holds a note over the limit on the note step before anything is sent', () => {
@@ -346,7 +403,7 @@ describe('relay note', () => {
     await machine.throwBaton(launch)
 
     // #then the new note is prepared and the pass goes through once
-    expect(deps.prepare).toHaveBeenLastCalledWith('run-1', runner.id, launch, { text: 'Go fast', visibility: 'public' })
+    expect(deps.prepare).toHaveBeenLastCalledWith('run-1', runner.id, launch, { text: 'Go fast', visibility: 'public' }, null)
     expect(deps.send).toHaveBeenCalledTimes(1)
     expect(machine.getSnapshot().stage).toBe('confirmed')
   })

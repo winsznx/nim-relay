@@ -48,7 +48,6 @@ export const SENDER_HISTORY_MAX_PAGES = 4
 /** How far block timestamps and the Worker clock may disagree. */
 export const CHAIN_CLOCK_SKEW_MS = 10 * MINUTE_MS
 
-export const SECTOR_HANDOFFS = 10
 export const HANDOFF_MILESTONES: readonly number[] = [10, 25, 50, 100, 250]
 export const NEAR_MISS_LEGEND = 6
 export const MAX_BATON_ECHOES = 12
@@ -102,3 +101,8 @@ export const OPS_RPC_ALERT_MS = HOUR_MS
 export const OPS_STUCK_HANDOFF_MS = 30 * MINUTE_MS
 export const OPS_ARCHIVE_LAG_MS = 10 * MINUTE_MS
 export const OPS_QUIET_NETWORK_MS = DAY_MS
+
+/** Atlas route heat halves over this long without verified activity. */
+export const ATLAS_HEAT_HALF_LIFE_MS = 3 * DAY_MS
+/** Heat at which a route shows about two thirds bright. */
+export const ATLAS_HEAT_SCALE = 3

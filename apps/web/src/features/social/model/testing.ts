@@ -25,7 +25,7 @@ export function baton(overrides: Partial<NetworkBaton> & Pick<NetworkBaton, 'id'
     status: 'active',
     handoffCount: 0,
     world: 'coast',
-    route: { seed: 'seed', world: 'coast', tier: 0, sector: 0, sectorStartedLeg: 0 },
+    route: { seed: 'seed', world: 'coast', tier: 0, sector: 0, sectorStartedLeg: 0, routeId: 'genesis-to-cape-verdigris', origin: 'genesis', destination: 'cape-verdigris' },
     previousRunId: null,
     crewId: null,
     rivalId: null,

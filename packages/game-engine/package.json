@@ -11,6 +11,7 @@
     "test:replay": "vitest run src/replay"
   },
   "devDependencies": {
+    "@nim-relay/shared": "workspace:*",
     "typescript": "5.9.3",
     "vitest": "^4.1.11"
   }

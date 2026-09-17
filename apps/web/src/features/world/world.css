@@ -134,6 +134,37 @@
   white-space: nowrap;
 }
 
+/* Top stack: the personal banner, then the community's Light the world meter */
+.nr-home__top {
+  position: fixed;
+  z-index: 11;
+  top: calc(var(--nr-safe-top) + 62px);
+  left: var(--nr-gutter);
+  right: var(--nr-gutter);
+  display: grid;
+  gap: var(--nr-space-2);
+  max-width: 480px;
+  margin: 0 auto;
+  pointer-events: none;
+}
+.nr-home__top > * {
+  pointer-events: auto;
+}
+.nr-home__top .nr-banner {
+  position: static;
+  margin: 0;
+}
+.nr-home__top .nr-light {
+  margin: 0;
+}
+@media (min-width: 900px) {
+  .nr-home__top {
+    left: 40px;
+    right: auto;
+    width: 440px;
+  }
+}
+
 /* Hero: the featured relay as a boarding pass for one NIM */
 .nr-hero {
   position: relative;

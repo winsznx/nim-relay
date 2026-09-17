@@ -1,4 +1,4 @@
-import type { AchievementId, BatonHandoff, BatonMode, HandoffRejectionReason, NetworkBaton, NetworkHandoffIntent, NetworkInvite, NetworkNotification, NetworkRival, OpsFlagReason, RaceMode, RelayArtifact, RelayEcho, ShareSurface } from '@nim-relay/shared'
+import type { AchievementId, AtlasGhostRecord, AtlasMissionId, AtlasRunRecord, BatonHandoff, BatonMode, HandoffRejectionReason, NetworkBaton, NetworkHandoffIntent, NetworkInvite, NetworkNotification, NetworkRival, OpsFlagReason, RaceMode, RelayArtifact, RelayEcho, ShareSurface } from '@nim-relay/shared'
 import type { Env } from '../../env'
 import type { State } from '../model'
 import type { LiveLegs } from './live'
@@ -41,6 +41,40 @@ export interface RunnerAwards {
   artifacts: RelayArtifact[]
 }
 
+/** Verified activity on one Atlas route. */
+export interface AtlasRouteLedger {
+  runs: number
+  runners: number
+  fastest: AtlasRunRecord | null
+  ghostRecord: AtlasGhostRecord | null
+  /** Heat as of `heatAt`; it decays from there. */
+  heat: number
+  heatAt: number
+  lastRunAt: number
+}
+
+/** One runner's Atlas progression. Bounded by the catalogue: at most every station and route once. */
+export interface AtlasPlayerLedger {
+  stations: string[]
+  routes: string[]
+  /** Qualified legs raced. */
+  legs: number
+  /** Routes this runner's leg lit first. */
+  routesLit: number
+  missions: Partial<Record<AtlasMissionId, number>>
+}
+
+/**
+ * Relay Atlas aggregates, written only when a qualified leg's handoff verifies, so reads never recompute them. Treasury
+ * grants and every other non-leg record never reach it.
+ */
+export interface AtlasLedger {
+  routes: Record<string, AtlasRouteLedger>
+  /** stationId -> qualified legs that left or reached it. Present means lit. */
+  stations: Record<string, number>
+  players: Record<string, AtlasPlayerLedger>
+}
+
 export interface NetworkState {
   /** Monotonic write counter for clients and the archive, not a schema version. */
   version: number
@@ -68,6 +102,7 @@ export interface NetworkState {
   /** playerId -> achievements and artifacts. */
   awards: Record<string, RunnerAwards>
   rematches: number
+  atlas: AtlasLedger
   /** Changes not yet archived to Supabase. */
   dirty: boolean
 }

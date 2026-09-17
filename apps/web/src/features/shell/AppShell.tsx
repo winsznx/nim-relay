@@ -4,6 +4,7 @@ import './ui/ui.css'
 import './shell.css'
 import { lazy, Suspense, type ReactElement, useEffect } from 'react'
 import { AnimatePresence } from 'motion/react'
+import { AtlasRouteScreen } from '../atlas/AtlasRouteScreen'
 import { OpsScreen } from '../ops/OpsScreen'
 import { useForegroundHeartbeat, useLiveUpdates, useRelays } from '../relays/data'
 import { ChronicleScreen } from '../relays/ChronicleScreen'
@@ -26,6 +27,8 @@ import { PlaySheet } from './PlaySheet'
 import { matchRoute, useLocation, type AppLocation, type RouteMatch } from './router'
 import { SIGN_IN_OVERLAY, useSession } from './session'
 import { SignInSheet } from './SignInSheet'
+import { GrantClaimSheet } from '../grants/GrantClaimSheet'
+import { GRANT_OVERLAY } from '../grants/data'
 import { ToastViewport } from './ui/overlays'
 import { DepartureBanner } from '../leg/DepartureBanner'
 import { getAudioDirector } from '../audio/director'
@@ -43,6 +46,8 @@ function screenFor(route: RouteMatch, location: AppLocation): ReactElement | nul
       return null
     case 'relay':
       return <JourneyScreen key={entry} entryKey={entry} code={route.params.code} />
+    case 'atlasRoute':
+      return <AtlasRouteScreen key={entry} entryKey={entry} routeId={route.params.routeId} />
     case 'chronicle':
       return <ChronicleScreen key={entry} entryKey={entry} code={route.params.code} />
     case 'proof':
@@ -79,6 +84,7 @@ function framingFor(route: RouteMatch): WorldFraming {
     case 'world':
       return 'home'
     case 'relay':
+    case 'atlasRoute':
     case 'chronicle':
     case 'proofRelay':
       return 'peek'
@@ -132,6 +138,7 @@ export function AppShell() {
       )}
       <PlaySheet open={location.overlay === PLAY_OVERLAY} playerId={player?.id ?? null} relays={relays} snapshot={state.snapshot} />
       <SignInSheet open={location.overlay === SIGN_IN_OVERLAY} />
+      {player && <GrantClaimSheet open={location.overlay === GRANT_OVERLAY} />}
       <DepartureBanner />
       <ToastViewport />
       <TourHost route={route} location={location} player={player} checking={checking} featured={featured} network={state} />

@@ -6,6 +6,7 @@ const mission: RaceMission = {
   previous: { name: 'Mariana', timeMs: 44_120 },
   next: { name: 'Yasmine', context: null },
   note: null,
+  route: null,
 }
 
 describe('mission copy', () => {
@@ -14,7 +15,7 @@ describe('mission copy', () => {
     // #when the mission header is written
     const copy = missionCopy(mission)
     // #then it reads as a delivery with the previous runner's time
-    expect(copy).toEqual({ title: 'DELIVER AURORA TO YASMINE', previous: 'PREVIOUS RUNNER MARIANA · 44.12s', handoff: null })
+    expect(copy).toEqual({ title: 'DELIVER AURORA TO YASMINE', previous: 'PREVIOUS RUNNER MARIANA · 44.12s', handoff: null, route: null })
   })
 
   it('keeps the baton moving when the handoff is open', () => {
@@ -22,7 +23,14 @@ describe('mission copy', () => {
     // #when the mission header is written
     const copy = missionCopy({ ...mission, previous: null, next: null })
     // #then it asks to keep the baton moving and says the handoff is open
-    expect(copy).toEqual({ title: 'KEEP AURORA MOVING', previous: null, handoff: 'OPEN HANDOFF AT FINISH' })
+    expect(copy).toEqual({ title: 'KEEP AURORA MOVING', previous: null, handoff: 'OPEN HANDOFF AT FINISH', route: null })
+  })
+
+  it('names the Atlas route and says honestly when the leg has no Ghostline', () => {
+    // #given a leg on a route the previous runner did not race
+    const copy = missionCopy({ ...mission, route: { from: 'Cape Verdigris', to: 'Meridian Yard', ghost: 'different-route' } })
+    // #then the route is named and the missing ghost explained
+    expect({ route: copy.route, previous: copy.previous }).toEqual({ route: 'CAPE VERDIGRIS TO MERIDIAN YARD', previous: 'PREVIOUS RUNNER MARIANA RACED ANOTHER ROUTE · NO GHOSTLINE' })
   })
 
   it('adds where the next runner waits and drops an unknown previous time', () => {

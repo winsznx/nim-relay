@@ -1,9 +1,10 @@
 import { deriveCommitment, encodeTxData, NimiqRpcClient, paymentAddress, TransactionNotFoundError, verifyHandoffTransaction, type NimiqTransaction } from '@nim-relay/relay-protocol'
-import { isFailedLeg, type HandoffReasonCode, type HandoffRejectionReason, type NetworkConfirmation, type NetworkHandoffIntent, type RelayNote } from '@nim-relay/shared'
+import { isFailedLeg, type AtlasLeg, type HandoffReasonCode, type HandoffRejectionReason, type NetworkConfirmation, type NetworkHandoffIntent, type RelayNote } from '@nim-relay/shared'
 import { z } from 'zod'
 import type { Env } from '../../env'
 import { ApiError, type Profile } from '../model'
 import { mac } from '../signing'
+import { chooseNextRoute } from './atlas'
 import { presentBaton } from './batons'
 import { INTENT_PREPARED_TTL_MS, MIN_CONFIRMATIONS, RECONCILE_RETRY_MS, RESERVATION_ACCEPT_MS } from './constants'
 import { applyVerifiedHandoff } from './custody'
@@ -20,6 +21,7 @@ const prepareBody = z.object({
   recipient: z.string(),
   throw: z.object({ angle: z.number().int().min(15).max(75), power: z.number().int().min(30).max(100) }).default({ angle: 45, power: 75 }),
   note: relayNoteInput.nullable().optional(),
+  routeId: z.string().max(120).optional(),
 })
 const confirmBody = z.object({ id: z.string().uuid(), txHash: z.string().regex(/^[a-f0-9]{64}$/i) })
 
@@ -33,6 +35,8 @@ export interface HandoffTerms {
   to: string
   throw: { angle: number; power: number }
   note: RelayNote | null
+  /** Atlas route of the next leg. Null only for intents prepared before the Atlas, whose commitments never bound one. */
+  route: AtlasLeg | null
 }
 
 /** Durably writes network and product state; confirmation binds the transaction hash through it before any lookup. */
@@ -43,9 +47,9 @@ export type TransactionLookup = { found: true; transaction: NimiqTransaction } |
 export type TransactionSource = (txHash: string) => Promise<TransactionLookup>
 
 /**
- * Locks the pass of the holder's qualified leg to one recipient and note. The moderated note is bound into the
- * commitment but never into transaction data. Preparing again returns the open intent only for the same run,
- * recipient and note.
+ * Locks the pass of the holder's qualified leg to one recipient, note and next Atlas route. The moderated note and the
+ * route are bound into the commitment but never into transaction data. Preparing again returns the open intent only for
+ * the same run, recipient and note, and the same route when one is sent.
  */
 export async function prepareHandoff(context: NetworkContext, profile: Profile, body: unknown): Promise<NetworkHandoffIntent> {
   const input = prepareBody.parse(body)
@@ -61,13 +65,15 @@ export async function prepareHandoff(context: NetworkContext, profile: Profile, 
 
   const open = openIntentFor(context.state, baton.id)
   if (open) {
-    if (open.runId !== input.runId || open.recipientId !== recipient.id || !sameNote(open.note, note)) throw new ApiError('handoff_already_prepared', 409)
+    const sameRoute = input.routeId === undefined || open.route?.routeId === input.routeId
+    if (open.runId !== input.runId || open.recipientId !== recipient.id || !sameNote(open.note, note) || !sameRoute) throw new ApiError('handoff_already_prepared', 409)
     return open
   }
 
   const id = crypto.randomUUID()
   const leg = baton.handoffCount + 1
-  const commitment = await handoffCommitment(context.env.RUN_CHALLENGE_SECRET, { id, batonId: baton.id, leg, runId: input.runId, from: profile.id, to: recipient.id, throw: input.throw, note })
+  const route = chooseNextRoute(baton, leg, input.routeId)
+  const commitment = await handoffCommitment(context.env.RUN_CHALLENGE_SECRET, { id, batonId: baton.id, leg, runId: input.runId, from: profile.id, to: recipient.id, throw: input.throw, note, route })
   const now = Date.now()
   const intent: NetworkHandoffIntent = {
     id,
@@ -90,6 +96,7 @@ export async function prepareHandoff(context: NetworkContext, profile: Profile, 
     attemptedAt: null,
     failure: null,
     note,
+    route,
   }
   context.state.intents[id] = intent
   await context.storage.setAlarm(now + RECONCILE_RETRY_MS)
@@ -98,11 +105,12 @@ export async function prepareHandoff(context: NetworkContext, profile: Profile, 
 
 /**
  * The 128-bit commitment carried in transfer data: a MAC over every term of the intent, so the chain transfer commits
- * to the recipient, run and note without revealing any of them.
+ * to the recipient, run, note and next route without revealing any of them. Intents prepared before the Atlas have no
+ * route and keep the commitment they were prepared with.
  */
 export async function handoffCommitment(secret: string, terms: HandoffTerms): Promise<string> {
-  const { id, batonId, leg, runId, from, to, throw: launch, note } = terms
-  return deriveCommitment(await mac(secret, { id, batonId, leg, runId, from, to, throw: launch, note }))
+  const { id, batonId, leg, runId, from, to, throw: launch, note, route } = terms
+  return deriveCommitment(await mac(secret, { id, batonId, leg, runId, from, to, throw: launch, note, ...(route ? { route } : {}) }))
 }
 
 function chooseRecipient(context: NetworkContext, baton: BatonRecord, sender: Profile, idOrHandle: string): Profile {

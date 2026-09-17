@@ -88,7 +88,7 @@ export function LegRun({ setup, snapshot, playerId, onExit, onReissue, onRefresh
   const mission = useMemo(() => legMission(setup, roster), [setup, roster])
 
   const receipt = verification.status === 'verified' ? verification.receipt : null
-  const machine = useMemo(() => (receipt?.qualifiedHandoff && setup.mode === 'relay' ? new HandoffOrchestrator(handoffDeps, receipt.runId) : null), [receipt, setup.mode])
+  const machine = useMemo(() => (receipt?.qualifiedHandoff && setup.mode === 'relay' ? new HandoffOrchestrator(handoffDeps, receipt.runId, setup.atlasNext) : null), [receipt, setup.mode, setup.atlasNext])
   useEffect(() => () => machine?.dispose(), [machine])
 
   const submit = useCallback(
@@ -159,14 +159,13 @@ export function LegRun({ setup, snapshot, playerId, onExit, onReissue, onRefresh
       setCeremonyState('departed')
       director.ceremony('departed')
       const code = baton?.code ?? null
-      const recipient = snapshot?.runners.find(runner => runner.id === stage.intent.recipientId)
       onRefresh()
       // The race fades out first; the banner and the globe crossing belong to the world view.
       window.setTimeout(() => {
         director.ceremony('arrival')
         navigate(code ? pathFor('relay', { code }) : '/', { replace: true })
         if (baton) {
-          playArrival(stage.intent.id, { relayId: baton.id, fromCountry: baton.holder.country, toCountry: recipient?.country ?? null })
+          playArrival(stage.intent.id, { relayId: baton.id, fromStation: baton.route.origin, toStation: baton.route.destination })
           showDeparture({ key: stage.intent.id, batonName: baton.displayName, leg: stage.intent.leg, recipientName: stage.intent.recipientName })
         }
       }, WORLD_HANDOVER_MS)

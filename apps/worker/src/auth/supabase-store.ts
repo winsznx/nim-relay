@@ -34,6 +34,8 @@ interface SessionRow {
   player_id: string
   expires_at: string
   revoked_at: string | null
+  /** Embedded through sessions.device_id; PostgREST types it as a list, the relation yields at most one. */
+  devices?: { device_hash: string } | { device_hash: string }[] | null
 }
 
 function toPlayer(row: PlayerRow): PlayerRecord {
@@ -52,8 +54,11 @@ function toSession(row: SessionRow): SessionRecord {
     playerId: row.player_id,
     expiresAt: Date.parse(row.expires_at),
     revokedAt: row.revoked_at ? Date.parse(row.revoked_at) : null,
+    deviceHash: (Array.isArray(row.devices) ? row.devices[0] : row.devices)?.device_hash ?? null,
   }
 }
+
+const SESSION_COLUMNS = 'id, player_id, expires_at, revoked_at, devices(device_hash)'
 
 function normalizeWallet(walletAddress: string): string {
   return walletAddress.replace(/\s+/g, '').toUpperCase()
@@ -146,20 +151,7 @@ export class SupabaseAuthStore implements AuthStore {
   }
 
   async createSession(input: CreateSessionInput): Promise<SessionRecord> {
-    let deviceId: string | null = null
-    if (input.deviceHash) {
-      const { data, error } = await this.db
-        .from('devices')
-        .upsert(
-          { player_id: input.playerId, device_hash: input.deviceHash, last_seen_at: new Date().toISOString() },
-          { onConflict: 'device_hash,player_id' },
-        )
-        .select('id')
-        .single()
-      if (error) throw new Error(`createSession/device: ${error.message}`)
-      deviceId = (data as { id: string }).id
-    }
-
+    const deviceId = input.deviceHash ? await this.upsertDevice(input.playerId, input.deviceHash) : null
     const { data, error } = await this.db
       .from('sessions')
       .insert({
@@ -170,13 +162,31 @@ export class SupabaseAuthStore implements AuthStore {
       .select('id, player_id, expires_at, revoked_at')
       .single()
     if (error) throw new Error(`createSession: ${error.message}`)
-    return toSession(data as SessionRow)
+    return { ...toSession(data as SessionRow), deviceHash: input.deviceHash }
+  }
+
+  async attachDevice(sessionId: string, playerId: string, deviceHash: string): Promise<SessionRecord | null> {
+    const deviceId = await this.upsertDevice(playerId, deviceHash)
+    const { error } = await this.db.from('sessions').update({ device_id: deviceId }).eq('id', sessionId).eq('player_id', playerId).is('device_id', null)
+    if (error) throw new Error(`attachDevice: ${error.message}`)
+    const session = await this.getSession(sessionId)
+    return session?.playerId === playerId ? session : null
+  }
+
+  private async upsertDevice(playerId: string, deviceHash: string): Promise<string> {
+    const { data, error } = await this.db
+      .from('devices')
+      .upsert({ player_id: playerId, device_hash: deviceHash, last_seen_at: new Date().toISOString() }, { onConflict: 'device_hash,player_id' })
+      .select('id')
+      .single()
+    if (error) throw new Error(`upsertDevice: ${error.message}`)
+    return (data as { id: string }).id
   }
 
   async getSession(sessionId: string): Promise<SessionRecord | null> {
     const { data, error } = await this.db
       .from('sessions')
-      .select('id, player_id, expires_at, revoked_at')
+      .select(SESSION_COLUMNS)
       .eq('id', sessionId)
       .maybeSingle()
     if (error) throw new Error(`getSession: ${error.message}`)

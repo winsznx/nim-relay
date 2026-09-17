@@ -9,6 +9,7 @@ import { useLayoutEffect, useSyncExternalStore, type MouseEvent, type RefObject 
 const ROUTES = {
   world: '/',
   relay: '/relay/:code',
+  atlasRoute: '/atlas/route/:routeId',
   chronicle: '/chronicle/:code',
   proof: '/proof',
   proofRelay: '/proof/relay/:code',

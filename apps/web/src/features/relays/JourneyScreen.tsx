@@ -1,6 +1,8 @@
 import { useEffect, type ReactNode } from 'react'
 import type { NetworkSnapshot } from '@nim-relay/shared'
 import type { Player } from '../../lib/auth-api'
+import { AtlasJourney } from '../atlas/AtlasJourney'
+import { stationName } from '../atlas/model'
 import { flyToRelay } from '../world/globe-bridge'
 import { playerMessage } from '../shell/errors'
 import { navigate, pathFor, useLocation } from '../shell/router'
@@ -16,7 +18,7 @@ import { ShareCardButton } from '../social/cards/ShareCardButton'
 import * as api from './api'
 import { BatonHero } from './BatonHero'
 import { useNetwork, useNow, useRefreshNetwork, useRelay } from './data'
-import { countryName, formatCount, formatDuration, formatNim, formatSince, networkLabel } from './format'
+import { formatCount, formatDuration, formatNim, formatSince, networkLabel } from './format'
 import { JourneyRecords, JourneyRoute } from './JourneyRoute'
 import { useFreshLive } from './live'
 import { LiveLegPanel } from './LiveLegPanel'
@@ -197,7 +199,7 @@ export function JourneyScreen({ code, entryKey }: { code: string; entryKey: stri
           <p className="nr-identity__route">{journeyHeadline(relay)}</p>
           <p className="nr-identity__meta">
             Started by {relay.origin.name} {formatSince(relay.createdAt, now)}. {isHolder ? 'You hold it' : `${relay.holder.name} holds it`}
-            {relay.holder.country ? ` in ${countryName(relay.holder.country)}.` : '. Location not shared.'}
+            {relay.status !== 'completed' && relay.hops.at(-1) ? `, racing toward ${stationName(relay.hops.at(-1)?.destination ?? '')}.` : '.'}
           </p>
         </div>
       </div>
@@ -207,7 +209,7 @@ export function JourneyScreen({ code, entryKey }: { code: string; entryKey: stri
       <StatRow columns={3} label="Journey statistics">
         <Stat value={formatCount(relay.handoffCount)} label="verified handoffs" gold />
         <Stat value={formatCount(relay.transactingWallets)} label="transacting wallets" />
-        <Stat value={formatCount(relay.countries.length)} label="network-observed countries" />
+        <Stat value={formatCount(relay.stations)} label="Atlas stations" />
         <Stat value={formatDuration(relay.aliveMs)} label={relay.status === 'active' ? 'alive' : 'journey time'} />
         <Stat value={formatCount(relay.runners)} label="historic runners" />
         <Stat value={formatCount(relay.ghostWins)} label="ghosts beaten" />
@@ -221,8 +223,8 @@ export function JourneyScreen({ code, entryKey }: { code: string; entryKey: stri
             key={pending.id}
             intent={pending}
             onConfirmed={stage => {
-              const recipient = snapshot?.runners.find(runner => runner.id === stage.intent.recipientId)
-              playArrival(stage.intent.id, { relayId: relay.id, fromCountry: relay.holder.country, toCountry: recipient?.country ?? null })
+              const current = relay.hops.at(-1)
+              if (current) playArrival(stage.intent.id, { relayId: relay.id, fromStation: current.origin, toStation: current.destination })
               showDeparture({ key: stage.intent.id, batonName: relay.identity, leg: stage.intent.leg, recipientName: stage.intent.recipientName })
               refresh()
             }}
@@ -263,6 +265,7 @@ export function JourneyScreen({ code, entryKey }: { code: string; entryKey: stri
 
       <NextLeg relay={relay} player={player} />
       <QuickMatch relay={relay} snapshot={snapshot} player={player} />
+      {detail && <AtlasJourney atlas={detail.atlas} relayCode={relay.code} />}
       {detail ? <JourneyRoute relay={relay} detail={detail} playerId={player?.id ?? null} /> : <Loading label="Loading the route" />}
       {detail && <JourneyRecords relay={relay} detail={detail} />}
 
@@ -297,7 +300,6 @@ export function JourneyScreen({ code, entryKey }: { code: string; entryKey: stri
             See every transaction
           </LinkButton>
         </div>
-        <p className="nr-note">Countries come from runners who chose to share their network country. They are never exact locations and never inferred.</p>
       </section>
     </Screen>
   )

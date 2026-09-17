@@ -1,5 +1,5 @@
 import type { BatonDetail, BatonHandoff, CanonicalGhost, HandoffRace, NetworkBaton, NetworkCrew, NetworkRival, NetworkRunner, RunnerProfile } from '@nim-relay/shared'
-import { HOUR, RUNNERS, baton, hash, populatedNetwork, profileOf, signedInAs, type MockNetwork } from './relay-fixtures'
+import { HOUR, RUNNERS, baton, batonAtlasOf, fixtureLeg, hash, populatedNetwork, profileOf, signedInAs, type MockNetwork } from './relay-fixtures'
 
 /**
  * Test-only fixtures for the social surfaces, layered on the populated network:
@@ -38,12 +38,13 @@ function handoffsAlong(record: NetworkBaton, path: readonly NetworkRunner[], leg
       race: leg.race === null ? null : { engineVersion: '5', world: record.world, timeMs: 60_000, score: 18_000, completed: true, ghostRunId: null, ghostTimeMs: null, beatGhost: null, ...leg.race },
       rescue: false,
       note: null,
+      atlas: { ...fixtureLeg(index), backfilled: false, onCourse: true },
     }
   })
 }
 
 function detailOf(record: NetworkBaton, handoffs: BatonHandoff[]): BatonDetail {
-  return { baton: record, handoffs, ghost: null, pendingHandoff: null, notableRuns: handoffs.map(item => ({ runId: item.runId, name: item.from.name, score: item.race?.score ?? 0, resultHash: item.resultHash })), echoes: [], live: null }
+  return { baton: record, handoffs, ghost: null, pendingHandoff: null, notableRuns: handoffs.map(item => ({ runId: item.runId, name: item.from.name, score: item.race?.score ?? 0, resultHash: item.resultHash })), echoes: [], live: null, atlas: batonAtlasOf(record, handoffs) }
 }
 
 /** A verified v5 replay whose metrics give 14 of 16 perfect gates and 87% flow control. */

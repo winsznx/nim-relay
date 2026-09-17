@@ -46,3 +46,12 @@ export async function fetchMe(): Promise<Player | null> {
 export function logout(): Promise<unknown> {
   return fetch('/api/auth/logout', { method: 'POST' }).then(json)
 }
+
+/** Links the Nimiq Pay device identifier to the current session. The server keeps only its HMAC. */
+export function linkDeviceSignal(deviceId: string): Promise<{ deviceSignal: boolean }> {
+  return fetch('/api/auth/device', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ deviceId }),
+  }).then(json<{ deviceSignal: boolean }>)
+}

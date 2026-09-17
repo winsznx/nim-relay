@@ -1,6 +1,7 @@
 import type { RunnerProfile } from '@nim-relay/shared'
 import { ApiError, type Profile, type State } from '../model'
 import { runnerAchievements, runnerArtifacts } from './achievements'
+import { atlasProfileFor } from './atlas'
 import { MAX_PROFILE_BATONS, MAX_RECENT_RUNNERS } from './constants'
 import { crewStreak } from './crews'
 import { handoffsSentBy } from './lookups'
@@ -32,6 +33,7 @@ export function runnerProfile(context: NetworkContext, handle: string): RunnerPr
     artifacts: runnerArtifacts(state, player.id),
     cosmetics: { ...player.equipped },
     recentRunners: recentRunners(state, product, player.id),
+    atlas: atlasProfileFor(state, player.id),
   }
 }
 

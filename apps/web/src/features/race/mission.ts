@@ -9,6 +9,11 @@ export interface RaceMission {
   previous: { name: string; timeMs: number | null } | null
   next: { name: string; context: string | null } | null
   note: { from: string; text: string } | null
+  /**
+   * The Atlas route this leg races, by station name, and why it has a ghost or none. Stations are game-world
+   * destinations. Null outside a baton leg.
+   */
+  route: { from: string; to: string; ghost: 'previous-runner' | 'different-route' | 'none' } | null
 }
 
 /** The primary action on the results of a completed relay leg, e.g. "PASS AURORA". */
@@ -24,16 +29,21 @@ export interface MissionCopy {
   previous: string | null
   /** Where the baton goes: the next runner's context, "OPEN HANDOFF AT FINISH", or null. */
   handoff: string | null
+  /** "GENESIS STATION TO CAPE VERDIGRIS", or null without a route. */
+  route: string | null
 }
 
 export function missionCopy(mission: RaceMission): MissionCopy {
   const baton = displayName(mission.batonName)
   const previous = mission.previous
-    ? `PREVIOUS RUNNER ${displayName(mission.previous.name)}${mission.previous.timeMs === null ? '' : ` · ${formatSeconds(mission.previous.timeMs)}`}`
+    ? mission.route?.ghost === 'different-route'
+      ? `PREVIOUS RUNNER ${displayName(mission.previous.name)} RACED ANOTHER ROUTE · NO GHOSTLINE`
+      : `PREVIOUS RUNNER ${displayName(mission.previous.name)}${mission.previous.timeMs === null ? '' : ` · ${formatSeconds(mission.previous.timeMs)}`}`
     : null
-  if (!mission.next) return { title: `KEEP ${baton} MOVING`, previous, handoff: 'OPEN HANDOFF AT FINISH' }
+  const route = mission.route ? `${displayName(mission.route.from)} TO ${displayName(mission.route.to)}` : null
+  if (!mission.next) return { title: `KEEP ${baton} MOVING`, previous, handoff: 'OPEN HANDOFF AT FINISH', route }
   const context = mission.next.context?.trim()
-  return { title: `DELIVER ${baton} TO ${displayName(mission.next.name)}`, previous, handoff: context ? context.toUpperCase() : null }
+  return { title: `DELIVER ${baton} TO ${displayName(mission.next.name)}`, previous, handoff: context ? context.toUpperCase() : null, route }
 }
 
 /** Shown while the handoff gate is in view: "HANDOFF TO YASMINE". Null when the handoff is open. */

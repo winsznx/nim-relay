@@ -5,7 +5,8 @@ import { linkProps, pathFor } from '../shell/router'
 import { LegShare } from '../social/cards/LegShare'
 import { SectionHeader } from '../shell/ui/primitives'
 import { RunnerAvatar } from '../shell/ui/RunnerAvatar'
-import { countryName, formatCount, formatDateTime } from './format'
+import { routeTitle } from '../atlas/model'
+import { formatCount, formatDateTime } from './format'
 import { echoText, type RelayView } from './model'
 import { practicePath, watchPath } from './paths'
 
@@ -21,11 +22,10 @@ export function JourneyRoute({ relay, detail, playerId }: { relay: RelayView; de
       <SectionHeader id="journey-route" title="The route" detail={`${formatCount(handoffs.length + 1)} stops, oldest first`} />
       <ol className="nr-route">
         <li className="nr-route__stop">
-          <RunnerAvatar name={relay.origin.name} wallet={relay.origin.wallet} country={relay.origin.country} size={36} />
+          <RunnerAvatar name={relay.origin.name} wallet={relay.origin.wallet} size={36} />
           <div className="nr-route__body">
             <p className="nr-route__title">{relay.origin.name} started the relay</p>
             <p className="nr-route__meta">
-              {countryName(relay.origin.country)}
               <span className="nr-route__time">{formatDateTime(relay.createdAt)}</span>
             </p>
           </div>
@@ -39,7 +39,7 @@ export function JourneyRoute({ relay, detail, playerId }: { relay: RelayView; de
         )}
         {handoffs.slice(hidden).map(handoff => (
           <li key={handoff.id} className="nr-route__stop" id={`leg-${handoff.leg}`}>
-            <RunnerAvatar name={handoff.to.name} wallet={handoff.to.wallet} country={handoff.to.country} holder={handoff.leg === relay.handoffCount && relay.status !== 'completed'} size={36} />
+            <RunnerAvatar name={handoff.to.name} wallet={handoff.to.wallet} holder={handoff.leg === relay.handoffCount && relay.status !== 'completed'} size={36} />
             <div className="nr-route__body">
               <p className="nr-route__leg">Leg {handoff.leg}</p>
               <p className="nr-route__title">
@@ -47,7 +47,7 @@ export function JourneyRoute({ relay, detail, playerId }: { relay: RelayView; de
               </p>
               {handoff.note && <RelayNoteQuote text={handoff.note.text} visibility={handoff.note.visibility} />}
               <p className="nr-route__meta">
-                {countryName(handoff.from.country)} → {countryName(handoff.to.country)}
+                {routeTitle(handoff.atlas)}
                 <span className="nr-route__time">{formatDateTime(handoff.at)}</span>
               </p>
               <p className="nr-route__links">

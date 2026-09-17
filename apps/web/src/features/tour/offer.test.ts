@@ -74,7 +74,7 @@ function baton(overrides: Partial<NetworkBaton>): NetworkBaton {
     status: 'active',
     handoffCount: 1,
     world: 'coast',
-    route: { seed: 's', world: 'coast', tier: 0, sector: 0, sectorStartedLeg: 0 },
+    route: { seed: 's', world: 'coast', tier: 0, sector: 0, sectorStartedLeg: 0, routeId: 'genesis-to-cape-verdigris', origin: 'genesis', destination: 'cape-verdigris' },
     previousRunId: null,
     crewId: null,
     rivalId: null,

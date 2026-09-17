@@ -2,7 +2,7 @@ import { useEffect, useEffectEvent, useState, useSyncExternalStore, type ReactNo
 import { AnimatePresence, motion } from 'motion/react'
 import type { RelayNote } from '@nim-relay/shared'
 import type { HandoffRoster, OpenRoster } from '../leg/runner-groups'
-import { useRunnerWallets } from '../relays/data'
+import { useAtlas, useRunnerWallets } from '../relays/data'
 import { chooseNoticeCopy, failureCopy, formatNim, sceneStateFor, verificationCopy, type CeremonySceneState } from './copy'
 import { HoloCard } from './holo'
 import { LaunchPad } from './LaunchPad'
@@ -11,6 +11,7 @@ import { NoteStep } from './NoteStep'
 import { OpenRelay, useInviteLink } from './OpenRelay'
 import { RecoveryPanel } from './RecoveryPanel'
 import { RelayNoteQuote } from './RelayNoteQuote'
+import { RouteChip, RouteStep } from './RouteStep'
 import { RunnerHero } from './RunnerHero'
 import { RunnerPicker } from './RunnerPicker'
 import './handoff.css'
@@ -53,6 +54,9 @@ export function HandoffCeremony({ machine, roster, batonName, value, createInvit
   const wallets = useRunnerWallets()
   const invite = useInviteLink(createInvite)
   const [browsingOthers, setBrowsingOthers] = useState(false)
+  const nextRoutes = machine.choosesRoute ? machine.nextRoutes : null
+  const atlas = useAtlas(nextRoutes !== null)
+  const routeChip = nextRoutes && <RouteChip routeId={machine.chosenRoute} routes={nextRoutes} onChange={() => machine.changeRoute()} />
 
   useEffect(() => {
     onSceneState(sceneState)
@@ -81,6 +85,7 @@ export function HandoffCeremony({ machine, roster, batonName, value, createInvit
       <>
         <RunnerPicker roster={open} notice={notice} onSelect={runner => machine.select(runner)} />
         {open.invite && <OpenRelay batonName={batonName} invite={invite} />}
+        {routeChip}
         <div className="handoff-footer">
           {back}
           {keepBaton}
@@ -91,6 +96,16 @@ export function HandoffCeremony({ machine, roster, batonName, value, createInvit
 
   const plates = ((): Plates => {
     switch (stage.stage) {
+      case 'route':
+        return {
+          key: 'route',
+          content: nextRoutes ? (
+            <>
+              <RouteStep routes={nextRoutes} atlas={atlas.data} notice={stage.notice} onChoose={routeId => machine.chooseRoute(routeId)} />
+              <div className="handoff-footer">{keepBaton}</div>
+            </>
+          ) : null,
+        }
       case 'choose': {
         const notice = stage.notice ? chooseNoticeCopy(stage.notice) : null
         if (!roster) {
@@ -132,6 +147,7 @@ export function HandoffCeremony({ machine, roster, batonName, value, createInvit
                 onPrepare={() => machine.select(roster.runner)}
                 onChooseOther={roster.others ? () => setBrowsingOthers(true) : null}
               />
+              {routeChip}
               <div className="handoff-footer">{keepBaton}</div>
             </>
           ),

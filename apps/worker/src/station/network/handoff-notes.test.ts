@@ -56,7 +56,7 @@ describe('relay note preparation', () => {
     const leg = await raceLeg(a, journey.baton.id)
     const intent = await call<NetworkHandoffIntent>(a.cookie, '/network/handoff/prepare', { runId: leg.issued.runId, recipient: b.p.id, note: { text: 'see you there', visibility: 'private' } })
     // #when the commitment is derived for the same terms with the stored note, another note, another visibility and none
-    const terms = { id: intent.id, batonId: journey.baton.id, leg: intent.leg, runId: leg.issued.runId, from: a.p.id, to: b.p.id, throw: DEFAULT_THROW }
+    const terms = { id: intent.id, batonId: journey.baton.id, leg: intent.leg, runId: leg.issued.runId, from: a.p.id, to: b.p.id, throw: DEFAULT_THROW, route: intent.route }
     const commitments = await Promise.all([
       handoffCommitment(TEST_RUN_CHALLENGE_SECRET, { ...terms, note: intent.note }),
       handoffCommitment(TEST_RUN_CHALLENGE_SECRET, { ...terms, note: { text: 'see you later', visibility: 'private' } }),

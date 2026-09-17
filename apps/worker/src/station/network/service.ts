@@ -3,6 +3,7 @@ import { z } from 'zod'
 import type { Env } from '../../env'
 import { ApiError, type Profile, type Run, type State } from '../model'
 import { archiveNetwork } from './archive'
+import { atlasRouteDetail, atlasSnapshot } from './atlas'
 import { batonDetail, createBaton, rematchBaton } from './batons'
 import { batonChronicle } from './chronicle'
 import { RECONCILE_RETRY_MS } from './constants'
@@ -38,7 +39,7 @@ const trackBody = z.object({
   visitor: z.string().min(8).max(128).optional(),
 })
 
-const PUBLIC_PREFIXES = ['/public', '/batons/', '/replays/', '/invites/', '/runners/', '/chronicles/', '/track']
+const PUBLIC_PREFIXES = ['/public', '/atlas', '/atlas/routes/', '/batons/', '/replays/', '/invites/', '/runners/', '/chronicles/', '/track']
 
 /** Chain lookups the room makes before entering its critical section. */
 export interface ChainLookups {
@@ -79,6 +80,11 @@ export class RelayNetworkService {
     return this.context.state
   }
 
+  /** For modules that act on the loaded network inside the room's critical section, such as Relay Grants. */
+  get networkContext(): NetworkContext {
+    return this.context
+  }
+
   static async load(storage: DurableObjectStorage, env: Env, product: State, live: LiveLegs): Promise<RelayNetworkService> {
     const now = Date.now()
     const key = networkStateKey(env.NIMIQ_NETWORK)
@@ -97,6 +103,9 @@ export class RelayNetworkService {
   async handlePublic(path: string, body: unknown, actorId: string | null): Promise<unknown> {
     const now = Date.now()
     if (path === '/public') return networkSnapshot(this.context, null)
+    if (path === '/atlas') return atlasSnapshot(this.state, now)
+    const routeId = segmentAfter(path, '/atlas/routes/')
+    if (routeId !== null) return atlasRouteDetail(this.state, routeId, now)
     const batonCode = segmentAfter(path, '/batons/')
     if (batonCode !== null) return batonDetail(this.context, findBaton(this.state, batonCode), null, actorId)
     const runId = segmentAfter(path, '/replays/')
@@ -235,13 +244,15 @@ export class RelayNetworkService {
     )
   }
 
-  async persist(schedule = true): Promise<void> {
+  /** `alongside` writes more keys in the same transaction, e.g. the grant records a network change belongs to. */
+  async persist(schedule = true, alongside?: (transaction: DurableObjectTransaction) => Promise<void>): Promise<void> {
     this.state.version++
     this.state.dirty = true
     noteUnarchivedChange(this.context.ops, Date.now())
     await this.context.storage.transaction(async transaction => {
       await this.writeTo(transaction)
       await transaction.put('state', this.context.product)
+      if (alongside) await alongside(transaction)
     })
     if (schedule) await this.context.storage.setAlarm(Date.now() + RECONCILE_RETRY_MS)
   }

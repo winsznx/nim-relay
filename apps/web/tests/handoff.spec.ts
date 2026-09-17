@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { expect, test, type Page, type Route } from '@playwright/test'
 import type { BatonDetail, BatonHandoff, IssuedRace, NetworkBaton, NetworkCrew, NetworkHandoffIntent, NetworkInvite, NetworkRunner, PrepareHandoffInput, RelayNote, SubmittedRace } from '@nim-relay/shared'
-import { baton, emptySnapshot, hash, HOUR, mockRelayApi, profileOf, signedInAs } from './relay-fixtures'
+import { baton, batonAtlasOf, emptySnapshot, fixtureLeg, hash, HOUR, mockRelayApi, profileOf, signedInAs } from './relay-fixtures'
 
 /**
  * The finish of a relay leg as a relay story, on the live finish scene of the handoff lab with the relay API mocked
@@ -106,18 +106,21 @@ async function tellStory(page: Page, story: Story): Promise<Recorded> {
     race: null,
     rescue: false,
     note,
+    atlas: { ...fixtureLeg(leg - 1), backfilled: false, onCourse: true },
   })
+  const handoffs = [handoff(1, KOFI, MARIANA, now - 20 * HOUR, KOFIS_NOTE), handoff(2, MARIANA, TIM, now - 2 * HOUR, MARIANAS_NOTE)]
   const detail: BatonDetail = {
     baton: aurora,
-    handoffs: [handoff(1, KOFI, MARIANA, now - 20 * HOUR, KOFIS_NOTE), handoff(2, MARIANA, TIM, now - 2 * HOUR, MARIANAS_NOTE)],
+    handoffs,
     ghost: null,
     pendingHandoff: null,
     notableRuns: [],
     echoes: [],
     live: null,
+    atlas: batonAtlasOf(aurora, handoffs),
   }
   const snapshot = { ...emptySnapshot(), batons: [coast, aurora, match, reopened], crews: [crew], runners: RUNNERS }
-  const reopenedDetail: BatonDetail = { baton: reopened, handoffs: [], ghost: null, pendingHandoff: null, notableRuns: [], echoes: [], live: null }
+  const reopenedDetail: BatonDetail = { baton: reopened, handoffs: [], ghost: null, pendingHandoff: null, notableRuns: [], echoes: [], live: null, atlas: batonAtlasOf(reopened, []) }
   const signedIn = signedInAs(TIM, snapshot)
   const incoming = { id: 'n-aurora', type: 'incoming_baton' as const, title: 'Mariana passed you the baton', body: 'Aurora, handoff 2', batonId: aurora.id, runId: 'run-aurora-2', createdAt: now - 2 * HOUR, readAt: null, note: MARIANAS_NOTE.text }
   const account = { ...signedIn, snapshot: { ...signedIn.snapshot, inbox: [incoming] } }
@@ -163,6 +166,7 @@ async function tellStory(page: Page, story: Story): Promise<Recorded> {
         attemptedAt: null,
         failure: null,
         note: body.note ?? null,
+        route: body.routeId ? { routeId: body.routeId, origin: 'fjordgate', destination: body.routeId.split('-to-')[1] ?? 'fjordgate' } : fixtureLeg(3),
       }
       return json(route, 200, intent)
     }
@@ -176,6 +180,19 @@ async function tellStory(page: Page, story: Story): Promise<Recorded> {
     return json(route, 404, { error: 'not_found' })
   })
   return recorded
+}
+
+/** Aurora's leg reaches Fjordgate: the route step offers the routes out of it before any runner. */
+async function chooseRoute(page: Page, name: RegExp | 'relay', shot?: string): Promise<void> {
+  const step = page.getByRole('dialog', { name: 'Where does it go next?' })
+  await expect(step).toBeVisible({ timeout: 20_000 })
+  await expect(step.getByText('You reached Fjordgate')).toBeVisible()
+  if (shot) {
+    await page.waitForTimeout(900)
+    await page.screenshot({ path: `${SHOTS}/${shot}.png` })
+  }
+  if (name === 'relay') await step.getByRole('button', { name: 'Let the relay choose' }).click()
+  else await step.getByRole('button', { name }).click()
 }
 
 async function openFinish(page: Page, code = CODE): Promise<void> {
@@ -213,7 +230,13 @@ test('a runner waiting for the baton gets the hero card, and the note travels wi
   // #when Tim's leg finishes
   await openFinish(page)
 
+  // #then he first sends the next leg on from Fjordgate: the same route again, or on to Polar Drift or Meridian Yard
+  const routes = page.getByRole('dialog', { name: 'Where does it go next?' })
+  await expect(routes.getByRole('button')).toContainText([/Again to Fjordgate/, /Polar Drift/, /Meridian Yard/, /Let the relay choose/])
+  await chooseRoute(page, /^Polar Drift/, 'finish-00-route-step')
+
   // #then one holographic hero card hands the baton to Yasmine, with nobody else to choose
+  await expect(page.getByText('Next leg: Fjordgate to Polar Drift')).toBeVisible({ timeout: 20_000 })
   const hero = page.getByRole('dialog', { name: 'Handoff to Yasmine' })
   await expect(hero).toBeVisible({ timeout: 20_000 })
   await expect(hero.getByText('Accepted your invite')).toBeVisible()
@@ -256,7 +279,7 @@ test('a runner waiting for the baton gets the hero card, and the note travels wi
   await page.waitForTimeout(400)
   await page.screenshot({ path: `${SHOTS}/finish-06-freeze-wallet.png` })
   expect(recorded.prepares).toHaveLength(1)
-  expect(recorded.prepares[0]).toMatchObject({ runId: 'run-lab', recipient: YASMINE.id, note: { text: 'Take it to the coast, Yasmine!', visibility: 'private' } })
+  expect(recorded.prepares[0]).toMatchObject({ runId: 'run-lab', recipient: YASMINE.id, note: { text: 'Take it to the coast, Yasmine!', visibility: 'private' }, routeId: 'fjordgate-to-polar-drift' })
   await expect(page.getByRole('dialog', { name: 'Handoff in flight' })).toBeVisible({ timeout: 10_000 })
   await page.waitForTimeout(600)
   await page.screenshot({ path: `${SHOTS}/finish-07-in-flight.png` })
@@ -279,8 +302,9 @@ test('with nobody waiting, the holder chooses from friends, crew, opponents and 
   const problems = problemsOn(page)
   const recorded = await tellStory(page, { reservedFor: null, refuseNotes: true })
 
-  // #when Tim's leg finishes
+  // #when Tim's leg finishes and he leaves the route to the relay
   await openFinish(page)
+  await chooseRoute(page, 'relay')
 
   // #then the picker groups who he relays with, and recommends the runner who just started a relay
   const picker = page.getByRole('region', { name: 'Choose the next runner' })
@@ -329,6 +353,7 @@ test('with nobody waiting, the holder chooses from friends, crew, opponents and 
   await expect(refused.getByRole('alert')).toHaveText('That note can’t travel with the baton. Write something else, or pass without a note.')
   await expect(refused.getByRole('textbox', { name: 'Relay note' })).toHaveValue('something the relay refuses')
   expect(recorded.prepares).toEqual([expect.objectContaining({ recipient: KOFI.id, note: { text: 'something the relay refuses', visibility: 'public' } })])
+  expect(recorded.prepares[0]).not.toHaveProperty('routeId')
   await page.waitForTimeout(700)
   await page.screenshot({ path: `${SHOTS}/finish-13-note-refused.png` })
   expect(problems).toEqual([])
@@ -389,9 +414,10 @@ test('a match opponent who never accepted keeps the hero card, and the reopened 
   // #when Tim's opening leg finishes
   await openFinish(page, REOPENED_MATCH)
 
-  // #then Sam is still the one waiting, and the rules let Tim look further
+  // #then a Quick round keeps its route, so there is no route to choose; Sam is still the one waiting
   const hero = page.getByRole('dialog', { name: 'Handoff to Sam' })
   await expect(hero).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('dialog', { name: 'Where does it go next?' })).toHaveCount(0)
   await expect(hero.getByText('Your match opponent')).toBeVisible()
   await hero.getByRole('button', { name: 'Choose someone else' }).click()
 
@@ -458,8 +484,9 @@ test('the real leg: the note arrives with the baton, a verified finish passes it
   await page.waitForTimeout(1_200)
   await page.screenshot({ path: `${SHOTS}/finish-00b-results-pass.png` })
 
-  // #then one tap opens the handoff to the runner waiting for it
+  // #then one tap opens the handoff: the route out of Fjordgate first, then the runner waiting for it
   await pass.click()
+  await chooseRoute(page, /^Again to Fjordgate/)
   const hero = page.getByRole('dialog', { name: 'Handoff to Yasmine' })
   await expect(hero).toBeVisible()
   await expect(hero.getByText('Accepted your invite')).toBeVisible()

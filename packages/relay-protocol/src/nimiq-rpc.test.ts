@@ -192,3 +192,32 @@ describe('chain head', () => {
     }
   })
 })
+
+describe('treasury calls', () => {
+  it('reads an account balance in Luna with the block it was read at', async () => {
+    // Shaped like a TestAlbatross getAccountByAddress response, September 2026.
+    const body = { jsonrpc: '2.0', result: { data: { address: 'NQ21 SEXP BY6P CVJG 8RQX UVFR BQFD FBD6 S5LD', balance: 11000000000, type: 'basic' }, metadata: { blockNumber: 11699282, blockHash: 'd'.repeat(64) } }, id: 1 }
+    const client = new NimiqRpcClient({ rpcUrl: 'https://example.invalid', fetchImpl: fakeFetch([{ body }]) })
+    expect(await client.getAccountBalance('NQ21SEXPBY6PCVJG8RQXUVFRBQFDFBD6S5LD')).toEqual({ luna: 11000000000n, blockNumber: 11699282 })
+  })
+
+  it('rejects a balance it cannot read', async () => {
+    for (const result of [{ data: null, metadata: null }, { data: { balance: -1 }, metadata: { blockNumber: 1 } }, { data: { balance: 5 }, metadata: null }]) {
+      const client = new NimiqRpcClient({ rpcUrl: 'https://example.invalid', fetchImpl: fakeFetch([{ body: { result } }]) })
+      await expect(client.getAccountBalance('NQ00')).rejects.toThrow()
+    }
+  })
+
+  it('broadcasts serialized bytes and returns the node hash in lowercase', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ jsonrpc: '2.0', result: { data: 'AB'.repeat(32), metadata: null }, id: 1 })))
+    const client = new NimiqRpcClient({ rpcUrl: 'https://example.invalid', fetchImpl })
+    expect(await client.sendRawTransaction('0001')).toBe('ab'.repeat(32))
+    const request = JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body)) as { method: string; params: unknown[] }
+    expect([request.method, request.params]).toEqual(['sendRawTransaction', ['0001']])
+  })
+
+  it('surfaces a node refusal as an error', async () => {
+    const client = new NimiqRpcClient({ rpcUrl: 'https://example.invalid', fetchImpl: fakeFetch([{ body: { error: { code: -32603, message: 'Internal error', data: 'Serialization error' } } }]) })
+    await expect(client.sendRawTransaction('00')).rejects.toThrow('Internal error')
+  })
+})

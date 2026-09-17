@@ -472,7 +472,7 @@ test('on an empty network the tour explains what isn’t there yet, without poin
   await mockRelayApi(page, { snapshot: emptySnapshot() }, undefined, { tour: 'unseen' })
   await openHome(page)
   await startFromOffer(page)
-  await expect(coach(page, 'Watch NIM move').getByText('Routes light up here as real NIM batons pass from person to person.')).toBeVisible()
+  await expect(coach(page, 'Watch NIM move').getByText('This is the Relay Atlas: stations in the game world and the routes between them. Routes light up as real NIM batons pass from person to person.')).toBeVisible()
   await expect(coach(page, 'Watch NIM move').getByText('Step 1 of 9')).toBeAttached()
   await next(page, 'Watch NIM move')
 

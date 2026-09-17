@@ -1,7 +1,7 @@
 import { paymentAddress } from '@nim-relay/relay-protocol'
 import type { BatonHandoff, NetworkCrew, NetworkSnapshot, StationCrew } from '@nim-relay/shared'
 import type { Profile } from '../model'
-import { presentBatonWithStops } from './batons'
+import { presentBatonWithHops } from './batons'
 import { utcDate, utcMidnight } from './calendar'
 import { DAY_MS } from './constants'
 import { bestCrewStreak, crewStreak } from './crews'
@@ -17,7 +17,7 @@ export function networkSnapshot(context: NetworkContext, profile: Profile | null
   const handoffsByBaton = groupByBaton(state.handoffs)
   const batons = Object.values(state.batons)
     .sort((a, b) => b.updatedAt - a.updatedAt)
-    .map(baton => presentBatonWithStops(baton, handoffsByBaton.get(baton.id) ?? [], now, context.live.liveFor(baton, now)))
+    .map(baton => presentBatonWithHops(baton, handoffsByBaton.get(baton.id) ?? [], now, context.live.liveFor(baton, now)))
   const runners = Object.keys(state.members).flatMap(playerId => {
     const player = product.players[playerId]
     return player ? [networkRunner(state, player)] : []

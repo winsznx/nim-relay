@@ -18,7 +18,7 @@ describe('toStationView', () => {
       { key: 'global-idle', service: 'Global', destination: 'No active relay', status: '', tone: 'idle' },
       { key: 'daily', service: 'Daily', destination: 'Midnight Metro', status: 'Open', tone: 'opportunity' },
     ])
-    expect(view.world).toEqual({ activeRelays: 0, countries: 0, confirmedHandoffs: 0, routes: [], hiddenStops: false })
+    expect(view.world).toEqual({ activeRelays: 0, stations: 0, confirmedHandoffs: 0, routes: [] })
     expect(view.cards.world.facts[0]?.text).toBe('No active relays yet.')
     expect(view.vault).toEqual({ legend: null, yours: [], yoursTotal: 0 })
     expect(view.live.state).toBe('idle')
@@ -119,6 +119,7 @@ function pendingPass(network: NetworkSnapshot): NetworkSnapshot['pendingHandoff'
     recipientId: KOFI.id,
     recipientName: KOFI.name,
     note: null,
+    route: null,
     sender: ADA.wallet,
     recipient: KOFI.wallet,
     value: 100_000,

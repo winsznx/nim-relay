@@ -1,3 +1,4 @@
+import { stationName } from '../atlas/model'
 import type { RaceMission } from '../race/mission'
 import type { LegSetup } from './prepare'
 import type { HandoffRoster } from './runner-groups'
@@ -16,5 +17,6 @@ export function legMission(setup: LegSetup, roster: HandoffRoster | null): RaceM
     previous: last ? { name: last.from.name, timeMs: ghostTime } : null,
     next: roster?.kind === 'known' ? { name: roster.runner.name, context: roster.runner.context } : null,
     note: last?.note ? { from: last.from.name, text: last.note.text } : null,
+    route: setup.atlas ? { from: stationName(setup.atlas.origin), to: stationName(setup.atlas.destination), ghost: setup.atlas.ghost } : null,
   }
 }

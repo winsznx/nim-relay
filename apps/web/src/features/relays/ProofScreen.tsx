@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import type { BatonDetail, NetworkMetrics, NetworkSnapshot } from '@nim-relay/shared'
+import type { AtlasStarterGrant, BatonDetail, NetworkMetrics, NetworkSnapshot, RelayNetwork } from '@nim-relay/shared'
 import { playerMessage } from '../shell/errors'
 import { linkProps, pathFor, useLocation } from '../shell/router'
 import { copyText } from '../shell/share'
@@ -160,6 +160,7 @@ function RelayProof({ detail }: { detail: BatonDetail }) {
       <section className="nr-section" aria-labelledby="proof-lineage">
         <SectionHeader id="proof-lineage" title="Transaction lineage" detail={`${formatCount(detail.handoffs.length)} verified ${detail.handoffs.length === 1 ? 'transfer' : 'transfers'}, oldest first`} />
         {detail.handoffs.length === 0 && <p className="nr-note">No handoff has been verified for this relay yet.</p>}
+        {detail.baton.starterGrant && <StarterGrantProof grant={detail.baton.starterGrant} network={relay.network} />}
         <ol className="nr-ledger">
           {detail.handoffs.map(handoff => (
             <li key={handoff.id} id={`tx-${handoff.txHash}`} className="nr-ledger__entry">
@@ -238,6 +239,33 @@ function RelayProof({ detail }: { detail: BatonDetail }) {
         </LinkButton>
       </div>
     </>
+  )
+}
+
+/** A treasury starter grant opened this baton. It is shown apart from the lineage because it is not a handoff. */
+function StarterGrantProof({ grant, network }: { grant: AtlasStarterGrant; network: RelayNetwork }) {
+  return (
+    <div className="nr-ledger__entry" data-kind={grant.kind}>
+      <p className="nr-ledger__leg">
+        Starter grant <Pill tone="gold">treasury_starter_grant</Pill>
+      </p>
+      <p className="nr-field-note">
+        NIM Relay’s grant treasury gave {grant.toRunner.name} this baton at Genesis Station, {formatDateTime(grant.at)}. It is not a player-to-player handoff and no relay metric counts it.
+      </p>
+      {grant.txHash && (
+        <dl className="nr-ledger__fields">
+          <div>
+            <dt>Grant transaction</dt>
+            <dd>
+              <Copyable value={grant.txHash} label="Grant transaction hash" />
+              <a className="nr-external" href={explorerUrl(network, grant.txHash)} target="_blank" rel="noreferrer">
+                View on nimiq.watch <Icon name="external" size={14} />
+              </a>
+            </dd>
+          </div>
+        </dl>
+      )}
+    </div>
   )
 }
 

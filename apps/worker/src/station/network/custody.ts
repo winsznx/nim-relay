@@ -1,11 +1,12 @@
 import type { BatonHandoff, HandoffRace, NetworkHandoffIntent, NetworkRival } from '@nim-relay/shared'
 import type { Profile, Run } from '../model'
 import { awardHandoffAchievements, awardRivalChampions } from './achievements'
+import { defaultNextRoute, handoffAtlas, recordAtlasLeg, requireAtlasRoute } from './atlas'
 import { utcDate } from './calendar'
 import { BATON_HOLD_MS } from './constants'
 import { recordLegEchoes } from './echoes'
 import { findBaton, handoffsOf, loadRun, notify, outscores } from './lookups'
-import { advanceRoute, racesRoute, tierFor } from './route'
+import { moveToAtlasRoute, racesRoute } from './route'
 import { networkRunner } from './runners'
 import type { BatonRecord, NetworkContext, NetworkState } from './types'
 
@@ -41,6 +42,7 @@ export async function applyVerifiedHandoff(context: NetworkContext, transfer: Ve
   const ghostRun = run.issued.ghost ? await loadRun(context.storage, run.issued.ghost.runId) : undefined
   const openingRound = await openingRoundOf(context, baton, intent.leg)
   const rivalry = baton.rivalId ? resolveRivalry(state, baton.rivalId) : null
+  const nextRoute = intent.route ? requireAtlasRoute(intent.route.routeId) : defaultNextRoute(baton, intent.leg)
 
   const now = Date.now()
   const race = handoffRace(run)
@@ -64,6 +66,7 @@ export async function applyVerifiedHandoff(context: NetworkContext, transfer: Ve
     race,
     rescue: baton.status === 'stranded',
     note: intent.note,
+    atlas: handoffAtlas(baton, run.issued.config),
   }
   state.handoffs.push(handoff)
   intent.state = 'verified'
@@ -80,7 +83,8 @@ export async function applyVerifiedHandoff(context: NetworkContext, transfer: Ve
   const wonRivalry = rivalry ? updateRivalry(state, rivalry, baton, recipient, now) : false
 
   recordLegEchoes(state, handoff, run)
-  advanceRoute(baton, tierFor(state, recipient.id))
+  recordAtlasLeg(state, baton.code, handoff)
+  if (nextRoute) moveToAtlasRoute(baton, nextRoute)
   awardHandoffAchievements(state, context.product, baton, handoff)
   if (wonRivalry && rivalry) awardRivalChampions(state, baton, rivalry.rival.title, now)
   if (baton.status === 'completed') baton.completedAt ??= now

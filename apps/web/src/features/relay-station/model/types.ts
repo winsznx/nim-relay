@@ -37,18 +37,17 @@ export interface DepartureRow {
 
 export interface WorldRoute {
   id: string
-  /** Consented country codes in route order, consecutive repeats collapsed. */
-  stops: string[]
+  /** Atlas legs as [origin, destination] station ids, oldest first. Stations are game-world destinations. */
+  hops: (readonly [string, string])[]
   live: boolean
 }
 
 export interface WorldView {
   activeRelays: number
-  countries: number
+  /** Distinct Atlas stations the relays in play have touched. */
+  stations: number
   confirmedHandoffs: number
   routes: WorldRoute[]
-  /** Some stops are unknown because runners did not share a country. */
-  hiddenStops: boolean
 }
 
 export interface VaultBaton {
@@ -56,7 +55,7 @@ export interface VaultBaton {
   code: string
   name: string
   handoffs: number
-  countries: number
+  stations: number
   status: NetworkBaton['status']
   appearance: BatonAppearance
 }

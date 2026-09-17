@@ -3,6 +3,8 @@ import { motion, useReducedMotion } from 'motion/react'
 import { paymentAddress } from '@nim-relay/relay-protocol'
 import type { NetworkNotification, NetworkSnapshot } from '@nim-relay/shared'
 import type { Player } from '../../lib/auth-api'
+import { LightTheWorldMeter } from '../atlas/LightTheWorld'
+import { StarterBatonBanner } from '../grants/StarterBatonBanner'
 import { RelayNoteQuote } from '../handoff/RelayNoteQuote'
 import { acceptReservation, markNotificationRead } from '../relays/api'
 import { useAction } from '../shell/use-action'
@@ -66,8 +68,9 @@ function PersonalBanner({ player, relays, snapshot }: { player: Player; relays: 
 
   useEffect(() => {
     if (!incoming || !arrived) return
-    const previous = arrived.stops.length > 1 ? (arrived.stops.at(-2)?.countryCode ?? null) : null
-    playArrival(incoming.id, { relayId: arrived.id, fromCountry: previous, toCountry: arrived.stops.at(-1)?.countryCode ?? null })
+    // The pass that just arrived finished the leg before the one now in progress.
+    const delivered = arrived.hops.at(arrived.status === 'completed' ? -1 : -2)
+    if (delivered) playArrival(incoming.id, { relayId: arrived.id, fromStation: delivered.origin, toStation: delivered.destination })
   }, [incoming, arrived])
 
   if (incoming && arrived) {
@@ -128,7 +131,8 @@ function PersonalBanner({ player, relays, snapshot }: { player: Player; relays: 
       </div>
     )
   }
-  return null
+  // Nothing urgent: a runner who can claim the Starter Baton gets that offer here.
+  return <StarterBatonBanner />
 }
 
 export function WorldHome({ player, relays, featured, network }: WorldHomeProps) {
@@ -144,7 +148,10 @@ export function WorldHome({ player, relays, featured, network }: WorldHomeProps)
   return (
     <motion.div className="nr-home" initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
       <TopBar player={player} snapshot={snapshot} />
-      {player && <PersonalBanner player={player} relays={relays} snapshot={snapshot} />}
+      <div className="nr-home__top">
+        {player && <PersonalBanner player={player} relays={relays} snapshot={snapshot} />}
+        <LightTheWorldMeter />
+      </div>
       <div className="nr-home__bottom">
         {hero ? (
           <RelayHero relay={hero} playerId={player?.id ?? null} latestReplay={latestReplay} moments={moments} now={now} live={live} />

@@ -17,3 +17,6 @@ export const SHOTS_DIR = `${E2E_ROOT}/shots`
 export const LOGS_DIR = `${E2E_ROOT}/logs`
 
 export const VIEWPORT = { width: 390, height: 844 }
+
+/** Relay Grants treasury key for the isolated Worker only. It exists on the mock chain alone and never held funds anywhere. */
+export const TREASURY_TEST_KEY = '3c'.repeat(32)

@@ -40,7 +40,9 @@
   // getAuthStore() falls back to the in-memory store.
   "vars": {
     "NIMIQ_NETWORK": "MainAlbatross",
-    "NIMIQ_RPC_URL": "https://rpc.nimiqwatch.com/"
+    "NIMIQ_RPC_URL": "https://rpc.nimiqwatch.com/",
+    // Relay Grants stay off until an operator provisions TREASURY_PRIVATE_KEY and flips this (docs/grants.md).
+    "TREASURY_ENABLED": "false"
   },
   // Custom domains need the nimrelay.xyz zone active on this account; Cloudflare creates the DNS records.
   "routes": [
@@ -57,7 +59,8 @@
       "routes": [{ "pattern": "testnet.nimrelay.xyz", "custom_domain": true }],
       "vars": {
         "NIMIQ_NETWORK": "TestAlbatross",
-        "NIMIQ_RPC_URL": "https://rpc.testnet.nimiqwatch.com/"
+        "NIMIQ_RPC_URL": "https://rpc.testnet.nimiqwatch.com/",
+        "TREASURY_ENABLED": "false"
       },
       "durable_objects": {
         "bindings": [

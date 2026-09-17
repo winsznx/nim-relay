@@ -1,4 +1,5 @@
-import type { BatonHandoff, NetworkHandoffIntent, RelayNote } from '@nim-relay/shared'
+import type { AtlasLeg, BatonHandoff, BatonRoute, HandoffAtlas, NetworkHandoffIntent, RelayNote, StationWorld } from '@nim-relay/shared'
+import { backfilledLeg, freshAtlasLedger, rebuildAtlasLedger } from './atlas'
 import { batonDisplayName, nextSerial } from './identity'
 import { storedReason } from './reasons'
 import { sectorSeed } from './route'
@@ -13,14 +14,15 @@ const LEGACY_ROUTE_TIER = 1
 
 type WithOptional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>
 type StoredMember = WithOptional<Member, 'completedRuns' | 'legs' | 'legMarks'>
-type StoredBaton = WithOptional<BatonRecord, 'serial' | 'displayName' | 'route' | 'completedAt' | 'recipientReservedAt' | 'recipientAcceptedAt'>
-type StoredHandoff = WithOptional<BatonHandoff, 'sector' | 'race' | 'rescue' | 'note'>
-type StoredIntent = Omit<NetworkHandoffIntent, 'failure' | 'note'> & { failure: string | null; note?: RelayNote | null }
+type StoredRoute = WithOptional<BatonRoute, keyof AtlasLeg>
+type StoredBaton = WithOptional<Omit<BatonRecord, 'route'>, 'serial' | 'displayName' | 'completedAt' | 'recipientReservedAt' | 'recipientAcceptedAt'> & { route?: StoredRoute }
+type StoredHandoff = WithOptional<BatonHandoff, 'sector' | 'race' | 'rescue' | 'note' | 'atlas'>
+type StoredIntent = Omit<NetworkHandoffIntent, 'failure' | 'note' | 'route'> & { failure: string | null; note?: RelayNote | null; route?: AtlasLeg | null }
 type StoredDailyEntry = WithOptional<DailyEntry, 'seed' | 'completed'>
 
 /** Network state as written by any release so far: fields added later may be missing. */
 export type StoredNetworkState = Omit<
-  WithOptional<NetworkState, 'dailyBests' | 'dailySettledThrough' | 'serials' | 'echoes' | 'awards'>,
+  WithOptional<NetworkState, 'dailyBests' | 'dailySettledThrough' | 'serials' | 'echoes' | 'awards' | 'atlas'>,
   'members' | 'batons' | 'handoffs' | 'intents' | 'daily'
 > & {
   members: Record<string, StoredMember>
@@ -57,6 +59,7 @@ export function freshNetworkState(): NetworkState {
     echoes: {},
     awards: {},
     rematches: 0,
+    atlas: freshAtlasLedger(),
     dirty: false,
   }
 }
@@ -96,16 +99,18 @@ export function normalizeNetworkState(stored: StoredNetworkState): NetworkState 
     ...stored,
     members: mapValues(stored.members, normalizeMember),
     batons: {},
-    handoffs: stored.handoffs.map(normalizeHandoff),
-    intents: mapValues(stored.intents, intent => ({ ...intent, failure: storedReason(intent.failure), note: intent.note ?? null })),
+    handoffs: stored.handoffs.map(handoff => normalizeHandoff(handoff, stored.batons[handoff.batonId]?.world)),
+    intents: mapValues(stored.intents, intent => ({ ...intent, failure: storedReason(intent.failure), note: intent.note ?? null, route: intent.route ?? null })),
     daily: mapValues(stored.daily, (entries, date) => mapValues(entries, entry => normalizeDailyEntry(entry, date))),
     dailyBests: stored.dailyBests ?? {},
     dailySettledThrough: stored.dailySettledThrough ?? null,
     serials: { ...stored.serials },
     echoes: stored.echoes ?? {},
     awards: stored.awards ?? {},
+    atlas: stored.atlas ?? freshAtlasLedger(),
   }
   state.batons = normalizeBatons(stored.batons, state)
+  if (!stored.atlas) rebuildAtlasLedger(state)
   return state
 }
 
@@ -113,8 +118,19 @@ function normalizeMember(member: StoredMember): Member {
   return { ...member, completedRuns: member.completedRuns ?? 0, legs: member.legs ?? 0, legMarks: member.legMarks ?? {} }
 }
 
-function normalizeHandoff(handoff: StoredHandoff): BatonHandoff {
-  return { ...handoff, sector: handoff.sector ?? null, race: handoff.race ?? null, rescue: handoff.rescue ?? false, note: handoff.note ?? null }
+/** A handoff recorded before the Atlas raced from Genesis Station into the world of its run, or of its baton. */
+function normalizeHandoff(handoff: StoredHandoff, batonWorld: StationWorld | undefined): BatonHandoff {
+  return { ...handoff, sector: handoff.sector ?? null, race: handoff.race ?? null, rescue: handoff.rescue ?? false, note: handoff.note ?? null, atlas: handoff.atlas ?? legacyHandoffAtlas(handoff.race?.world ?? batonWorld ?? 'coast') }
+}
+
+function legacyHandoffAtlas(world: StationWorld): HandoffAtlas {
+  return { ...backfilledLeg(world), backfilled: true, onCourse: false }
+}
+
+/** A route stored before the Atlas keeps its course and is placed on the Genesis route into its world. */
+function normalizeRoute(route: StoredRoute | undefined, baton: StoredBaton): BatonRoute {
+  const course = route ?? { seed: sectorSeed(baton.code, 0), world: baton.world, tier: LEGACY_ROUTE_TIER, sector: 0, sectorStartedLeg: baton.handoffCount }
+  return { ...backfilledLeg(course.world), ...course }
 }
 
 function normalizeDailyEntry(entry: StoredDailyEntry, date: string): DailyEntry {
@@ -140,7 +156,7 @@ function normalizeBaton(baton: StoredBaton, state: NetworkState): BatonRecord {
     ...baton,
     serial,
     displayName: baton.displayName ?? batonDisplayName(baton.mode, serial, baton.title),
-    route: baton.route ?? { seed: sectorSeed(baton.code, 0), world: baton.world, tier: LEGACY_ROUTE_TIER, sector: 0, sectorStartedLeg: baton.handoffCount },
+    route: normalizeRoute(baton.route, baton),
     completedAt: baton.completedAt !== undefined ? baton.completedAt : baton.status === 'completed' ? baton.updatedAt : null,
     recipientReservedAt: baton.recipientReservedAt !== undefined ? baton.recipientReservedAt : reserved ? baton.updatedAt : null,
     recipientAcceptedAt: baton.recipientAcceptedAt !== undefined ? baton.recipientAcceptedAt : acceptedBefore ? baton.updatedAt : null,

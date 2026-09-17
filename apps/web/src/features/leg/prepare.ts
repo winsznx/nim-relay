@@ -1,5 +1,5 @@
 import { relayLeg } from '@nim-relay/game-engine'
-import { isRelayLegV6Ghost, type BatonHandoff, type CanonicalGhost, type IssuedRace, type NetworkBaton, type NetworkDaily, type RelayEcho, type RelayLegV6Config } from '@nim-relay/shared'
+import { isRelayLegV6Ghost, type AtlasNextRoute, type BatonHandoff, type CanonicalGhost, type IssuedRace, type NetworkBaton, type NetworkDaily, type RaceAtlas, type RelayEcho, type RelayLegV6Config } from '@nim-relay/shared'
 import type { BatonAppearanceInput } from '../baton/baton-appearance'
 import type { GhostRun, RaceMode } from '../race/controller'
 import * as api from '../relays/api'
@@ -41,6 +41,10 @@ export interface LegSetup {
   echoes: RelayEcho[]
   /** First leg of a new route sector: nobody has set a time here yet. */
   firstOnSector: boolean
+  /** The Atlas route this baton leg races and why it has a ghost or none; null outside a baton leg. */
+  atlas: RaceAtlas | null
+  /** How the pass after this leg sets the next route, as the relay offered it when the leg was prepared. */
+  atlasNext: AtlasNextRoute | null
 }
 
 /** Only v6 runs can be raced or replayed by the current engine; earlier legs stay in their verified record. */
@@ -104,7 +108,7 @@ function modeFor(leg: Leg): RaceMode {
 }
 
 export async function prepareLeg(leg: Leg, signedIn: boolean, daily: NetworkDaily | undefined): Promise<LegSetup> {
-  const unranked = { issued: null, sender: null, baton: null, handoffs: [], appearance: undefined, echoes: [], firstOnSector: false }
+  const unranked = { issued: null, sender: null, baton: null, handoffs: [], appearance: undefined, echoes: [], firstOnSector: false, atlas: null, atlasNext: null }
   if (leg.kind === 'watch') {
     const verified = await api.loadVerifiedReplay(leg.runId)
     const replay = toGhostRun(verified)
@@ -154,5 +158,7 @@ export async function prepareLeg(leg: Leg, signedIn: boolean, daily: NetworkDail
     appearance: appearanceInput(baton, echoes),
     echoes,
     firstOnSector: leg.kind === 'baton' && (issued.sector?.firstLeg ?? !ghost),
+    atlas: issued.atlas ?? null,
+    atlasNext: detail?.atlas.next ?? null,
   }
 }

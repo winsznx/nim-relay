@@ -10,6 +10,7 @@ import { OpsFunnel } from './OpsFunnel'
 import { OpsOnboarding } from './OpsOnboarding'
 import { OpsFlaggedRuns, OpsNimFlow } from './OpsRecords'
 import { OpsTotals } from './OpsTotals'
+import { OpsGrants } from '../grants/OpsGrants'
 import { OpsTrends } from './OpsTrends'
 import { OPS_REFRESH_MS, isOperatorRefusal, useOpsReport } from './use-ops-report'
 import './ops.css'
@@ -92,6 +93,7 @@ export function OpsScreen({ entryKey }: { entryKey: string }) {
         <OpsOnboarding report={data} />
         <OpsFlaggedRuns report={data} />
         <OpsNimFlow report={data} />
+        <OpsGrants />
       </div>
     </Screen>
   )

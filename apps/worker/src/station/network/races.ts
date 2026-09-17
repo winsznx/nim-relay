@@ -1,4 +1,4 @@
-import type { CanonicalGhost, IssuedRace, RaceSector, RelayEcho, RelayLegV6Config } from '@nim-relay/shared'
+import type { CanonicalGhost, IssuedRace, RaceAtlas, RaceSector, RelayEcho, RelayLegV6Config } from '@nim-relay/shared'
 import { z } from 'zod'
 import { ApiError, type Profile, type Run } from '../model'
 import { mac, signedFields } from '../signing'
@@ -6,7 +6,7 @@ import { LEG_TETHER_SAVES, OFFICIAL_DAILY_TETHER_SAVES, RACE_ISSUE_TTL_MS } from
 import { dailyCourse, dailyKey, recordDailyBest, recordOfficialDaily, selectDailyGhostRun, type DailyCourse } from './daily'
 import { legEchoes } from './echoes'
 import { draftedGhost, ghostOfRun, raceableGhost } from './ghosts'
-import { assertHolder, findBaton, loadRun } from './lookups'
+import { assertHolder, findBaton, handoffsOf, loadRun } from './lookups'
 import { inheritedOpeningFlow, isFirstLegOfSector, legConfig, nextLegRoute, sectorGhostRun, tierFor, type LegTerms } from './route'
 import { memberFor } from './runners'
 import type { BatonRecord, NetworkContext } from './types'
@@ -26,6 +26,7 @@ interface RacePlan {
   ghost: CanonicalGhost | null
   sector: RaceSector | null
   echoes: RelayEcho[]
+  atlas?: RaceAtlas
 }
 
 /** Issues a signed v6 race: a baton leg on its route sector, the Daily course, or practice. */
@@ -59,7 +60,7 @@ export async function issueRace(context: NetworkContext, profile: Profile, body:
   issued.mac = await mac(context.env.RUN_CHALLENGE_SECRET, signedFields(issued))
   await context.storage.put(`issue:${issued.runId}`, issued)
   if (daily && !practice) context.state.dailyIssues[officialKey] = issued.runId
-  return plan.sector ? { ...issued, sector: plan.sector, echoes: plan.echoes } : issued
+  return plan.sector ? { ...issued, sector: plan.sector, echoes: plan.echoes, ...(plan.atlas ? { atlas: plan.atlas } : {}) } : issued
 }
 
 interface RaceRequest {
@@ -111,11 +112,14 @@ async function batonLeg(context: NetworkContext, baton: BatonRecord, practice: b
     baton.world = route.world
   }
   const drafted = await draftedGhost(context, sectorGhostRun(baton, route, previousRun))
+  const previousRoute = handoffsOf(context.state, baton.id).at(-1)?.atlas.routeId
+  const ghost: RaceAtlas['ghost'] = drafted ? 'previous-runner' : previousRoute !== undefined && previousRoute !== route.routeId ? 'different-route' : 'none'
   return {
     config: legConfig(route, { openingFlow: inheritedOpeningFlow(previousRun), tetherSaves: LEG_TETHER_SAVES, ghostline: drafted?.ghostline ?? null }),
     ghost: drafted?.ghost ?? null,
     sector: { index: route.sector, startedLeg: route.sectorStartedLeg, firstLeg: isFirstLegOfSector(baton, route) },
     echoes: legEchoes(context.state, baton.id, route.sector),
+    atlas: { routeId: route.routeId, origin: route.origin, destination: route.destination, ghost },
   }
 }
 

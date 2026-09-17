@@ -1,13 +1,14 @@
-import { relayLeg } from '@nim-relay/game-engine'
-import type { BatonAppearance, BatonDetail, BatonHandoff, BatonLive, BatonMode, BatonStop, NetworkBaton } from '@nim-relay/shared'
+import type { AtlasLeg, BatonAppearance, BatonDetail, BatonHandoff, BatonLive, BatonMode, NetworkBaton } from '@nim-relay/shared'
 import { ApiError, type Profile } from '../model'
+import { batonAtlas, openingAtlasRoute } from './atlas'
+import { withStarterGrant } from './grants/journey'
 import { BATON_HOLD_MS, BATON_VALUE_LUNA, HANDOFF_MILESTONES, MAX_ACTIVE_ORIGIN_BATONS, MAX_NOTABLE_RUNS } from './constants'
 import { batonEchoes } from './echoes'
 import { sectorGhost } from './ghosts'
 import { batonDisplayName, nextSerial, shortCode } from './identity'
 import { handoffsOf, loadRun, notify, openIntentFor } from './lookups'
 import { handoffForViewer } from './notes'
-import { openingRoute, tierFor } from './route'
+import { openingRoute } from './route'
 import { networkRunner, requireCourier } from './runners'
 import type { BatonRecord, NetworkContext } from './types'
 
@@ -32,7 +33,7 @@ export function createBaton(context: NetworkContext, profile: Profile, input: Cr
   const runner = networkRunner(state, profile)
   const code = shortCode()
   const serial = nextSerial(state, input.mode)
-  const world = relayLeg.WORLDS[Object.keys(state.batons).length % relayLeg.WORLDS.length]!
+  const opening = openingAtlasRoute(Object.keys(state.batons).length)
   const baton: BatonRecord = {
     id: crypto.randomUUID(),
     code,
@@ -49,8 +50,8 @@ export function createBaton(context: NetworkContext, profile: Profile, input: Cr
     completedAt: null,
     status: 'active',
     handoffCount: 0,
-    world,
-    route: openingRoute(code, world, tierFor(state, profile.id)),
+    world: opening.world,
+    route: openingRoute(opening),
     previousRunId: null,
     crewId: input.mode === 'crew' ? profile.crewId : null,
     rivalId: null,
@@ -89,13 +90,11 @@ export function presentBaton(baton: BatonRecord, handoffs: readonly BatonHandoff
   return { ...baton, appearance: batonAppearance(baton, now), aliveMs, transactingWallets: transactingWallets(handoffs) }
 }
 
-/**
- * Presented baton with its ordered globe stops (origin, then every recipient, as recorded with consent at the time)
- * and the leg its holder is racing, as snapshots and baton pages show it.
- */
-export function presentBatonWithStops(baton: BatonRecord, handoffs: readonly BatonHandoff[], now: number, live: BatonLive | null): NetworkBaton {
-  const stops: BatonStop[] = [{ countryCode: baton.origin.country }, ...handoffs.map(handoff => ({ countryCode: handoff.to.country }))]
-  return { ...presentBaton(baton, handoffs, now), stops, live }
+/** Presented baton with its Atlas legs for the globe and the leg its holder is racing, as snapshots and baton pages show it. */
+export function presentBatonWithHops(baton: BatonRecord, handoffs: readonly BatonHandoff[], now: number, live: BatonLive | null): NetworkBaton {
+  const hops: AtlasLeg[] = handoffs.map(({ atlas: { routeId, origin, destination } }) => ({ routeId, origin, destination }))
+  if (baton.status !== 'completed') hops.push({ routeId: baton.route.routeId, origin: baton.route.origin, destination: baton.route.destination })
+  return { ...presentBaton(baton, handoffs, now), hops, live }
 }
 
 function batonAppearance(baton: BatonRecord, now: number): BatonAppearance {
@@ -123,13 +122,14 @@ export async function batonDetail(context: NetworkContext, baton: BatonRecord, p
   const now = Date.now()
   const live = context.live.liveFor(baton, now)
   return {
-    baton: presentBatonWithStops(baton, handoffs, now, live),
+    baton: presentBatonWithHops(baton, handoffs, now, live),
     handoffs: handoffs.map(handoff => handoffForViewer(handoff, viewerId)),
     ghost: sectorGhost(context, baton, previousRun),
     pendingHandoff: profile?.id === baton.holder.id ? openIntentFor(context.state, baton.id) : null,
     notableRuns: await notableRuns(context, handoffs),
     echoes: batonEchoes(context.state, baton.id),
     live,
+    atlas: withStarterGrant(baton, batonAtlas(baton, handoffs)),
   }
 }
 

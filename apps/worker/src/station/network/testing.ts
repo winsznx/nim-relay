@@ -106,8 +106,9 @@ export async function raceLeg(courier: TestRunner, batonId: string, chooseTrace:
   return { issued, submitted, trace }
 }
 
-export async function prepareAndAttempt(from: TestRunner, to: TestRunner, runId: string): Promise<NetworkHandoffIntent> {
-  const intent = await call<NetworkHandoffIntent>(from.cookie, '/network/handoff/prepare', { runId, recipient: to.p.id })
+/** Prepares and attempts a pass. Without `routeId` the server picks the next Atlas route. */
+export async function prepareAndAttempt(from: TestRunner, to: TestRunner, runId: string, routeId?: string): Promise<NetworkHandoffIntent> {
+  const intent = await call<NetworkHandoffIntent>(from.cookie, '/network/handoff/prepare', { runId, recipient: to.p.id, ...(routeId ? { routeId } : {}) })
   return call<NetworkHandoffIntent>(from.cookie, '/network/handoff/attempt', { id: intent.id })
 }
 
@@ -117,10 +118,14 @@ export interface Pass extends RacedLeg {
   txHash: string
 }
 
-/** Races the holder's leg and moves the baton to `to` through a verified controlled transfer. */
-export async function passBaton(from: TestRunner, to: TestRunner, batonId: string, chooseTrace?: (issued: IssuedRace) => RelayLegV6Trace): Promise<Pass> {
+/**
+ * Races the holder's leg and moves the baton to `to` through a verified controlled transfer. `route` 'same' sends the
+ * next leg along the route just raced, so the next runner chases this leg's ghost; by default the server picks the route.
+ */
+export async function passBaton(from: TestRunner, to: TestRunner, batonId: string, chooseTrace?: (issued: IssuedRace) => RelayLegV6Trace, route?: 'same' | { routeId: string }): Promise<Pass> {
   const leg = await raceLeg(from, batonId, chooseTrace)
-  const intent = await prepareAndAttempt(from, to, leg.issued.runId)
+  const routeId = route === 'same' ? leg.issued.atlas?.routeId : route?.routeId
+  const intent = await prepareAndAttempt(from, to, leg.issued.runId, routeId)
   const txHash = randomTxHash()
   const confirmation = await confirmWith(from, intent, txHash, chainTransfer(intent, txHash))
   if (confirmation.status !== 'verified') throw new Error(`Handoff did not verify: ${confirmation.reason ?? 'unknown'}`)

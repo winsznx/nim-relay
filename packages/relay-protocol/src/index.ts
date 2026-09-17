@@ -1,6 +1,7 @@
 export * from './tx-data'
 export * from './nimiq-rpc'
 export * from './nimiq-verify'
+export * from './nimiq-transaction'
 export * from './verify-transaction'
 export * from './challenge'
 export { paymentAddress } from './address'

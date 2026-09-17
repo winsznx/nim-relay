@@ -23,7 +23,7 @@ const config: relayLeg.Config = {
 }
 
 function handoff(from: NetworkRunner, overrides: Partial<BatonHandoff> = {}): BatonHandoff {
-  return { id: 'h-1', batonId: aurora.id, leg: 1, from, to: me, value: 100_000, txHash: 'f'.repeat(64), network: 'TestAlbatross', at: 0, runId: 'run-tim', resultHash: 'r', qualified: true, confirmations: 2, blockNumber: 1, sector: 0, race: null, rescue: false, note: null, ...overrides }
+  return { id: 'h-1', batonId: aurora.id, leg: 1, from, to: me, value: 100_000, txHash: 'f'.repeat(64), network: 'TestAlbatross', at: 0, runId: 'run-tim', resultHash: 'r', qualified: true, confirmations: 2, blockNumber: 1, sector: 0, race: null, rescue: false, note: null, atlas: { routeId: 'genesis-to-cape-verdigris', origin: 'genesis', destination: 'cape-verdigris', backfilled: false, onCourse: true }, ...overrides }
 }
 
 function setup(overrides: Partial<LegSetup> = {}): LegSetup {
@@ -40,6 +40,8 @@ function setup(overrides: Partial<LegSetup> = {}): LegSetup {
     appearance: undefined,
     echoes: [],
     firstOnSector: false,
+    atlas: null,
+    atlasNext: null,
     ...overrides,
   }
 }
@@ -58,6 +60,7 @@ describe('leg mission', () => {
       previous: { name: 'Tim', timeMs: 44_120 },
       next: { name: 'Yasmine', context: 'Accepted your invite' },
       note: { from: 'Tim', text: 'Don’t drop the baton.' },
+      route: null,
     })
   })
 
@@ -68,7 +71,7 @@ describe('leg mission', () => {
   })
 
   it('starts a fresh baton without a previous runner or note', () => {
-    expect(legMission(setup({ handoffs: [], ghost: null, ghostRunId: null, sender: null }), null)).toEqual({ batonName: 'Aurora', previous: null, next: null, note: null })
+    expect(legMission(setup({ handoffs: [], ghost: null, ghostRunId: null, sender: null }), null)).toEqual({ batonName: 'Aurora', previous: null, next: null, note: null, route: null })
   })
 
   it('has no mission outside a baton leg', () => {

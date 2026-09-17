@@ -71,25 +71,52 @@ export async function openLeg(runner: Runner, code: string): Promise<void> {
 
 /**
  * Lets the dev autopilot ride to the gate, waits for the server's verdict, then presses the pass on the results.
- * Returns the handoff card of the runner waiting for the baton; a Quick relay always has one.
+ * Returns the handoff card of the runner waiting for the baton; a Quick relay always has one. With `route`, the pass
+ * first offers the Atlas route step and the runner sends the next leg onward from it.
  */
-export async function finishLeg(runner: Runner): Promise<Locator> {
+export async function finishLeg(runner: Runner, options: { route?: (page: Page) => Promise<void> } = {}): Promise<Locator> {
   const { page } = runner
   await expect(page.locator('main.leg')).toHaveAttribute('data-phase', 'finished', { timeout: RACE_MS })
   await expect(page.getByRole('region', { name: 'Arrival results' })).toBeVisible()
   const pass = page.getByRole('button', { name: /^PASS / })
   await expect(pass).toBeVisible({ timeout: 30_000 })
   await pass.click()
+  if (options.route) await options.route(page)
+  else await expect(page.getByRole('dialog', { name: 'Where does it go next?' })).toHaveCount(0)
   const handoff = page.getByRole('dialog', { name: /^Handoff to / })
   await expect(handoff).toBeVisible()
   return handoff
 }
 
-/** Prepares the handoff to the waiting runner without a note, then holds the launch pad, drags up to raise the arc and releases. */
-export async function throwBaton(runner: Runner, recipient: string, shotPrefix?: string): Promise<void> {
+export interface ChosenRoute {
+  /** The station the leg reached, as the route step names it. */
+  from: string
+  to: string
+}
+
+/**
+ * On the Atlas route step, picks the first route leading on to another station rather than repeating the leg's route.
+ * Returns the station names of the route chosen.
+ */
+export async function chooseOnwardRoute(page: Page, shotName?: string): Promise<ChosenRoute> {
+  const step = page.getByRole('dialog', { name: 'Where does it go next?' })
+  await expect(step).toBeVisible()
+  // The eyebrow is set in capitals by CSS; its text content keeps the station's own name.
+  const reached = ((await step.locator('.handoff-eyebrow').textContent()) ?? '').replace(/^You reached /, '').trim()
+  const onward = step.locator('.handoff-route-option').filter({ hasNotText: /^Again to/ }).first()
+  const to = ((await onward.locator('.handoff-route-option__name').textContent()) ?? '').trim()
+  if (shotName) await shot(page, shotName)
+  await onward.click()
+  await expect(page.getByText(`Next leg: ${reached} to ${to}`, { exact: false })).toBeVisible()
+  return { from: reached, to }
+}
+
+/** Prepares the handoff to the waiting (or already picked) runner without a note, then holds the launch pad, drags up to raise the arc and releases. */
+export async function throwBaton(runner: Runner, recipient: string, shotPrefix?: string, options: { picked?: boolean } = {}): Promise<void> {
   const { page } = runner
   if (shotPrefix) await shot(page, `${shotPrefix}-choose`)
-  await page.getByRole('dialog', { name: `Handoff to ${recipient}` }).getByRole('button', { name: 'Prepare handoff' }).click()
+  // A runner picked from the handoff zone goes straight to the note; a waiting runner is confirmed first.
+  if (!options.picked) await page.getByRole('dialog', { name: `Handoff to ${recipient}` }).getByRole('button', { name: 'Prepare handoff' }).click()
   const note = page.getByRole('dialog', { name: 'Relay note' })
   await expect(note).toBeVisible()
   if (shotPrefix) await shot(page, `${shotPrefix}-note`)

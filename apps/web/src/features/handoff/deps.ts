@@ -7,7 +7,7 @@ const wait = (ms: number) => new Promise<void>(resolve => window.setTimeout(reso
 
 /** The production wiring of a handoff: relay API, native Nimiq Pay approval, and local recovery records. */
 export const handoffDeps: HandoffDeps = {
-  prepare: (runId, recipientId, launch, note) => api.prepareNetworkHandoff(runId, recipientId, launch, note),
+  prepare: (runId, recipientId, launch, note, routeId) => api.prepareNetworkHandoff(runId, recipientId, launch, note, routeId),
   attempt: id => api.attemptNetworkHandoff(id),
   cancel: id => api.cancelNetworkHandoff(id),
   confirm: (id, hash) => api.confirmNetworkHandoff(id, hash),

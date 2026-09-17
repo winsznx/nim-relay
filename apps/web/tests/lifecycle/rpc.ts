@@ -22,4 +22,13 @@ async function post(path: string, body: unknown): Promise<void> {
 export const mockChain = {
   register: (transaction: ChainTransaction): Promise<void> => post('/__register', transaction),
   confirm: (hash: string, confirmations: number): Promise<void> => post('/__confirm', { hash, confirmations }),
+  /** Sets an address's balance in Luna, e.g. to fund the grant treasury. */
+  balance: (address: string, luna: number): Promise<void> => post('/__balance', { address, luna }),
+  /** Hashes of transfers the Worker broadcast itself, oldest first. */
+  async sent(): Promise<string[]> {
+    const response = await fetch(`${RPC_ORIGIN}/__sent`)
+    const body: unknown = await response.json()
+    if (!Array.isArray(body)) throw new Error('mock Nimiq RPC /__sent answered without a list')
+    return body.flatMap(entry => (typeof entry === 'object' && entry !== null && typeof Reflect.get(entry, 'hash') === 'string' ? [String(Reflect.get(entry, 'hash'))] : []))
+  },
 }

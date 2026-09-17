@@ -28,11 +28,13 @@ describe('relay API client', () => {
     // #when one pass carries a private note and another none
     await prepareNetworkHandoff('run-1', 'yasmine', { angle: 45, power: 80 }, { text: 'Keep it gold', visibility: 'private' })
     await prepareNetworkHandoff('run-2', 'kofi', { angle: 30, power: 60 }, null)
+    await prepareNetworkHandoff('run-3', 'ada', { angle: 30, power: 60 }, null, 'cape-verdigris-to-meridian-yard')
 
-    // #then only the first body has a note
+    // #then only the first body has a note, and only the third a route
     expect(bodies).toEqual([
       { runId: 'run-1', recipient: 'yasmine', throw: { angle: 45, power: 80 }, note: { text: 'Keep it gold', visibility: 'private' } },
       { runId: 'run-2', recipient: 'kofi', throw: { angle: 30, power: 60 } },
+      { runId: 'run-3', recipient: 'ada', throw: { angle: 30, power: 60 }, routeId: 'cape-verdigris-to-meridian-yard' },
     ])
   })
 

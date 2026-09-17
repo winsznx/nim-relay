@@ -15,7 +15,7 @@ function detail(overrides: Partial<BatonDetail['baton']> = {}): BatonDetail {
     baton: {
       id: 'b1', code: 'AURORA0001', serial: 1, title: 'Aurora', displayName: 'Aurora', mode: 'global', network: 'MainAlbatross', value: 100000,
       origin: runner, holder: { ...runner, name: 'Mariana', id: 'r2' }, createdAt: 0, updatedAt: 0, completedAt: null, status: 'active', handoffCount: 47,
-      world: 'coast', route: { seed: 's', world: 'coast', tier: 1, sector: 0, sectorStartedLeg: 0 }, previousRunId: null, crewId: null, rivalId: null,
+      world: 'coast', route: { seed: 's', world: 'coast', tier: 1, sector: 0, sectorStartedLeg: 0, routeId: 'genesis-to-cape-verdigris', origin: 'genesis', destination: 'cape-verdigris' }, previousRunId: null, crewId: null, rivalId: null,
       recipientId: null, recipientReservedAt: null, recipientAcceptedAt: null, expiresAt: 0, lineage: { countries: ['NG', 'DE'], runners: 31, ghostWins: 3 },
       quick: null, appearance: { handoffCount: 47, ageMs: 0, countries: 2, ghostWins: 3, milestones: [] }, aliveMs: 31_320_000, transactingWallets: 31,
       ...overrides,
@@ -26,6 +26,7 @@ function detail(overrides: Partial<BatonDetail['baton']> = {}): BatonDetail {
     notableRuns: [],
     echoes: [],
     live: null,
+    atlas: { journey: [], current: { routeId: 'genesis-to-cape-verdigris', origin: 'genesis', destination: 'cape-verdigris' }, next: null },
   }
 }
 
