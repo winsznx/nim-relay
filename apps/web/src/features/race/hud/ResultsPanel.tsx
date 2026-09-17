@@ -1,8 +1,9 @@
 import type { RaceMode, RaceSnapshot } from '../controller'
 import { flowControlPercent, formatSeconds, verdict } from '../format'
+import type { PassAction } from '../mission'
 
 /** The verdict line for a relay leg raced without a ghost: the runner opened the sector. */
-export const FIRST_TIME_VERDICT = 'NEW SECTOR · FIRST TIME SET'
+export const FIRST_ON_SECTOR = 'FIRST ON THIS SECTOR'
 
 interface ResultsPanelProps {
   snapshot: RaceSnapshot
@@ -16,12 +17,14 @@ interface ResultsPanelProps {
   layout: 'card' | 'header'
   /** Fades the header back while the ceremony's frozen and launch beats play. */
   dimmed?: boolean
+  /** Relay legs: the primary action of a completed leg, e.g. "PASS AURORA". */
+  passAction?: PassAction | null
   onWatchReplay(): void
   onRaceAgain(): void
 }
 
-/** Arrival results. Practice, daily and watch get replay and retry; relay actions come from the ceremony. */
-export function ResultsPanel({ snapshot, mode, ghost, layout, dimmed = false, onWatchReplay, onRaceAgain }: ResultsPanelProps) {
+/** Leg results. Practice, daily and watch get replay and retry; a relay leg passes the baton on. */
+export function ResultsPanel({ snapshot, mode, ghost, layout, dimmed = false, passAction = null, onWatchReplay, onRaceAgain }: ResultsPanelProps) {
   const result = snapshot.result
   const replayable = mode === 'practice' || mode === 'daily' || mode === 'watch'
   const header = layout === 'header'
@@ -42,12 +45,13 @@ export function ResultsPanel({ snapshot, mode, ghost, layout, dimmed = false, on
     )
   }
 
-  if (!result.completed) {
+  if (result.failed || !result.completed) {
+    const failed = result.failed
     return (
-      <section className={`leg-results leg-results--alert${layoutClass}`} aria-label="Leg not finished" data-dimmed={dimState}>
-        <p className="leg-results__kicker">LEG NOT FINISHED</p>
+      <section className={`leg-results leg-results--alert${layoutClass}`} aria-label={failed ? 'Leg failed' : 'Leg not finished'} data-failed={failed ? 'true' : 'false'} data-dimmed={dimState}>
+        <p className="leg-results__kicker">{failed ? 'LEG FAILED' : 'LEG NOT FINISHED'}</p>
         <p className="leg-results__body">
-          {header ? 'The handoff gate closed before you reached it.' : 'The handoff gate closed before you reached it. Race again and keep your line.'}
+          {failed ? 'The baton is still with you.' : header ? 'The handoff gate closed before you reached it.' : 'The handoff gate closed before you reached it. Race again and keep your line.'}
         </p>
         {!header && (
           <div className="leg-results__actions">
@@ -62,10 +66,11 @@ export function ResultsPanel({ snapshot, mode, ghost, layout, dimmed = false, on
 
   const metrics = result.metrics
   const won = ghost !== null && result.timeMs < ghost.timeMs
-  const verdictLine = ghost ? verdict(ghost.name, ghost.timeMs, result.timeMs) : header ? FIRST_TIME_VERDICT : null
+  const verdictLine = ghost ? verdict(ghost.name, ghost.timeMs, result.timeMs) : mode === 'relay' ? FIRST_ON_SECTOR : null
+  const pass = mode === 'relay' && !header ? passAction : null
   return (
     <section className={`leg-results${layoutClass}`} aria-label="Arrival results" data-dimmed={dimState}>
-      <p className="leg-results__kicker">ARRIVAL</p>
+      <p className="leg-results__kicker">LEG COMPLETE</p>
       <p className="leg-results__time">{formatSeconds(result.timeMs)}</p>
       {verdictLine && (
         <p className="leg-results__verdict" data-won={won || !ghost ? 'true' : 'false'}>
@@ -74,7 +79,7 @@ export function ResultsPanel({ snapshot, mode, ghost, layout, dimmed = false, on
       )}
       <dl className="leg-results__stats">
         <div>
-          <dt>PERFECT GATES</dt>
+          <dt>PERFECT LINES</dt>
           <dd>
             {metrics.perfectGates}/{metrics.totalGates}
           </dd>
@@ -84,10 +89,21 @@ export function ResultsPanel({ snapshot, mode, ghost, layout, dimmed = false, on
           <dd>{metrics.riskRoutes}</dd>
         </div>
         <div>
-          <dt>FLOW CONTROL</dt>
+          <dt>EDGE SAVES</dt>
+          <dd>{metrics.edgeSaves}</dd>
+        </div>
+        <div>
+          <dt>FLOW</dt>
           <dd>{flowControlPercent(metrics, result.ticks)}%</dd>
         </div>
       </dl>
+      {pass && (
+        <div className="leg-results__actions">
+          <button type="button" className="leg-button leg-button--primary leg-button--pass" onClick={pass.onPress}>
+            {pass.label}
+          </button>
+        </div>
+      )}
       {replayable && !header && (
         <div className="leg-results__actions">
           <button type="button" className="leg-button" onClick={onWatchReplay}>

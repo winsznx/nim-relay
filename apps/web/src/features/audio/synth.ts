@@ -268,3 +268,205 @@ export function renderImpulse(sampleRate: number, seconds = 2): Channels {
   normalize(out, 0.9)
   return out
 }
+
+// ---------------------------------------------------------------------------------------------
+// Race one-shots for v6 moments no shipped sample covers. Mono, short, rendered once per context.
+// ---------------------------------------------------------------------------------------------
+
+export type SynthSoundId =
+  | 'synth-lane-shift'
+  | 'synth-lane-tick'
+  | 'synth-shoulder'
+  | 'synth-tether'
+  | 'synth-rush'
+  | 'synth-failed'
+  | 'synth-draft'
+  | 'synth-flow-rise'
+  | 'synth-baton-lift'
+
+interface ToneOptions {
+  /** Seconds into the buffer. */
+  at: number
+  seconds: number
+  fromHz: number
+  toHz: number
+  level: number
+  /** Seconds to full level. */
+  attack: number
+  /** Seconds per 1/e of decay after the attack; Infinity holds until the fade-out. */
+  decay: number
+  table: Float32Array
+}
+
+/** Adds a tone gliding exponentially from `fromHz` to `toHz` with an attack, decay and a short tail fade. */
+function addTone(out: Float32Array, sampleRate: number, options: ToneOptions): void {
+  const start = Math.round(options.at * sampleRate)
+  const frames = Math.min(out.length - start, Math.round(options.seconds * sampleRate))
+  if (frames <= 0) return
+  const glide = (options.toHz / options.fromHz) ** (1 / frames)
+  const fall = Number.isFinite(options.decay) ? decayPerSample(options.decay, sampleRate) : 1
+  const attack = Math.max(1, options.attack * sampleRate)
+  const tail = Math.max(1, 0.012 * sampleRate)
+  let hz = options.fromHz
+  let phase = 0
+  let envelope = options.level
+  for (let i = 0; i < frames; i++) {
+    const shape = Math.min(1, i / attack) * Math.min(1, (frames - i) / tail)
+    out[start + i]! += options.table[phase | 0]! * envelope * shape
+    phase += (hz * TABLE_SIZE) / sampleRate
+    if (phase >= TABLE_SIZE) phase -= TABLE_SIZE
+    hz *= glide
+    if (i >= attack) envelope *= fall
+  }
+}
+
+interface NoiseOptions {
+  at: number
+  seconds: number
+  fromHz: number
+  toHz: number
+  level: number
+  /** Resonance damping, lower rings more. */
+  damping: number
+  seed: number
+  /** Envelope over the burst's own progress, 0..1 in and out. */
+  shape: (progress: number) => number
+}
+
+/** Adds band-passed noise whose centre sweeps from `fromHz` to `toHz`. */
+function addNoiseBand(out: Float32Array, sampleRate: number, options: NoiseOptions): void {
+  const start = Math.round(options.at * sampleRate)
+  const frames = Math.min(out.length - start, Math.round(options.seconds * sampleRate))
+  const source = noise(options.seed)
+  let low = 0
+  let band = 0
+  let f = 0
+  let gain = 0
+  for (let i = 0; i < frames; i++) {
+    if (i % CONTROL_FRAMES === 0) {
+      const progress = i / frames
+      const cutoff = Math.min(options.fromHz * (options.toHz / options.fromHz) ** progress, sampleRate / 6)
+      f = 2 * Math.sin((Math.PI * cutoff) / sampleRate)
+      gain = options.level * options.shape(progress)
+    }
+    const high = source() - low - options.damping * band
+    band += f * high
+    low += f * band
+    out[start + i]! += band * gain
+  }
+}
+
+function mono(sampleRate: number, seconds: number): Float32Array {
+  return new Float32Array(Math.round(seconds * sampleRate))
+}
+
+const SINE = wavetable([1])
+const GLASS = wavetable([1, 0, 0.18, 0, 0.06])
+const BUZZ = wavetable(sawWeights(8))
+const HOLLOW = wavetable([1, 0, 1 / 9, 0, 1 / 25])
+
+/** A lane change: a quick airy swish across the band. */
+export function renderLaneShift(sampleRate: number): Float32Array {
+  const out = mono(sampleRate, 0.2)
+  addNoiseBand(out, sampleRate, { at: 0, seconds: 0.2, fromHz: 900, toHz: 4800, level: 1, damping: 0.55, seed: 31, shape: p => Math.min(1, p * 9) * (1 - p) ** 2 })
+  normalize([out], 0.5)
+  return out
+}
+
+/** A lane acquired: a soft, dry click that says "settled". */
+export function renderLaneTick(sampleRate: number): Float32Array {
+  const out = mono(sampleRate, 0.06)
+  addTone(out, sampleRate, { at: 0, seconds: 0.06, fromHz: 2500, toHz: 2300, level: 1, attack: 0.001, decay: 0.009, table: GLASS })
+  normalize([out], 0.45)
+  return out
+}
+
+/** The shoulder: a rumble strip under the board, low buzz chopped at 16 Hz. */
+export function renderShoulder(sampleRate: number): Float32Array {
+  const seconds = 0.42
+  const out = mono(sampleRate, seconds)
+  addTone(out, sampleRate, { at: 0, seconds, fromHz: 92, toHz: 84, level: 1, attack: 0.01, decay: Infinity, table: BUZZ })
+  const chop = Math.round(sampleRate / 16)
+  const edge = Math.round(0.004 * sampleRate)
+  for (let i = 0; i < out.length; i++) {
+    const within = i % chop
+    const open = within < chop * 0.55 ? Math.min(1, within / edge) : Math.max(0.15, 1 - (within - chop * 0.55) / edge)
+    out[i]! *= open * Math.min(1, (out.length - i) / (0.08 * sampleRate))
+  }
+  normalize([out], 0.55)
+  return out
+}
+
+/** The baton's tether: a bright snap, then a golden zing climbing a fifth-stacked glide. */
+export function renderTether(sampleRate: number): Float32Array {
+  const out = mono(sampleRate, 1.1)
+  addNoiseBand(out, sampleRate, { at: 0, seconds: 0.05, fromHz: 5200, toHz: 2400, level: 1.4, damping: 0.3, seed: 57, shape: p => (1 - p) ** 3 })
+  addTone(out, sampleRate, { at: 0.02, seconds: 1.05, fromHz: 520, toHz: 1560, level: 0.8, attack: 0.03, decay: 0.45, table: GLASS })
+  addTone(out, sampleRate, { at: 0.02, seconds: 1.05, fromHz: 780, toHz: 2340, level: 0.45, attack: 0.05, decay: 0.4, table: SINE })
+  normalize([out], 0.6)
+  return out
+}
+
+/** Relay Rush ignition: a swelling riser that lands on a low thump and an open fifth. */
+export function renderRush(sampleRate: number): Float32Array {
+  const out = mono(sampleRate, 1.25)
+  const land = 0.5
+  addNoiseBand(out, sampleRate, { at: 0, seconds: land, fromHz: 400, toHz: 7000, level: 1, damping: 0.35, seed: 73, shape: p => p ** 2.4 })
+  addTone(out, sampleRate, { at: land, seconds: 0.5, fromHz: 110, toHz: 46, level: 1.3, attack: 0.003, decay: 0.12, table: SINE })
+  addTone(out, sampleRate, { at: land, seconds: 0.75, fromHz: 392, toHz: 392, level: 0.35, attack: 0.004, decay: 0.28, table: BUZZ })
+  addTone(out, sampleRate, { at: land, seconds: 0.75, fromHz: 587.3, toHz: 587.3, level: 0.25, attack: 0.004, decay: 0.26, table: BUZZ })
+  normalize([out], 0.65)
+  return out
+}
+
+/** A failed leg: a hollow tone sinking an octave and a half, under a minor third. */
+export function renderFailed(sampleRate: number): Float32Array {
+  const out = mono(sampleRate, 1.5)
+  addTone(out, sampleRate, { at: 0, seconds: 1.5, fromHz: 330, toHz: 110, level: 1, attack: 0.02, decay: 0.6, table: HOLLOW })
+  addTone(out, sampleRate, { at: 0.08, seconds: 1.42, fromHz: 277.2, toHz: 92.5, level: 0.6, attack: 0.03, decay: 0.55, table: HOLLOW })
+  normalize([out], 0.6)
+  return out
+}
+
+/** Drafting the Ghostline: a cool shimmer that swells in and out. */
+export function renderDraft(sampleRate: number): Float32Array {
+  const out = mono(sampleRate, 0.8)
+  addNoiseBand(out, sampleRate, { at: 0, seconds: 0.8, fromHz: 5200, toHz: 8200, level: 0.8, damping: 0.25, seed: 91, shape: p => Math.sin(Math.PI * p) ** 2 })
+  addTone(out, sampleRate, { at: 0.08, seconds: 0.7, fromHz: 2093, toHz: 2217, level: 0.18, attack: 0.25, decay: 0.3, table: SINE })
+  normalize([out], 0.4)
+  return out
+}
+
+/** FLOW rising a tier: two quick glassy notes a fifth apart. */
+export function renderFlowRise(sampleRate: number): Float32Array {
+  const out = mono(sampleRate, 0.4)
+  addTone(out, sampleRate, { at: 0, seconds: 0.2, fromHz: 880, toHz: 880, level: 0.8, attack: 0.003, decay: 0.05, table: GLASS })
+  addTone(out, sampleRate, { at: 0.1, seconds: 0.3, fromHz: 1318.5, toHz: 1318.5, level: 1, attack: 0.003, decay: 0.08, table: GLASS })
+  normalize([out], 0.5)
+  return out
+}
+
+/** The baton leaving the courier's hand: a breath and a slow glide upward. */
+export function renderBatonLift(sampleRate: number): Float32Array {
+  const out = mono(sampleRate, 0.9)
+  addNoiseBand(out, sampleRate, { at: 0, seconds: 0.9, fromHz: 1800, toHz: 4200, level: 0.5, damping: 0.4, seed: 113, shape: p => Math.sin(Math.PI * p) })
+  addTone(out, sampleRate, { at: 0.05, seconds: 0.85, fromHz: 440, toHz: 1320, level: 0.7, attack: 0.3, decay: 0.35, table: GLASS })
+  normalize([out], 0.5)
+  return out
+}
+
+export const SYNTH_SOUNDS: Readonly<Record<SynthSoundId, (sampleRate: number) => Float32Array>> = {
+  'synth-lane-shift': renderLaneShift,
+  'synth-lane-tick': renderLaneTick,
+  'synth-shoulder': renderShoulder,
+  'synth-tether': renderTether,
+  'synth-rush': renderRush,
+  'synth-failed': renderFailed,
+  'synth-draft': renderDraft,
+  'synth-flow-rise': renderFlowRise,
+  'synth-baton-lift': renderBatonLift,
+}
+
+export function isSynthSound(id: string): id is SynthSoundId {
+  return Object.hasOwn(SYNTH_SOUNDS, id)
+}

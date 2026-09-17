@@ -17,11 +17,19 @@ export interface BatonObjectOptions {
   glow?: number
 }
 
+/** Moment-to-moment state of a carried baton, on top of its energy. */
+export interface BatonCondition {
+  /** 0..1 destabilised by an impact: the core flickers and the halo stutters. */
+  flicker?: number
+  /** 0..1 blazing through Relay Rush or a relay cut: a white-hot core and a wide halo. */
+  blaze?: number
+}
+
 export interface BatonObject {
   /** Baton axis is local +Y, centred on the origin. */
   readonly object: THREE.Group
   /** `energy` 0..1 brightens the core, e.g. with FLOW or a launch flare. */
-  update(timeSeconds: number, energy?: number): void
+  update(timeSeconds: number, energy?: number, condition?: BatonCondition): void
   setAppearance(appearance: BatonAppearance): void
   dispose(): void
 }
@@ -52,6 +60,7 @@ const coreFragment = /* glsl */ `
   uniform float uScars;
   uniform float uHalf;
   uniform float uOpacity;
+  uniform float uBlaze;
   uniform vec3 uHot;
   uniform vec3 uCore;
   uniform vec3 uDeep;
@@ -77,7 +86,8 @@ const coreFragment = /* glsl */ `
       color = mix(color, uDeep * 0.25, smoothstep(0.05, 0.022, d));
       color += uHot * smoothstep(0.085, 0.05, d) * smoothstep(0.022, 0.05, d) * 0.55;
     }
-    gl_FragColor = vec4(color * (1.0 + uEnergy * 0.8), uOpacity);
+    color = mix(color, uHot * 1.6 + vec3(0.9, 0.8, 0.6), uBlaze * (0.45 + 0.35 * band));
+    gl_FragColor = vec4(color * (1.0 + uEnergy * 0.8 + uBlaze * 1.4), uOpacity);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }
@@ -201,6 +211,7 @@ export function createBatonObject(appearance: BatonAppearance = FRESH_BATON, opt
       uScars: { value: appearance.scars },
       uHalf: { value: 0.36 },
       uOpacity: { value: ghost ? 0.6 : 1 },
+      uBlaze: { value: 0 },
       uHot: { value: palette.hot },
       uCore: { value: palette.core },
       uDeep: { value: palette.deep },
@@ -253,10 +264,16 @@ export function createBatonObject(appearance: BatonAppearance = FRESH_BATON, opt
   }
   apply(appearance)
 
-  function update(timeSeconds: number, energy = 0): void {
-    const clampedEnergy = Math.max(0, Math.min(1, energy))
+  function update(timeSeconds: number, energy = 0, condition: BatonCondition = {}): void {
+    const flicker = Math.max(0, Math.min(1, condition.flicker ?? 0))
+    const blaze = Math.max(0, Math.min(1, condition.blaze ?? 0))
+    // An integer-hashed stutter reads as a failing light, where a sine would read as breathing.
+    const stutter = flicker > 0 ? flicker * (Math.floor(timeSeconds * 41) % 3 === 0 ? 0.85 : 0.2) : 0
+    const clampedEnergy = Math.max(0, Math.min(1, energy)) * (1 - stutter)
     coreMaterial.uniforms.uTime!.value = timeSeconds
     coreMaterial.uniforms.uEnergy!.value = clampedEnergy
+    coreMaterial.uniforms.uBlaze!.value = blaze * (1 - stutter)
+    halo.scale.setScalar(1.7 * glow * (1 + blaze * 1.1) * (1 - stutter * 0.5))
 
     for (let i = 0; i < rings.count; i++) {
       const along = rings.count === 1 ? 0 : -0.26 + (0.52 * i) / (rings.count - 1)
@@ -279,7 +296,7 @@ export function createBatonObject(appearance: BatonAppearance = FRESH_BATON, opt
     }
     markers.instanceMatrix.needsUpdate = true
 
-    haloMaterial.opacity = (ghost ? 0.22 : 0.4) + clampedEnergy * 0.35 + 0.08 * Math.sin(timeSeconds * (2 + current.pulse * 3))
+    haloMaterial.opacity = (ghost ? 0.22 : 0.4) + clampedEnergy * 0.35 + blaze * 0.35 + 0.08 * Math.sin(timeSeconds * (2 + current.pulse * 3))
     if (aura.visible) {
       const shimmer = current.aura === 'legendary' ? 0.12 * Math.sin(timeSeconds * 1.7) : 0.05 * Math.sin(timeSeconds)
       auraMaterial.opacity = AURA_OPACITY[current.aura] + shimmer

@@ -89,8 +89,8 @@ test('two runners carry a Quick relay there and back through verified handoffs',
   // #when Tim carries leg 1 and the server verifies the run
   await openLeg(tim, code)
   await shot(tim.page, 'lifecycle-01-tim-leg1-arrival')
-  const picker = await finishLeg(tim)
-  await expect(picker.getByRole('heading', { name: 'Your match' })).toBeVisible()
+  const handoff = await finishLeg(tim)
+  await expect(handoff.getByText('Your match opponent')).toBeVisible()
 
   // #when he throws the baton to Mariana and approves the pass in Nimiq Pay
   tim.wallet.answerTransfers({ kind: 'approve', approvalMs: 3_000, rpcLatencyMs: 3_000 })
@@ -103,7 +103,7 @@ test('two runners carry a Quick relay there and back through verified handoffs',
   await shot(tim.page, 'lifecycle-05-handoff1-confirmed')
 
   // #then the pass is locked before Nimiq Pay opens, goes in flight, confirms, and leaves with the departure banner
-  expect(await milestones(tim.page, '.handoff-eyebrow')).toEqual(['Handoff zone', 'Launch platform', 'Pass locked', 'Nimiq network', 'Verified on Nimiq'])
+  expect(await milestones(tim.page, '.handoff-eyebrow')).toEqual(['Handoff to', 'Launch platform', 'Pass locked', 'Nimiq network', 'Verified on Nimiq'])
   expect(await milestones(tim.page, '.handoff-status')).toEqual(['Locking the pass…', 'Approve the pass in Nimiq Pay'])
   const titles = await milestones(tim.page, '.handoff-title')
   expect(titles.indexOf('Handoff in flight')).toBeGreaterThan(-1)
@@ -137,14 +137,16 @@ test('two runners carry a Quick relay there and back through verified handoffs',
   await openLeg(mariana, code)
   await expect(mariana.page.getByText('FROM TIM', { exact: true })).toBeVisible({ timeout: 30_000 })
   await shot(mariana.page, 'lifecycle-09-mariana-arrival-from-tim')
-  await expect(mariana.page.getByText('TIM’S GHOST LOADED')).toBeVisible({ timeout: 30_000 })
-  await shot(mariana.page, 'lifecycle-10-mariana-ghost-loaded')
-  await expect(mariana.page.getByRole('progressbar', { name: 'Distance to the handoff gate' })).toBeVisible({ timeout: 30_000 })
-  const marianaPicker = await finishLeg(mariana)
+  await expect(mariana.page.getByText(/^PREVIOUS RUNNER TIM\b/)).toBeVisible({ timeout: 30_000 })
+  await shot(mariana.page, 'lifecycle-10-mariana-mission')
+  const relayProgress = mariana.page.getByRole('progressbar', { name: 'Distance to the handoff gate' })
+  await expect(relayProgress).toBeVisible({ timeout: 30_000 })
+  await expect(relayProgress).toHaveAttribute('aria-valuetext', /^\d+%/)
+  const marianaHandoff = await finishLeg(mariana)
   expect(await milestones(mariana.page, '.leg-arrival__kicker')).toContain('BATON INCOMING')
-  expect(await milestones(mariana.page, '.leg-delta__name')).toContain('TIM')
+  expect(await milestones(mariana.page, '.leg-relay__name--previous')).toContain('TIM')
   await shot(mariana.page, 'lifecycle-11-mariana-results')
-  await expect(marianaPicker.getByRole('heading', { name: 'Your match' })).toBeVisible()
+  await expect(marianaHandoff.getByText('Your match opponent')).toBeVisible()
 
   // #when she passes the baton back to Tim
   await throwBaton(mariana, 'Tim', 'lifecycle-12-handoff2')

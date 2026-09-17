@@ -11,14 +11,17 @@ function labEcho(kind: RelayEchoKind, name: string, dist: number | null, extra: 
 }
 
 /**
- * Stand-in Relay Echoes for /dev/leg?echoes=1: a timed ghost record early on the main route, the risk pioneer where
- * the fork opens, a rescue late in the leg, and two echoes that span the leg for the arrival.
+ * Stand-in Relay Echoes for /dev/leg?echoes=1: a timed ghost record early on the main route, an edge save and a relay
+ * cut left by earlier runners (the cut where the last fork opens), a rescue late in the leg, and two echoes that span
+ * the leg for the arrival.
  */
 export function labEchoes(config: relayLeg.Config): RelayEcho[] {
   const track = relayLeg.buildTrack(config)
+  const cutFork = track.forks.find(fork => fork.label === 'relay-cut') ?? track.forks.at(-1)
   return [
     labEcho('ghost-record', 'Tim', LAB_ECHO_METRES * ONE, { timeMs: 38_420 }),
-    labEcho('risk-pioneer', 'Ada', track.fork.from),
+    labEcho('edge-save', 'Mariana', (LAB_ECHO_METRES + 60) * ONE),
+    ...(cutFork ? [labEcho('relay-cut', 'Ada', cutFork.from + 40 * ONE)] : []),
     labEcho('rescue', 'Marco', Math.round(track.finishDist * 0.75)),
     labEcho('near-miss-legend', 'Yuki', null),
     labEcho('milestone', 'Lena', null, { leg: 50 }),

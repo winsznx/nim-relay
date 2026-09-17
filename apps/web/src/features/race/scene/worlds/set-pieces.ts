@@ -2,8 +2,10 @@ import * as THREE from 'three'
 import type { relayLeg } from '@nim-relay/game-engine'
 import { MeshBuilder } from '../mesh-builder'
 import { fromQ, type Route } from '../route'
-import { pathIntervals } from '../track-spans'
 import { createWindowMaterial, instancedField, mountainGeometry, seededRandom, towerGeometry, type Placement } from './common'
+import { buildBridgeBreak } from './bridge-break'
+import { createChaseLights } from './chase-lights'
+import { beam, finishMeshes, stretchExtent, union } from './structure'
 import type { WorldFrame, WorldStyle } from './types'
 
 /**
@@ -29,47 +31,6 @@ type Builder = (context: Context) => SetPiece
 
 const p = (): THREE.Vector3 => new THREE.Vector3()
 
-function finishMeshes(group: THREE.Group, builders: readonly [MeshBuilder, THREE.Material][], extra: readonly { dispose(): void }[] = []): () => void {
-  const geometries: THREE.BufferGeometry[] = []
-  for (const [builder, material] of builders) {
-    if (builder.vertexCount === 0) continue
-    const geometry = builder.build()
-    geometries.push(geometry)
-    group.add(new THREE.Mesh(geometry, material))
-  }
-  return () => {
-    group.removeFromParent()
-    for (const geometry of geometries) geometry.dispose()
-    for (const item of extra) item.dispose()
-    for (const [, material] of builders) material.dispose()
-  }
-}
-
-/** Lateral extent of every path at `d`, ignoring gap holes so a full-width gap never collapses a set piece around the other path. */
-function union(route: Route, d: number): { left: number; right: number } {
-  let left = Number.POSITIVE_INFINITY
-  let right = Number.NEGATIVE_INFINITY
-  for (const interval of pathIntervals(route, d)) {
-    left = Math.min(left, interval.left)
-    right = Math.max(right, interval.right)
-  }
-  return Number.isFinite(left) ? { left, right } : { left: -route.halfWidth('main', d), right: route.halfWidth('main', d) }
-}
-
-/** Box between two route-space points (d, lateral, height) with a given cross-section. */
-function beam(builder: MeshBuilder, route: Route, a: readonly [number, number, number], b: readonly [number, number, number], width: number, color: THREE.Color): void {
-  const start = route.point(a[0], a[1], a[2], p())
-  const end = route.point(b[0], b[1], b[2], p())
-  const axis = new THREE.Vector3().subVectors(end, start)
-  const length = axis.length()
-  const matrix = new THREE.Matrix4()
-  const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis.normalize())
-  matrix.compose(start.clone().lerp(end, 0.5), quaternion, new THREE.Vector3(width, length, width))
-  const box = new THREE.BoxGeometry(1, 1, 1)
-  builder.append(box, matrix, color)
-  box.dispose()
-}
-
 const suspensionBridge: Builder = ({ route, piece, floorY }) => {
   const group = new THREE.Group()
   const structure = new MeshBuilder()
@@ -81,18 +42,22 @@ const suspensionBridge: Builder = ({ route, piece, floorY }) => {
   const towers = [d0 + 14, d0 + length - 14]
   const deckHeight = (d: number): number => route.point(d, 0, 0, p()).y
   const top = 36
+  const extent = stretchExtent(route, d0, d0 + length)
+  const sides = [extent.left - 2.6, extent.right + 2.6] as const
   for (const d of towers) {
-    const half = route.halfWidth('main', d) + 2.6
-    for (const side of [-1, 1] as const) {
-      beam(structure, route, [d, side * half, floorY - deckHeight(d)], [d, side * (half - 1.2), top], 2.2, concrete)
-      beam(glow, route, [d - 1.15, side * (half - 0.9), 2], [d - 1.15, side * (half - 1.4), top - 2], 0.14, cableLight)
-    }
-    beam(structure, route, [d, -half + 1, top - 3], [d, half - 1, top - 3], 2.4, concrete)
-    beam(structure, route, [d, -half + 0.6, -3], [d, half - 0.6, -3], 1.6, concrete)
+    sides.forEach((lateral, index) => {
+      const inward = index === 0 ? 1 : -1
+      beam(structure, route, [d, lateral, floorY - deckHeight(d)], [d, lateral + inward * 1.2, top], 2.2, concrete)
+      beam(glow, route, [d - 1.15, lateral + inward * 0.9, 2], [d - 1.15, lateral + inward * 1.4, top - 2], 0.14, cableLight)
+    })
+    beam(structure, route, [d, sides[0] + 1, top - 3], [d, sides[1] - 1, top - 3], 2.4, concrete)
+    beam(structure, route, [d, sides[0] + 0.6, -3], [d, sides[1] - 0.6, -3], 1.6, concrete)
   }
-  for (const side of [-1, 1] as const) {
-    const lateral = side * (route.halfWidth('main', d0 + length / 2) + 1.8)
+  const cables: THREE.Vector3[][] = []
+  for (const [index, side] of sides.entries()) {
+    const lateral = side + (index === 0 ? 0.8 : -0.8)
     const segments = 26
+    const cable: THREE.Vector3[] = []
     let previous: [number, number, number] | null = null
     for (let i = 0; i <= segments; i++) {
       const t = i / segments
@@ -101,14 +66,19 @@ const suspensionBridge: Builder = ({ route, piece, floorY }) => {
       const point: [number, number, number] = [d, lateral, sag]
       if (previous) beam(glow, route, previous, point, 0.16, cableLight)
       if (i > 0 && i < segments && i % 2 === 0) beam(glow, route, [d, lateral, 0.3], [d, lateral, sag], 0.05, cableLight.clone().multiplyScalar(0.45))
+      cable.push(route.point(d, lateral, sag + 0.2, p()))
       previous = point
     }
+    cables.push(cable)
   }
+  const chase = createChaseLights(cables, new THREE.Color(3.2, 2.2, 1.1))
+  group.add(chase.points)
   const dispose = finishMeshes(group, [
     [structure, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.2 })],
     [glow, new THREE.MeshBasicMaterial({ vertexColors: true })],
-  ])
-  return { group, update: () => undefined, dispose }
+  ], [chase])
+  const centre = d0 + length / 2
+  return { group, update: frame => chase.update(frame.time, Math.abs(frame.dist - centre) < 600), dispose }
 }
 
 const transitCrossing: Builder = ({ route, piece }) => {
@@ -272,9 +242,10 @@ const turbineField: Builder = ({ route, piece, floorY }) => {
   const tipMaterial = new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 0.25, 0.25) })
   const tip = new THREE.OctahedronGeometry(0.8, 0)
   const turbines: Placement[] = []
+  const extent = stretchExtent(route, d0, d0 + length)
   for (let d = d0; d < d0 + length; d += 32) {
     for (const side of [-1, 1] as const) {
-      const lateral = side * 38
+      const lateral = (side === -1 ? extent.left : extent.right) + side * 34
       const position = route.flatPoint(d + side * 8, lateral, p()).setY(floorY)
       const deck = route.point(d, 0, 0, p()).y
       turbines.push({ position, rotation: -route.headingAt(d), scale: new THREE.Vector3(1, deck - floorY + 22, 1), random: (d * 13) % 1, side, dist: d })
@@ -438,6 +409,7 @@ const BUILDERS: Partial<Record<relayLeg.SetPieceKind, Builder>> = {
   'turbine-field': turbineField,
   'wave-arch': waveArch,
   'skyline-jump': skylineJump,
+  'bridge-break': buildBridgeBreak,
 }
 
 export function buildSetPieces(route: Route, floorY: number, style: WorldStyle): SetPiece[] {

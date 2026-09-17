@@ -77,18 +77,21 @@ export function createProceduralCourier(palette: CourierPalette, rim: THREE.Colo
       stepSpring(flinch, dt, 70, 9)
 
       const riding = act === 'ride'
-      const lean = Math.max(-1, Math.min(1, drive.lateralVelocity / 7))
+      const motion = drive.motion ?? 'riding'
+      const grind = motion === 'grinding' ? (drive.edgeSide ?? 0) : 0
+      const loose = motion === 'falling' || motion === 'tethering'
+      const lean = Math.max(-1, Math.min(1, drive.lateralVelocity / 7 - grind * 0.7))
       pose.lean = approach(pose.lean, riding ? lean : 0, 9, dt)
       pose.twist = approach(pose.twist, riding ? lean * 0.6 : 0, 6, dt)
-      pose.tuck = approach(pose.tuck, drive.airborne ? 1 : 0, drive.airborne ? 10 : 18, dt)
+      pose.tuck = approach(pose.tuck, drive.airborne || motion === 'falling' ? 1 : 0, drive.airborne ? 10 : 18, dt)
       pose.slide = approach(pose.slide, drive.sliding ? 1 : 0, drive.sliding ? 16 : 8, dt)
-      pose.stumble = approach(pose.stumble, drive.stumbling ? 1 : 0, 10, dt)
-      pose.tucked = approach(pose.tucked, riding ? Math.max(0, drive.flow - 0.55) / 0.45 : 0, 3, dt)
-      pose.pitch = approach(pose.pitch, riding ? 0.35 + drive.flow * 0.4 : act === 'anticipate' ? 0.55 : 0.15, 4, dt)
-      pose.crouch = approach(pose.crouch, act === 'anticipate' ? 0.9 : drive.railing ? 0.55 : riding ? 0.2 : 0.05, 6, dt)
-      pose.armsOut = approach(pose.armsOut, drive.airborne ? 1 : riding ? 0.55 + Math.abs(lean) * 0.4 : 0.35, 5, dt)
+      pose.stumble = approach(pose.stumble, drive.stumbling || grind !== 0 ? 1 : 0, 10, dt)
+      pose.tucked = approach(pose.tucked, riding ? Math.max(Math.max(0, drive.flow - 0.55) / 0.45, drive.rush ?? 0) : 0, 3, dt)
+      pose.pitch = approach(pose.pitch, act === 'failed' ? 0.8 : riding ? 0.35 + drive.flow * 0.4 : act === 'anticipate' ? 0.55 : 0.15, 4, dt)
+      pose.crouch = approach(pose.crouch, act === 'failed' ? 1 : act === 'anticipate' ? 0.9 : drive.railing || grind !== 0 ? 0.55 : loose ? 0 : riding ? 0.2 : 0.05, 6, dt)
+      pose.armsOut = approach(pose.armsOut, drive.airborne || loose || grind !== 0 ? 1 : riding ? 0.55 + Math.abs(lean) * 0.4 : 0.35, 5, dt)
       pose.reach = approach(pose.reach, act === 'catch' ? Math.sin(Math.min(1, t) * Math.PI) : 0, 12, dt)
-      pose.batonUp = approach(pose.batonUp, act === 'prepare' ? 1 : act === 'throw' ? 1 - t : 0, 5, dt)
+      pose.batonUp = approach(pose.batonUp, act === 'prepare' || motion === 'tethering' ? 1 : act === 'throw' ? 1 - t : 0, 5, dt)
       pose.throwSwing = act === 'throw' ? Math.min(1, t * 1.6) : approach(pose.throwSwing, 0, 6, dt)
       pose.victory = approach(pose.victory, act === 'victory' || act === 'finish' ? 1 : 0, act === 'finish' ? 3 : 5, dt)
       pose.compress = Math.max(-0.3, compress.value)

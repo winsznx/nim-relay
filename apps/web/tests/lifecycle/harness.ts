@@ -24,7 +24,7 @@ const MILESTONE_SELECTORS = [
   '.leg-arrival__kicker',
   '.leg-arrival__title',
   '.leg-arrival__ghost-name',
-  '.leg-delta__name',
+  '.leg-relay__name--previous',
   '.nr-departure__holder',
   '.nr-departure__handoff',
 ]

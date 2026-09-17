@@ -1,4 +1,6 @@
 import * as THREE from 'three'
+import type { relayLeg } from '@nim-relay/game-engine'
+import type { Route } from './route'
 
 /**
  * Pooled presentation effects: additive particles (sparks, gold bursts, dust),
@@ -268,6 +270,12 @@ export class SpeedLines {
     this.lines[o + 3] = 0.7 + this.random() * 0.6
   }
 
+  /** Line colour (linear, may exceed 1 to bloom): the world's edge light, or gold through Relay Rush. */
+  setColor(color: THREE.Color): void {
+    const uniform = this.material.uniforms.uColor!.value
+    if (uniform instanceof THREE.Color) uniform.copy(color)
+  }
+
   /** `intensity` 0..1 (already gated on FLOW), `speed01` 0..1 lengthens and quickens the lines. */
   update(dt: number, camera: THREE.PerspectiveCamera, intensity: number, speed01: number): void {
     this.mesh.visible = intensity > 0.01
@@ -336,12 +344,19 @@ export class Trail {
   private readonly segment = new THREE.Vector3()
   private readonly toCamera = new THREE.Vector3()
 
+  /** Metres from the head the ribbon may reach; can change every frame (a longer comet at high FLOW). */
+  maxLength: number
+  /** Ribbon width in metres at the head. */
+  width: number
+
   constructor(
     private readonly length: number,
-    private readonly width: number,
+    width: number,
     readonly color: THREE.Color,
-    private readonly maxLength = 6,
+    maxLength = 6,
   ) {
+    this.width = width
+    this.maxLength = maxLength
     this.history = new Float32Array(length * 3)
     this.samples = new Float32Array(length * 3)
     this.positions = new Float32Array(length * 2 * 3)
@@ -440,6 +455,112 @@ export class Trail {
         this.samples[i * 3 + 2] = this.history[last * 3 + 2]!
       }
     }
+  }
+
+  dispose(): void {
+    this.mesh.removeFromParent()
+    this.geometry.dispose()
+    this.material.dispose()
+  }
+}
+
+const edgeGlowVertex = /* glsl */ `
+  attribute vec2 aShape;
+  varying vec2 vShape;
+  void main() {
+    vShape = aShape;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`
+
+const edgeGlowFragment = /* glsl */ `
+  uniform vec3 uColor;
+  uniform float uIntensity;
+  uniform float uTime;
+  varying vec2 vShape;
+  void main() {
+    float along = smoothstep(0.0, 0.18, vShape.x) * (1.0 - smoothstep(0.55, 1.0, vShape.x));
+    float across = 1.0 - smoothstep(0.0, 1.0, abs(vShape.y));
+    float chevrons = 0.65 + 0.35 * step(0.5, fract(vShape.x * 9.0 - uTime * 2.5));
+    gl_FragColor = vec4(uColor * along * across * across * chevrons * uIntensity, 1.0);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }
+`
+
+/**
+ * A warning strip painted along the road edge beside the courier: faint while it rides the shoulder,
+ * pulsing hard while it grinds the edge. Rebuilt each frame from the route, so it follows bends and
+ * forks exactly; one draw call, buffers allocated once.
+ */
+export class EdgeGlow {
+  readonly mesh: THREE.Mesh
+  private readonly positions: Float32Array
+  private readonly geometry: THREE.BufferGeometry
+  private readonly material: THREE.ShaderMaterial
+  private readonly point = new THREE.Vector3()
+
+  constructor(
+    private readonly segments: number,
+    color: THREE.Color,
+  ) {
+    const vertices = (segments + 1) * 2
+    this.positions = new Float32Array(vertices * 3)
+    const shape = new Float32Array(vertices * 2)
+    const indices: number[] = []
+    for (let i = 0; i <= segments; i++) {
+      shape.set([i / segments, -1, i / segments, 1], i * 4)
+      if (i < segments) {
+        const a = i * 2
+        indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2)
+      }
+    }
+    this.geometry = new THREE.BufferGeometry()
+    this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3).setUsage(THREE.DynamicDrawUsage))
+    this.geometry.setAttribute('aShape', new THREE.BufferAttribute(shape, 2))
+    this.geometry.setIndex(indices)
+    this.material = new THREE.ShaderMaterial({
+      vertexShader: edgeGlowVertex,
+      fragmentShader: edgeGlowFragment,
+      uniforms: { uColor: { value: color.clone() }, uIntensity: { value: 0 }, uTime: { value: 0 } },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: -4,
+      polygonOffsetUnits: -8,
+    })
+    this.mesh = new THREE.Mesh(this.geometry, this.material)
+    this.mesh.name = 'edge-glow'
+    this.mesh.frustumCulled = false
+    this.mesh.renderOrder = 3
+    this.mesh.visible = false
+  }
+
+  /**
+   * Lays the strip along the `side` edge of `path` from `from` to `to` metres, `inset` metres inside the
+   * edge and `halfWidth` either side of that line.
+   */
+  update(route: Route, path: relayLeg.Path, side: -1 | 1, from: number, to: number, inset: number, halfWidth: number, intensity: number, time: number): void {
+    this.mesh.visible = intensity > 0.01
+    if (!this.mesh.visible) return
+    this.material.uniforms.uIntensity!.value = intensity
+    this.material.uniforms.uTime!.value = time
+    for (let i = 0; i <= this.segments; i++) {
+      const d = from + ((to - from) * i) / this.segments
+      const active = route.activePath(path, d)
+      const centre = route.pathOffset(active, d) + side * (route.halfWidth(active, d) - inset)
+      this.write(i * 6, route.point(d, centre - halfWidth, 0.04, this.point))
+      this.write(i * 6 + 3, route.point(d, centre + halfWidth, 0.04, this.point))
+    }
+    this.geometry.attributes.position!.needsUpdate = true
+  }
+
+  private write(offset: number, point: THREE.Vector3): void {
+    this.positions[offset] = point.x
+    this.positions[offset + 1] = point.y
+    this.positions[offset + 2] = point.z
   }
 
   dispose(): void {

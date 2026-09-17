@@ -27,7 +27,6 @@ export const DANGER = {
   red: new THREE.Color(3.4, 0.2, 0.26),
   soft: new THREE.Color(1.3, 0.08, 0.1),
   body: new THREE.Color(0.32, 0.03, 0.04),
-  stripeLight: new THREE.Color(1.5, 1.42, 1.3),
   stripeDark: new THREE.Color(0.02, 0.02, 0.025),
 }
 

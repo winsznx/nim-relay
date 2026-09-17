@@ -40,6 +40,8 @@ function stanceWeights(drive: CourierDrive): { lower: number; upper: number } {
       return { lower: 1, upper: 0 }
     case 'throw':
       return { lower: 0.6, upper: 0 }
+    case 'failed':
+      return { lower: 1, upper: 1 }
     default:
       return { lower: 0, upper: 0 }
   }
@@ -143,7 +145,7 @@ export class CourierMotion {
       else targets.ride = 1
     } else if (act === 'victory' || act === 'finish') {
       targets.victory = 1
-    } else if (act === 'anticipate' || act === 'catch' || act === 'prepare') {
+    } else if (act === 'anticipate' || act === 'catch' || act === 'prepare' || act === 'failed') {
       targets.ride = 1
     } else {
       targets.idle = 1

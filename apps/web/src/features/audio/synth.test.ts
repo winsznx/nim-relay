@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { BAR_SECONDS } from './grid'
-import { pitchHz, renderChord, renderHatBar, renderHeartbeat, renderImpulse, renderRiser } from './synth'
+import { SYNTH_SOUNDS, isSynthSound, pitchHz, renderChord, renderHatBar, renderHeartbeat, renderImpulse, renderRiser } from './synth'
 
 function finiteAndBounded(channels: readonly Float32Array[], limit: number): boolean {
   return channels.every(channel => channel.every(sample => Number.isFinite(sample) && Math.abs(sample) <= limit + 1e-6))
@@ -36,5 +36,24 @@ describe('synthesized layers', () => {
     expect(finiteAndBounded(renderChord(22050, 'A', 1), 0.6)).toBe(true)
     expect(finiteAndBounded(renderRiser(48000, 0.5, 300, 3800, 11), 0.5)).toBe(true)
     expect(finiteAndBounded(renderImpulse(48000, 1), 0.9)).toBe(true)
+  })
+
+  it('renders every race one-shot as a short, audible, bounded mono buffer', () => {
+    // #given the synthesized race sounds at a common context rate
+    for (const [id, render] of Object.entries(SYNTH_SOUNDS)) {
+      // #when each is rendered
+      const samples = render(48000)
+      const peak = samples.reduce((max, sample) => Math.max(max, Math.abs(sample)), 0)
+      // #then it lasts under two seconds, has no invalid samples and is neither silent nor clipped
+      expect(samples.length, id).toBeLessThan(2 * 48000)
+      expect(finiteAndBounded([samples], 0.65), id).toBe(true)
+      expect(peak, id).toBeGreaterThan(0.3)
+    }
+  })
+
+  it('tells synthesized sound ids from shipped ones', () => {
+    expect(isSynthSound('synth-tether')).toBe(true)
+    expect(isSynthSound('land')).toBe(false)
+    expect(isSynthSound('toString')).toBe(false)
   })
 })

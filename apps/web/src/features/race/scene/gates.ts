@@ -5,10 +5,10 @@ import { MeshBuilder } from './mesh-builder'
 import { createRouteFrame, fromQ, type Route } from './route'
 
 /**
- * Gold gates: pairs of light blades marking the perfect window, with a gold
- * threshold on the deck. Pulse gates are drawn as two lanes; the lit lane snaps
- * across on every beat and the other lane stays ghosted. Every gate of a kind
- * shares one instanced mesh.
+ * Gates of light standing on lane slots. A gold gate is an arch that spans
+ * exactly the lane it marks, with a gold threshold across it. A pulse gate owns
+ * two lanes, `lane` and `-lane`; the lit lane swaps on every beat and the other
+ * stays ghosted. Every gate of a kind shares one instanced mesh.
  */
 
 type GateState = 'pending' | 'perfect' | 'missed' | 'skipped'
@@ -20,6 +20,8 @@ export interface GateFlash {
 }
 
 const BLADE_HEIGHT = 1.75
+/** Blades stand this far inside the lane's boundaries, so gates in neighbouring lanes never touch. */
+const LANE_INSET = 0.2
 const PENDING = new THREE.Color(2.3, 1.18, 0.2)
 const PULSE_LIT = new THREE.Color(3.2, 1.9, 0.55)
 const PULSE_GHOST = new THREE.Color(0.22, 0.13, 0.04)
@@ -30,12 +32,13 @@ const OFF = new THREE.Color(0, 0, 0)
 /** Seconds after a gate is passed over which its blades sink into the deck, before the chase camera reaches them. */
 const RETRACT_FROM = 0.05
 const RETRACT_TO = 0.2
+const PULSE_LANES = [0, 1] as const
 
 /**
  * One gate of light: two tapered blades curving gently inwards like an open
  * arch, bright at the base and fading upwards, with a cap spark and a gold
- * threshold across the perfect window. Vertex colours carry the gradient;
- * instance colours carry gate state.
+ * threshold across the lane. Vertex colours carry the gradient; instance
+ * colours carry gate state.
  */
 function gateShape(builder: MeshBuilder, half: number): void {
   const bright = new THREE.Color(1, 1, 1)
@@ -44,7 +47,7 @@ function gateShape(builder: MeshBuilder, half: number): void {
   const at = (side: -1 | 1, t: number, edge: -1 | 1, out: THREE.Vector3): THREE.Vector3 => {
     const width = 0.075 * (1 - t) + 0.014
     const lean = 0.22 * t * t
-    return out.set(side * (half + 0.12 - lean) + edge * width, 0.04 + t * (BLADE_HEIGHT - 0.04), 0)
+    return out.set(side * (half - lean) + edge * width, 0.04 + t * (BLADE_HEIGHT - 0.04), 0)
   }
   const a = new THREE.Vector3()
   const b = new THREE.Vector3()
@@ -69,15 +72,18 @@ function gateShape(builder: MeshBuilder, half: number): void {
     const cap = BLADE_HEIGHT + 0.07
     builder.quad(new THREE.Vector3(tip - 0.05, cap, 0), new THREE.Vector3(tip, cap - 0.05, 0), new THREE.Vector3(tip + 0.05, cap, 0), new THREE.Vector3(tip, cap + 0.05, 0), bright)
     builder.quad(new THREE.Vector3(tip + 0.05, cap, 0), new THREE.Vector3(tip, cap - 0.05, 0), new THREE.Vector3(tip - 0.05, cap, 0), new THREE.Vector3(tip, cap + 0.05, 0), bright)
-    const foot = side * (half + 0.12)
+    const foot = side * half
     builder.quad(new THREE.Vector3(foot - 0.16, 0.03, 0.12), new THREE.Vector3(foot + 0.16, 0.03, 0.12), new THREE.Vector3(foot + 0.16, 0.03, -0.12), new THREE.Vector3(foot - 0.16, 0.03, -0.12), bright)
   }
   const threshold = new THREE.Color(0.42, 0.42, 0.42)
   builder.quad(new THREE.Vector3(-half, 0.028, 0.04), new THREE.Vector3(half, 0.028, 0.04), new THREE.Vector3(half, 0.028, -0.04), new THREE.Vector3(-half, 0.028, -0.04), threshold)
 }
 
-interface KindMeshes {
-  lights: THREE.InstancedMesh
+interface Placement {
+  position: THREE.Vector3
+  quaternion: THREE.Quaternion
+  scale: THREE.Vector3
+  hidden: boolean
 }
 
 export class GateField {
@@ -88,16 +94,16 @@ export class GateField {
   private readonly slot: Int32Array
   private readonly positions: THREE.Vector3[][]
   private readonly passedLane: Int8Array
-  private readonly meshes: Record<relayLeg.GateKind, KindMeshes>
+  private readonly meshes: Record<relayLeg.GateKind, THREE.InstancedMesh>
   private readonly geometries: THREE.BufferGeometry[] = []
   private readonly lightMaterials: THREE.Material[] = []
   private readonly color = new THREE.Color()
   /** Base placement of every lane instance, so passed gates can be flattened without recomputing route frames. */
-  private readonly placements: { position: THREE.Vector3; quaternion: THREE.Quaternion; hidden: boolean }[][]
+  private readonly placements: Placement[][]
   private readonly matrix = new THREE.Matrix4()
   private readonly scale = new THREE.Vector3()
+  private readonly baseHalf: number
   private lastGateIdx = 0
-  private forkPath: relayLeg.Path = 'main'
 
   constructor(private readonly route: Route) {
     const gates = route.track.gates
@@ -106,83 +112,93 @@ export class GateField {
     this.slot = new Int32Array(gates.length)
     this.passedLane = new Int8Array(gates.length)
     this.positions = gates.map(() => [new THREE.Vector3(), new THREE.Vector3()])
-    this.placements = gates.map(gate => (gate.kind === 'pulse' ? [0, 1] : [0]).map(() => ({ position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), hidden: false })))
+    this.placements = gates.map(gate => (gate.kind === 'pulse' ? [0, 1] : [0]).map(() => ({ position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), scale: new THREE.Vector3(1, 1, 1), hidden: false })))
     this.group.name = 'gates'
+    const first = gates[0]
+    this.baseHalf = first ? this.laneHalf(first) : 1.3
 
-    const build = (kind: relayLeg.GateKind): KindMeshes => {
-      const ofKind = gates.filter(gate => gate.kind === kind)
-      const lanes = kind === 'pulse' ? 2 : 1
-      const half = ofKind.length > 0 ? fromQ(ofKind[0]!.half) : 1
+    const build = (kind: relayLeg.GateKind): THREE.InstancedMesh => {
+      const count = gates.filter(gate => gate.kind === kind).length * (kind === 'pulse' ? 2 : 1)
       const lightBuilder = new MeshBuilder()
-      gateShape(lightBuilder, half)
+      gateShape(lightBuilder, this.baseHalf)
       const lightGeometry = lightBuilder.build()
       this.geometries.push(lightGeometry)
       const lightMaterial = new THREE.MeshBasicMaterial({ vertexColors: true })
       fadeNearCamera(lightMaterial, 'gate-light')
       this.lightMaterials.push(lightMaterial)
-      const lights = new THREE.InstancedMesh(lightGeometry, lightMaterial, Math.max(1, ofKind.length * lanes))
-      lights.count = ofKind.length * lanes
-      lights.visible = ofKind.length > 0
+      const lights = new THREE.InstancedMesh(lightGeometry, lightMaterial, Math.max(1, count))
+      lights.count = count
+      lights.visible = count > 0
       lights.frustumCulled = false
       lights.name = `gate-${kind}-lights`
       this.group.add(lights)
-      return { lights }
+      return lights
     }
     this.meshes = { gold: build('gold'), pulse: build('pulse') }
     this.place()
   }
 
+  private laneHalf(gate: relayLeg.Gate): number {
+    const d = fromQ(gate.dist)
+    return this.route.lanes(gate.path, d).width / 2 - LANE_INSET
+  }
+
   private place(): void {
-    const transform = new THREE.Object3D()
     const frame = createRouteFrame()
     const next: Record<relayLeg.GateKind, number> = { gold: 0, pulse: 0 }
     this.route.track.gates.forEach((gate, index) => {
-      const { lights } = this.meshes[gate.kind]
+      const lights = this.meshes[gate.kind]
       const first = next[gate.kind]
       this.slot[index] = first
-      const lanes = gate.kind === 'pulse' ? [gate.x, -gate.x] : [gate.x]
-      next[gate.kind] += lanes.length
+      const slots = gate.kind === 'pulse' ? [gate.lane, -gate.lane] : [gate.lane]
+      next[gate.kind] += slots.length
       const d = fromQ(gate.dist)
       this.route.frame(d, frame)
-      lanes.forEach((x, lane) => {
-        const hidden = lane === 1 && gate.x === 0
-        this.route.point(d, this.route.pathOffset(gate.path, d) + fromQ(x), 0, transform.position)
-        transform.quaternion.copy(frame.quaternion)
-        transform.scale.setScalar(hidden ? 0 : 1)
-        transform.updateMatrix()
+      const widthScale = this.laneHalf(gate) / this.baseHalf
+      slots.forEach((slot, lane) => {
         const placement = this.placements[index]![lane]!
-        placement.position.copy(transform.position)
-        placement.quaternion.copy(transform.quaternion)
-        placement.hidden = hidden
-        lights.setMatrixAt(first + lane, transform.matrix)
+        placement.hidden = lane === 1 && gate.lane === 0
+        this.route.point(d, this.route.slotLateral(gate.path, slot, d), 0, placement.position)
+        placement.quaternion.copy(frame.quaternion)
+        placement.scale.set(widthScale, 1, 1)
+        this.scale.copy(placement.scale).multiplyScalar(placement.hidden ? 0 : 1)
+        lights.setMatrixAt(first + lane, this.matrix.compose(placement.position, placement.quaternion, this.scale))
         lights.setColorAt(first + lane, gate.kind === 'pulse' ? PULSE_GHOST : PENDING)
-        this.positions[index]![lane]!.copy(transform.position).addScaledVector(frame.up, 1)
+        this.positions[index]![lane]!.copy(placement.position).addScaledVector(frame.up, 1)
       })
     })
     for (const kind of ['gold', 'pulse'] as const) {
-      const { lights } = this.meshes[kind]
+      const lights = this.meshes[kind]
       lights.instanceMatrix.needsUpdate = true
       if (lights.instanceColor) lights.instanceColor.needsUpdate = true
     }
   }
 
+  /** The path a gate was physically on for this courier, from the fork choices the simulation recorded. */
+  private travelledPath(state: relayLeg.State, gate: relayLeg.Gate): relayLeg.Path {
+    const d = fromQ(gate.dist)
+    for (const fork of this.route.forks) {
+      if (d < fork.from || d >= fork.to) continue
+      const choice = state.forkChoices[fork.index] ?? 0
+      return choice === 2 ? 'risk' : choice === 1 ? 'safe' : 'main'
+    }
+    return 'main'
+  }
+
   /** Resolves gates passed since the last frame, animates their lights and reports perfect flashes. */
   update(state: relayLeg.State, frameEvents: number, dt: number, flashes: GateFlash[]): void {
     flashes.length = 0
-    const track = state.track
-    const gates = track.gates
+    const gates = state.track.gates
     const resolved = state.gateIdx - this.lastGateIdx
-    if (state.path !== 'main') this.forkPath = state.path
     for (let index = this.lastGateIdx; index < state.gateIdx; index++) {
       const gate = gates[index]!
-      const active = gate.dist >= track.fork.from && gate.dist < track.fork.to ? this.forkPath : 'main'
-      if (gate.path !== active) {
+      if (gate.path !== this.travelledPath(state, gate)) {
         this.states[index] = 'skipped'
         continue
       }
-      const litX = relayLeg.pulseGateLateral(gate, state.tick)
-      this.passedLane[index] = litX === gate.x ? 0 : 1
-      const perfect = resolved === 1 ? (frameEvents & relayLeg.EVENT.PERFECT_GATE) !== 0 : Math.abs(state.x - litX) <= gate.half
+      const litLane = relayLeg.pulseGateLane(gate, state.tick)
+      this.passedLane[index] = litLane === gate.lane ? 0 : 1
+      const perfect = resolved === 1 ? (frameEvents & relayLeg.EVENT.PERFECT_GATE) !== 0 : state.lane === litLane
       this.states[index] = perfect ? 'perfect' : 'missed'
       this.flashAge[index] = 0
       if (perfect) {
@@ -191,7 +207,7 @@ export class GateField {
     }
     this.lastGateIdx = state.gateIdx
 
-    const beatWindow = relayLeg.onBeat(track, state.tick) ? 1 : 0
+    const beatWindow = relayLeg.onBeat(state.track, state.tick) ? 1 : 0
     const low = Math.max(0, this.lastGateIdx - 6)
     const high = Math.min(gates.length, this.lastGateIdx + 48)
     let goldDirty = false
@@ -201,14 +217,14 @@ export class GateField {
     for (let index = low; index < high; index++) {
       const gate = gates[index]!
       const age = (this.flashAge[index]! += dt)
-      const { lights } = this.meshes[gate.kind]
+      const lights = this.meshes[gate.kind]
       const first = this.slot[index]!
       if (this.states[index] === 'perfect' || this.states[index] === 'missed') {
         const standing = 1 - THREE.MathUtils.smoothstep(age, RETRACT_FROM, RETRACT_TO)
         const lanes = this.placements[index]!
         for (let lane = 0; lane < lanes.length; lane++) {
           const placement = lanes[lane]!
-          this.scale.set(1, placement.hidden ? 0 : Math.max(0.001, standing), 1)
+          this.scale.set(placement.scale.x, placement.hidden ? 0 : Math.max(0.001, standing), 1)
           lights.setMatrixAt(first + lane, this.matrix.compose(placement.position, placement.quaternion, this.scale))
         }
         if (gate.kind === 'gold') goldMoved = true
@@ -219,18 +235,18 @@ export class GateField {
         goldDirty = true
         continue
       }
-      const litLane = this.states[index] === 'pending' ? (relayLeg.pulseGateLateral(gate, state.tick) === gate.x ? 0 : 1) : this.passedLane[index]!
-      for (const lane of [0, 1] as const) {
+      const litLane = this.states[index] === 'pending' ? (relayLeg.pulseGateLane(gate, state.tick) === gate.lane ? 0 : 1) : this.passedLane[index]!
+      for (const lane of PULSE_LANES) {
         const lit = this.color.copy(PULSE_LIT).lerp(FLASH, beatWindow * 0.35)
         const color = lane === litLane ? this.resolvedColor(index, lit, age) : this.states[index] === 'pending' ? PULSE_GHOST : OFF
         lights.setColorAt(first + lane, color)
       }
       pulseDirty = true
     }
-    if (goldDirty && this.meshes.gold.lights.instanceColor) this.meshes.gold.lights.instanceColor.needsUpdate = true
-    if (pulseDirty && this.meshes.pulse.lights.instanceColor) this.meshes.pulse.lights.instanceColor.needsUpdate = true
-    if (goldMoved) this.meshes.gold.lights.instanceMatrix.needsUpdate = true
-    if (pulseMoved) this.meshes.pulse.lights.instanceMatrix.needsUpdate = true
+    if (goldDirty && this.meshes.gold.instanceColor) this.meshes.gold.instanceColor.needsUpdate = true
+    if (pulseDirty && this.meshes.pulse.instanceColor) this.meshes.pulse.instanceColor.needsUpdate = true
+    if (goldMoved) this.meshes.gold.instanceMatrix.needsUpdate = true
+    if (pulseMoved) this.meshes.pulse.instanceMatrix.needsUpdate = true
   }
 
   private resolvedColor(index: number, pending: THREE.Color, age: number): THREE.Color {
@@ -252,7 +268,7 @@ export class GateField {
 
   dispose(): void {
     this.group.removeFromParent()
-    for (const kind of ['gold', 'pulse'] as const) this.meshes[kind].lights.dispose()
+    for (const kind of ['gold', 'pulse'] as const) this.meshes[kind].dispose()
     for (const geometry of this.geometries) geometry.dispose()
     for (const material of this.lightMaterials) material.dispose()
   }

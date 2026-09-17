@@ -126,6 +126,7 @@ export function LegRun({ setup, snapshot, playerId, onExit, onReissue, onRefresh
       case 'overtake':
       case 'overtaken':
       case 'approach':
+      case 'baton-separate':
         director.cueNamed(cue.kind)
         return
       case 'echo':

@@ -1,14 +1,14 @@
 import type { relayLeg } from '@nim-relay/game-engine'
 import { BufferCache, toAudioBuffer } from './buffers'
 import { CeremonyAudio } from './ceremony'
-import { CUES, voiceFor, type CueName, type CueSpec } from './cues'
+import { CUES, voiceFor, type CueName, type CueSound, type CueSpec } from './cues'
 import { heardTime, loopPosition, type ClockReading } from './grid'
 import { LIMITER_LATENCY_SECONDS, MixBus } from './graph'
 import type { HapticKind } from './haptics'
 import { flowMix, LOWPASS_OPEN_HZ, speedMix } from './mix'
 import { RaceMusic } from './race-music'
 import { planScene, SCENE_MIXES, type BedLayer, type BedStart, type CeremonyStage, type SceneKind } from './scenes'
-import { renderHatBar, renderImpulse } from './synth'
+import { SYNTH_SOUNDS, isSynthSound, renderHatBar, renderImpulse, type SynthSoundId } from './synth'
 import { SOUNDS, TRACKS, type PitchClass, type SoundId, type TrackMeta, type TrackRole } from './tracks'
 import { LoopVoice, OneShotPool, type OneShotOptions } from './voices'
 
@@ -43,7 +43,8 @@ export function raceTrackFor(world: relayLeg.World): TrackMeta {
 function soundUrls(include: (spec: CueSpec) => boolean, extra: readonly SoundId[] = []): string[] {
   const ids = new Set<SoundId>(extra)
   for (const spec of Object.values(CUES)) {
-    if (include(spec)) for (const id of [...spec.variants, ...spec.layers]) ids.add(id)
+    if (!include(spec)) continue
+    for (const id of [...spec.variants, ...spec.layers]) if (!isSynthSound(id)) ids.add(id)
   }
   return [...ids].map(id => SOUNDS[id].url)
 }
@@ -51,6 +52,9 @@ function soundUrls(include: (spec: CueSpec) => boolean, extra: readonly SoundId[
 const UI_SOUNDS = soundUrls(spec => spec.bus === 'ui')
 const RACE_SOUNDS = soundUrls(spec => spec.bus === 'sfx')
 const CEREMONY_SOUNDS = soundUrls(() => false, ['launch-whoosh', 'arrival'])
+const RACE_SYNTH_SOUNDS: readonly SynthSoundId[] = [
+  ...new Set(Object.values(CUES).flatMap(spec => (spec.bus === 'sfx' ? [...spec.variants, ...spec.layers].filter(isSynthSound) : []))),
+]
 
 const changedEnough = (previous: number, next: number): boolean =>
   next !== previous && (Math.abs(next - previous) >= CONTROL_STEP || next === 0 || next === 1)
@@ -83,10 +87,13 @@ export class AudioEngine {
   private raceTrack: TrackMeta | null = null
   private hatTonic: PitchClass | null | undefined
   private flow = 0
+  private rush = false
   private speed = 0
   private railing = false
   private panSide = 1
   private impulse: AudioBuffer | null = null
+  /** Race one-shots synthesized in code, rendered one per task when the race scene starts. */
+  private readonly synthBuffers = new Map<SynthSoundId, AudioBuffer>()
 
   constructor(
     readonly ctx: AudioContext,
@@ -138,6 +145,7 @@ export class AudioEngine {
 
     if (to === 'race') {
       void this.cache.loadAll(RACE_SOUNDS)
+      this.renderOnePerTask(RACE_SYNTH_SOUNDS.filter(id => !this.synthBuffers.has(id)).map(id => () => this.synthBuffer(id)))
       this.applyFlow(fade / 3)
     } else if (to === 'ceremony') {
       void this.cache.loadAll(CEREMONY_SOUNDS)
@@ -157,6 +165,7 @@ export class AudioEngine {
     const track = raceTrackFor(world)
     this.raceMusic.reset()
     this.flow = 0
+    this.rush = false
     this.speed = 0
     this.setRailing(false)
     this.applyFlow(0.05)
@@ -183,6 +192,13 @@ export class AudioEngine {
     if (!changedEnough(this.flow, next)) return
     this.flow = next
     if (this.scene === 'race') this.applyFlow(0.12)
+  }
+
+  /** Relay Rush lifts the race mix past full FLOW while it lasts. */
+  setRush(active: boolean): void {
+    if (active === this.rush) return
+    this.rush = active
+    if (this.scene === 'race') this.applyFlow(active ? 0.05 : 0.35)
   }
 
   setSpeed(speed: number): void {
@@ -241,7 +257,14 @@ export class AudioEngine {
     return heardTime(clock, performance.now()) - LIMITER_LATENCY_SECONDS
   }
 
-  private playSound(id: SoundId, options: OneShotOptions, pool: OneShotPool): void {
+  private playSound(id: CueSound, options: OneShotOptions, pool: OneShotPool): void {
+    if (isSynthSound(id)) {
+      const rendered = this.synthBuffers.get(id)
+      // The race scene renders these ahead; one asked for earlier is skipped now and rendered for next time.
+      if (rendered) pool.play(rendered, options)
+      else this.later(0, () => this.synthBuffer(id))
+      return
+    }
     const url = SOUNDS[id].url
     const buffer = this.cache.get(url)
     // A sound that is not decoded yet is skipped rather than played late; the load warms it for next time.
@@ -302,7 +325,7 @@ export class AudioEngine {
   }
 
   private applyFlow(timeConstant: number): void {
-    const mix = flowMix(this.flow)
+    const mix = flowMix(this.flow, this.rush)
     this.bus.shapeMusic(mix, timeConstant)
     this.hats.glideLevel(mix.hatGain * HAT_LEVEL, timeConstant)
     this.applyAmbience(timeConstant)
@@ -310,12 +333,21 @@ export class AudioEngine {
 
   private applyAmbience(timeConstant: number): void {
     const speed = speedMix(this.speed)
-    const boost = flowMix(this.flow).windBoost
+    const boost = flowMix(this.flow, this.rush).windBoost
     this.wind.glideLevel(WIND.gain * (speed.windGain + boost), timeConstant)
     this.wind.glideRate(speed.windRate, timeConstant)
     this.hover.glideLevel(HOVER.gain * speed.hoverGain, timeConstant)
     this.hover.glideRate(speed.hoverRate, timeConstant)
     this.rail.glideLevel(this.railing ? RAIL.gain : 0, timeConstant)
+  }
+
+  private synthBuffer(id: SynthSoundId): AudioBuffer {
+    let buffer = this.synthBuffers.get(id)
+    if (!buffer) {
+      buffer = toAudioBuffer(this.ctx, [SYNTH_SOUNDS[id](this.ctx.sampleRate)], this.ctx.sampleRate)
+      this.synthBuffers.set(id, buffer)
+    }
+    return buffer
   }
 
   private impulseResponse(): AudioBuffer {

@@ -2,9 +2,10 @@ import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent, t
 import type { relayLeg } from '@nim-relay/game-engine'
 import type { RelayEcho } from '@nim-relay/shared'
 import { FRESH_BATON, batonAppearance, type BatonAppearanceInput } from '../baton/baton-appearance'
-import { RelayControls, fullLockForWidth } from './controls'
+import { RelayControls, nudgeSpanForWidth } from './controls'
 import { RelayLegController, type GhostRun, type RaceCue, type RaceMode } from './controller'
-import { vibrateForEvents } from './haptics'
+import { RaceHaptics } from './haptics'
+import { handoffCallout, type PassAction, type RaceMission } from './mission'
 import type { RaceFrame } from './race-frame'
 import { echoLabel, legEchoes } from './relay-echoes'
 import { ArrivalTitle } from './hud/ArrivalTitle'
@@ -20,6 +21,7 @@ import './race.css'
 export type { CeremonyState } from './scene'
 export type { RaceFrame } from './race-frame'
 export type { RaceCue, RaceMode } from './controller'
+export type { PassAction, RaceMission } from './mission'
 
 export interface RaceScreenProps {
   config: relayLeg.Config
@@ -31,6 +33,10 @@ export interface RaceScreenProps {
   cosmetics?: CourierCosmetics
   /** Relay Echoes of the leg's sector: placed ones stand beside the track, the rest are named in the arrival. */
   echoes?: readonly RelayEcho[]
+  /** Relay legs: whose baton this is, who ran it last, who it goes to next and the note it came with. */
+  mission?: RaceMission | null
+  /** Relay legs: the primary action on the results of a completed leg, e.g. "PASS AURORA". */
+  passAction?: PassAction | null
   onFinished(result: relayLeg.Result, trace: relayLeg.InputTrace): void
   onExit(): void
   /**
@@ -64,7 +70,7 @@ export const WORLD_NAMES: Readonly<Record<relayLeg.World, string>> = {
   ocean: 'Ocean Skyway',
 }
 
-const HINT_KEY = 'nim-relay:leg-controls-hint'
+const HINT_KEY = 'nim-relay:leg-controls-v6-hint'
 const HINT_TICKS = 5 * 60
 
 function readHintSeen(): boolean {
@@ -120,14 +126,14 @@ function createRun(props: RaceRunProps): RunSetup {
   const playback = props.replay ?? props.playback ?? (watching ? (props.ghost?.trace ?? null) : null)
   const config = watching && !props.replay && !props.playback && props.ghost ? props.ghost.config : props.config
   const ghost = watching && !props.replay && !props.playback ? null : (props.ghost ?? null)
-  const openingMs = mode === 'relay' ? (props.sender ? 3800 : 3000) : mode === 'watch' ? 1500 : 1900
+  const openingMs = mode === 'relay' ? (props.sender || props.mission?.note ? 3800 : 3000) : mode === 'watch' ? 1500 : 1900
   try {
     const controller = new RelayLegController(config, {
       mode,
       ghost,
       playback,
       openingMs,
-      catchMs: mode === 'relay' ? 1200 : 900,
+      catchMs: mode === 'relay' ? (props.mission ? 1700 : 1200) : 900,
       autopilot: watching ? null : (props.autopilot ?? null),
     })
     return { controller, mode }
@@ -164,6 +170,7 @@ function RaceView(props: RaceViewProps) {
   const { controller, mode } = props
   const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot)
   const [controls] = useState(() => new RelayControls(controller))
+  const [haptics] = useState(() => new RaceHaptics())
   const [hintSeen] = useState(readHintSeen)
   const [sceneFailed, setSceneFailed] = useState(false)
   const hostRef = useRef<HTMLDivElement>(null)
@@ -174,8 +181,9 @@ function RaceView(props: RaceViewProps) {
   })
 
   const ghostRun = controller.ghostRun
-  const ghostName = ghostRun?.name ?? null
   const watching = mode === 'watch'
+  const mission = mode === 'relay' ? (props.mission ?? null) : null
+  const previousName = mission?.previous?.name ?? ghostRun?.name ?? null
 
   useEffect(() => {
     const host = hostRef.current
@@ -199,7 +207,8 @@ function RaceView(props: RaceViewProps) {
         lockQuality: latest.current.lockQuality ?? false,
         cosmetics: latest.current.cosmetics ?? {},
         baton: latest.current.baton ? batonAppearance(latest.current.baton) : FRESH_BATON,
-        ghostName,
+        ghostName: ghostRun?.name ?? null,
+        ghostline: controller.config.ghostline ? { line: controller.config.ghostline, name: previousName } : null,
         echoes: latest.current.echoes ?? [],
         onStats: stats => latest.current.onStats?.(stats),
         onFrame: frame => latest.current.onFrame?.(frame, mode),
@@ -212,7 +221,7 @@ function RaceView(props: RaceViewProps) {
     const offCue = handle.onCue(cue => {
       const current = latest.current
       current.onCue?.(cue)
-      if (cue.kind === 'events' && !watching) vibrateForEvents(cue.events)
+      if (cue.kind === 'events' && !watching) haptics.play(cue.tick, cue.events)
       if (cue.kind === 'go' && !watching) writeHintSeen()
       if (cue.kind === 'finish' && !watching) {
         const finished = controller.getSnapshot()
@@ -224,14 +233,14 @@ function RaceView(props: RaceViewProps) {
       handle.dispose()
       sceneRef.current = null
     }
-  }, [controller, controls, mode, ghostName, watching])
+  }, [controller, controls, haptics, mode, ghostRun, previousName, watching])
 
   useEffect(() => {
     const isFormField = (target: EventTarget | null): boolean =>
       target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName))
     const down = (event: KeyboardEvent) => {
       if (isFormField(event.target) || watching) return
-      if (controls.keyDown(event.key, event.repeat)) event.preventDefault()
+      if (controls.keyDown(event.key, event.repeat, event.shiftKey)) event.preventDefault()
     }
     const up = (event: KeyboardEvent) => controls.keyUp(event.key)
     const blur = () => {
@@ -262,20 +271,30 @@ function RaceView(props: RaceViewProps) {
     if (finished) sceneRef.current?.setCeremony(ceremonyState)
   }, [ceremonyState, finished])
 
+  const callout = snapshot.approaching && !finished ? handoffCallout(mission) : null
+  useEffect(() => {
+    sceneRef.current?.setHandoffLabel(callout)
+  }, [callout])
+
   const phase = snapshot.phase
   const activePhase = phase === 'paused' ? controller.getRenderSnapshot().activePhase : phase
   const racing = activePhase === 'racing'
   const opening = activePhase === 'arrival' || activePhase === 'catch'
   const arrivalStage = activePhase === 'arrival' ? 'arrival' : activePhase === 'catch' ? 'catch' : 'go'
-  const showArrival = opening || (racing && snapshot.tick < 80)
+  const showArrival = opening || (racing && snapshot.tick < (mission ? 110 : 80))
   const showHint = !hintSeen && !watching && phase === 'racing' && snapshot.tick < HINT_TICKS
   const ghostInfo = ghostRun ? { name: ghostRun.name, timeMs: ghostRun.timeMs } : null
+  const previousRun = mission?.previous ?? null
+  /** Whom the results measure the run against: the ghost raced, or the previous runner's kept time. */
+  const rival = ghostInfo ?? (previousRun && previousRun.timeMs !== null ? { name: previousRun.name, timeMs: previousRun.timeMs } : null)
   const remembered = legEchoes(props.echoes ?? []).map(echoLabel)
+  const edgeLevel = !racing ? 'none' : snapshot.motion === 'grinding' ? 'grind' : snapshot.shoulder ? 'shoulder' : 'none'
+  const edgeSide = snapshot.edgeSide !== 0 ? (snapshot.edgeSide < 0 ? 'left' : 'right') : 'none'
 
   function pointerDown(event: PointerEvent<HTMLDivElement>) {
     if (activePhase === 'arrival') controller.skipOpening()
     if (watching || phase !== 'racing') return
-    controls.setFullLock(fullLockForWidth(event.currentTarget.clientWidth))
+    controls.setFullNudge(nudgeSpanForWidth(event.currentTarget.clientWidth))
     if (controls.pointerDown(event.pointerId, event.clientX, event.clientY, event.timeStamp)) event.currentTarget.setPointerCapture(event.pointerId)
   }
 
@@ -296,8 +315,10 @@ function RaceView(props: RaceViewProps) {
   }
 
   return (
-    <main className="leg" data-phase={phase} data-mode={mode}>
+    <main className="leg" data-phase={phase} data-mode={mode} data-tier={snapshot.flowTier} data-motion={snapshot.motion}>
       <div className="leg__scene" ref={hostRef} />
+      <div className="leg-aura" data-tier={racing ? snapshot.flowTier : 'none'} aria-hidden="true" />
+      <div className="leg-edge" data-side={edgeSide} data-level={edgeLevel} aria-hidden="true" />
       <div
         className="leg__touch"
         onPointerDown={pointerDown}
@@ -309,12 +330,30 @@ function RaceView(props: RaceViewProps) {
 
       {(racing || phase === 'paused') && (
         <>
-          <RaceHud snapshot={snapshot} ghostName={ghostName} onPause={() => controller.pause()} canPause={phase === 'racing'} />
-          <FlowMeter flow={snapshot.flow} />
+          <RaceHud
+            snapshot={snapshot}
+            previousName={previousName}
+            nextName={mission?.next?.name ?? null}
+            relay={mode === 'relay'}
+            callout={callout}
+            onPause={() => controller.pause()}
+            canPause={phase === 'racing'}
+          />
+          <FlowMeter flow={snapshot.flow} tier={snapshot.flowTier} rush={snapshot.rush} />
         </>
       )}
 
-      {showArrival && <ArrivalTitle mode={mode} stage={arrivalStage} sender={props.sender ?? null} ghost={ghostInfo} worldName={WORLD_NAMES[props.config.world]} remembered={remembered} />}
+      {showArrival && (
+        <ArrivalTitle
+          mode={mode}
+          stage={arrivalStage}
+          sender={props.sender ?? null}
+          ghost={ghostInfo}
+          mission={mission}
+          worldName={WORLD_NAMES[props.config.world]}
+          remembered={remembered}
+        />
+      )}
       {showHint && <FirstRunHint />}
 
       {phase === 'paused' && (
@@ -333,9 +372,10 @@ function RaceView(props: RaceViewProps) {
         <ResultsPanel
           snapshot={snapshot}
           mode={mode}
-          ghost={ghostInfo}
+          ghost={rival}
           layout={ceremonyLayer ? 'header' : 'card'}
           dimmed={ceremonyState === 'frozen' || ceremonyState === 'launch'}
+          passAction={props.passAction ?? null}
           onRaceAgain={props.onRaceAgain}
           onWatchReplay={() => {
             if (snapshot.trace) props.onWatchReplay(snapshot.trace)

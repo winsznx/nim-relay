@@ -33,6 +33,22 @@ export function deltaChip(ghostName: string, delta: number): DeltaChip {
   }
 }
 
+/**
+ * The gap to the previous runner as a split: "−0.18s" when the courier leads, "+0.31s" when the
+ * ghost does. `delta` is seconds the ghost is ahead.
+ */
+export function ghostGap(delta: number): string {
+  const rounded = Math.round(delta * 100) / 100
+  if (rounded === 0) return '0.00s'
+  return `${rounded < 0 ? '−' : '+'}${Math.abs(rounded).toFixed(2)}s`
+}
+
+/** The line under the relay bar: "62% · −0.18s", or "62%" without a ghost. */
+export function routeReadout(progress: number, delta: number | null): string {
+  const percent = `${Math.floor(Math.max(0, Math.min(1, progress)) * 100)}%`
+  return delta === null ? percent : `${percent} · ${ghostGap(delta)}`
+}
+
 export function verdict(ghostName: string, ghostMs: number, runMs: number): string {
   const margin = formatSeconds(Math.abs(ghostMs - runMs))
   if (runMs < ghostMs) return `YOU BEAT ${displayName(ghostName)} BY ${margin}`
@@ -40,7 +56,8 @@ export function verdict(ghostName: string, ghostMs: number, runMs: number): stri
   return `DEAD HEAT WITH ${displayName(ghostName)}`
 }
 
-export function flowControlPercent(metrics: Readonly<relayLeg.Metrics>, ticks: number): number {
+/** Average FLOW over a leg. Only `flowSum` is read, so v5 and v6 metrics both work. */
+export function flowControlPercent(metrics: Readonly<Pick<relayLeg.Metrics, 'flowSum'>>, ticks: number): number {
   if (ticks <= 0) return 0
   return Math.round((metrics.flowSum / (ticks * 65536)) * 100)
 }

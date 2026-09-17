@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { relayLeg } from '@nim-relay/game-engine'
 import { createBatonObject, type BatonObject } from '../../baton/baton-mesh'
 import type { BatonAppearance } from '../../baton/baton-appearance'
 import { createGear, type Gear } from './courier-gear'
@@ -23,7 +24,7 @@ export interface CourierCosmetics {
   body?: CourierBody
 }
 
-export type CourierAct = 'idle' | 'anticipate' | 'catch' | 'ride' | 'finish' | 'victory' | 'prepare' | 'throw'
+export type CourierAct = 'idle' | 'anticipate' | 'catch' | 'ride' | 'finish' | 'victory' | 'prepare' | 'throw' | 'failed'
 
 export interface CourierDrive {
   time: number
@@ -42,6 +43,18 @@ export interface CourierDrive {
   events: number
   /** Metres the baton floats above the hand, for the frozen handoff beat. */
   batonLift: number
+  /** Locomotion phase from the simulation; riding when omitted. */
+  motion?: relayLeg.Motion
+  /** -1 left, 1 right: the edge being ground or fallen from. */
+  edgeSide?: -1 | 0 | 1
+  /** -1..1: a lane change under way, signed toward the new lane. */
+  laneShift?: number
+  /** 0..1 Relay Rush. */
+  rush?: number
+  /** 0..1 riding the shoulder outside the lanes. */
+  shoulder?: number
+  /** 0..1 the carried baton blazing (Relay Rush, a relay cut). */
+  blaze?: number
 }
 
 export interface Courier {
@@ -49,6 +62,8 @@ export interface Courier {
   readonly baton: BatonObject | null
   /** World position of the baton core, updated every frame. */
   readonly batonWorld: THREE.Vector3
+  /** World position of the baton's holster on the right hip, updated every frame. */
+  readonly holsterWorld: THREE.Vector3
   readonly trailColor: THREE.Color
   update(drive: CourierDrive): void
   /** Slides the name tag back inside the frame when the ghost is at the edge of the screen. */
@@ -151,12 +166,25 @@ interface ModelCourier {
   gear: Gear
   suit: THREE.Material | null
   hand: THREE.Bone | null
+  back: THREE.Bone | null
+  /** Rim colours the suit and helmet shaders read by reference, turned gold through Relay Rush. */
+  suitRim: THREE.Color
+  gearRim: THREE.Color
   dispose(): void
 }
 
 const HELMET_CENTRE = new THREE.Vector3(0, 1.69, 0.01)
+const SUIT_RIM_SHARE = 0.4
+/** Relay Rush rim light: the courier outlined in hot gold. */
+const RUSH_RIM = new THREE.Color(1.7, 0.95, 0.22)
+/** Seconds a knock leaves the carried baton flickering. */
+const FLICKER_SECONDS = 0.7
+/** The holster sits this far behind and to the right of the pelvis. */
+const HOLSTER_BACK = 0.12
+const HOLSTER_SIDE = 0.17
 /** The carried baton's aura stays near the hand so it never washes over the courier from the chase camera. */
-const CARRIED_BATON_GLOW = 0.45
+const CARRIED_BATON_GLOW = 0.6
+const CARRIED_BATON_LENGTH = 0.58
 const COURIER_FILL = new THREE.Color(0.1, 0.095, 0.09)
 const HELMET_SHELL = new THREE.Color('#e9e7e2')
 const GRIP = new THREE.Vector3(-0.79, 1.44, -0.04)
@@ -180,14 +208,16 @@ function buildModelCourier(assets: CourierAssets, options: CourierOptions, ghost
   root.rotation.y = Math.PI
   root.add(body.root)
 
+  const suitRim = options.rimColor.clone().multiplyScalar(SUIT_RIM_SHARE)
+  const gearRim = options.rimColor.clone()
   const suit = ghostMaterial
     ? null
-    : createSuitMaterial({ suit: palette.suit, panel: palette.suitPanel, armor: palette.armor, light: palette.light.clone().multiplyScalar(0.55), rim: options.rimColor.clone().multiplyScalar(0.4), fill: COURIER_FILL })
+    : createSuitMaterial({ suit: palette.suit, panel: palette.suitPanel, armor: palette.armor, light: palette.light.clone().multiplyScalar(0.55), rim: suitRim, fill: COURIER_FILL })
   body.mesh.material = ghostMaterial ?? suit ?? body.mesh.material
   body.mesh.castShadow = options.castShadow && !ghostMaterial
   body.mesh.frustumCulled = false
 
-  const gear = createGear({ shell: HELMET_SHELL, trim: palette.armorTrim, deck: palette.board, light: palette.light, rim: options.rimColor, fill: COURIER_FILL }, ghostMaterial)
+  const gear = createGear({ shell: HELMET_SHELL, trim: palette.armorTrim, deck: palette.board, light: palette.light, rim: gearRim, fill: COURIER_FILL }, ghostMaterial)
   const head = body.bone('Head')
   if (head) attachAtBind(gear.helmet, head, body.root, HELMET_CENTRE, new THREE.Euler())
   root.add(gear.board)
@@ -201,6 +231,9 @@ function buildModelCourier(assets: CourierAssets, options: CourierOptions, ghost
     gear,
     suit,
     hand,
+    back: body.bone('pelvis'),
+    suitRim,
+    gearRim,
     dispose() {
       motion.dispose()
       gear.dispose()
@@ -218,7 +251,7 @@ export function createCourier(options: CourierOptions): Courier {
   const procedural: ProceduralCourier = createProceduralCourier(courierPalette(options.cosmetics), options.rimColor, ghostMaterial, options.castShadow)
   group.add(procedural.group)
 
-  const baton = options.baton ? createBatonObject(options.baton, { length: 0.5, variant: ghost ? 'ghost' : 'live', glow: CARRIED_BATON_GLOW }) : null
+  const baton = options.baton ? createBatonObject(options.baton, { length: CARRIED_BATON_LENGTH, variant: ghost ? 'ghost' : 'live', glow: CARRIED_BATON_GLOW }) : null
   if (baton) {
     baton.object.position.set(0, -0.07, -0.02)
     baton.object.rotation.set(Math.PI / 2 - 0.35, 0, 0)
@@ -235,11 +268,19 @@ export function createCourier(options: CourierOptions): Courier {
   let disposed = false
   const tagView = new THREE.Vector3()
   const batonWorld = new THREE.Vector3()
+  const holsterWorld = new THREE.Vector3()
+  const backward = new THREE.Vector3()
+  const rightward = new THREE.Vector3()
   const feet = new THREE.Vector3()
   const lift = new THREE.Vector3()
   const handQuaternion = new THREE.Quaternion()
   const trailColor = trailColorFor(options.cosmetics)
   let batonRest: { position: THREE.Vector3; quaternion: THREE.Quaternion } | null = null
+  let flicker = 0
+  let swing = 0
+  let swingVelocity = 0
+  const swingQuaternion = new THREE.Quaternion()
+  const swingAxis = new THREE.Vector3(0, 0, 1)
 
   loadCourierAssets()
     .then(assets => {
@@ -257,17 +298,34 @@ export function createCourier(options: CourierOptions): Courier {
     group,
     baton,
     batonWorld,
+    holsterWorld,
     trailColor,
     update(drive) {
+      const knocked = (drive.events & (relayLeg.EVENT.HIT | relayLeg.EVENT.HARD_LANDING | relayLeg.EVENT.FALL)) !== 0
+      if (knocked) {
+        flicker = 1
+        swingVelocity += (drive.lateralVelocity >= 0 ? -1 : 1) * 9
+      }
+      flicker = Math.max(0, flicker - drive.dt / FLICKER_SECONDS)
+      // The carried baton swings on its grip like a pendulum: out toward a rail being ground, and loose after a knock.
+      const grinding = drive.motion === 'grinding' ? (drive.edgeSide ?? 0) : 0
+      swingVelocity += (-(swing - grinding * 0.55) * 60 - swingVelocity * 7) * drive.dt
+      swing += swingVelocity * drive.dt
       if (model) {
         model.motion.update(drive)
         model.motion.feetCentre(feet)
         model.root.worldToLocal(feet)
         model.gear.board.position.set(feet.x * 0.35, Math.min(0.45, feet.y - 0.035), feet.z * 0.35)
         model.gear.board.rotation.z = model.motion.boardRoll
+        model.gear.board.visible = drive.act !== 'failed'
         model.gear.boardGlow.opacity = 0.55 + drive.flow * 0.45
+        const rush = drive.rush ?? 0
+        model.gearRim.copy(options.rimColor).lerp(RUSH_RIM, rush)
+        model.suitRim.copy(options.rimColor).multiplyScalar(SUIT_RIM_SHARE).lerp(RUSH_RIM, rush * 0.6)
         if (baton && batonRest && model.hand) {
           baton.object.position.copy(batonRest.position)
+          baton.object.quaternion.copy(batonRest.quaternion)
+          if (Math.abs(swing) > 1e-4) baton.object.quaternion.multiply(swingQuaternion.setFromAxisAngle(swingAxis, swing))
           if (drive.batonLift > 0) {
             model.hand.getWorldQuaternion(handQuaternion)
             lift.set(0, drive.batonLift, 0).applyQuaternion(handQuaternion.invert())
@@ -278,12 +336,18 @@ export function createCourier(options: CourierOptions): Courier {
         procedural.update(drive)
       }
       if (baton) {
-        baton.update(drive.time, Math.max(drive.flow, drive.act === 'throw' || drive.act === 'prepare' ? 1 : 0))
+        const energy = Math.max(drive.flow, drive.act === 'throw' || drive.act === 'prepare' ? 1 : 0) * (drive.act === 'failed' ? 0.25 : 1)
+        baton.update(drive.time, energy, { flicker, blaze: drive.blaze ?? 0 })
         baton.object.getWorldPosition(batonWorld)
       } else {
         const hand = model?.hand ?? procedural.rig.bones.handR
         hand.getWorldPosition(batonWorld)
       }
+      const hip = model?.back ?? procedural.rig.bones.hips
+      hip.getWorldPosition(holsterWorld)
+      // The group's +Z is the courier's back and +X its right: the holster rides the belt behind the right hip.
+      holsterWorld.addScaledVector(group.getWorldDirection(backward), HOLSTER_BACK)
+      holsterWorld.addScaledVector(rightward.set(1, 0, 0).transformDirection(group.matrixWorld), HOLSTER_SIDE)
       if (ghostMaterial) ghostMaterial.uniforms.uTime!.value = drive.time
     },
     keepTagInView(camera) {

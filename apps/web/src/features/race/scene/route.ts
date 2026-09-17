@@ -1,14 +1,15 @@
 import * as THREE from 'three'
-import type { relayLeg } from '@nim-relay/game-engine'
+import { relayLeg } from '@nim-relay/game-engine'
 
 /**
  * Presentation geometry for a 1-D route.
  *
  * The simulation only knows progress along the route (`dist`), a lateral offset
- * from the active path centre line (`x`) and height above ground (`y`). This
- * module turns those into world space: it integrates the authored bends into a
- * heading, eases elevation kinks, banks into turns and separates the fork's
- * safe and risk paths. Everything the renderer places on the track goes through
+ * from the active path centre line (`x`), lane slots and height above ground
+ * (`y`). This module turns those into world space: it integrates the authored
+ * bends into a heading, eases elevation kinks, banks into turns, lays out the
+ * lanes, shoulders and edges of every path and separates each fork's safe and
+ * risk paths. Everything the renderer places on the track goes through
  * `Route.point`, so the courier, hazards, gates and the ribbon always agree.
  */
 
@@ -24,8 +25,6 @@ const ELEVATION_SMOOTHING = 8
 const BANK_SMOOTHING = 18
 const BANK_PER_BEND = 0.00055
 const MAX_BANK = 0.11
-/** Share of the fork separation taken by the risk path; the shorter swing reads as the shortcut. */
-const RISK_SHARE = 0.42
 
 export interface RouteFrame {
   position: THREE.Vector3
@@ -51,9 +50,35 @@ export function createRouteFrame(): RouteFrame {
   }
 }
 
-function smoothstep(edge0: number, edge1: number, value: number): number {
-  const t = Math.max(0, Math.min(1, (value - edge0) / (edge1 - edge0)))
-  return t * t * (3 - 2 * t)
+/** Lane layout of one path at one route distance, in metres. */
+export interface PathLanes {
+  count: relayLeg.LaneCount
+  width: number
+  shoulder: number
+  left: relayLeg.EdgeKind
+  right: relayLeg.EdgeKind
+}
+
+export function createPathLanes(): PathLanes {
+  return { count: 1, width: 1, shoulder: 0, left: 'rail', right: 'rail' }
+}
+
+interface ForkPathSpec {
+  count: relayLeg.LaneCount
+  left: relayLeg.EdgeKind
+  right: relayLeg.EdgeKind
+}
+
+/** A fork in metres. */
+export interface RouteFork {
+  index: number
+  from: number
+  to: number
+  riskSide: -1 | 1
+  separation: number
+  label: relayLeg.Fork['label']
+  safe: ForkPathSpec
+  risk: ForkPathSpec
 }
 
 export class Route {
@@ -63,7 +88,7 @@ export class Route {
   readonly finish: number
   readonly minDist = -ROUTE_LEAD_IN
   readonly maxDist: number
-  readonly fork: { from: number; to: number; riskSide: -1 | 1; separation: number; safeHalfWidth: number; riskHalfWidth: number }
+  readonly forks: readonly RouteFork[]
 
   private readonly px: Float32Array
   private readonly py: Float32Array
@@ -73,19 +98,22 @@ export class Route {
   private readonly bank: Float32Array
   private readonly euler = new THREE.Euler(0, 0, 0, 'YXZ')
   private readonly scratch = createRouteFrame()
+  private readonly lanesScratch = createPathLanes()
 
   constructor(track: relayLeg.Track) {
     this.track = track
     this.finish = fromQ(track.finishDist)
     this.maxDist = this.finish + ROUTE_RUNOUT
-    this.fork = {
-      from: fromQ(track.fork.from),
-      to: fromQ(track.fork.to),
-      riskSide: track.fork.riskSide,
-      separation: fromQ(track.fork.separation),
-      safeHalfWidth: fromQ(track.fork.safeHalfWidth),
-      riskHalfWidth: fromQ(track.fork.riskHalfWidth),
-    }
+    this.forks = track.forks.map(fork => ({
+      index: fork.index,
+      from: fromQ(fork.from),
+      to: fromQ(fork.to),
+      riskSide: fork.riskSide,
+      separation: fromQ(fork.separation),
+      label: fork.label,
+      safe: { count: fork.safeLanes, left: fork.safeEdges.left, right: fork.safeEdges.right },
+      risk: { count: fork.riskLanes, left: fork.riskEdges.left, right: fork.riskEdges.right },
+    }))
 
     const count = Math.ceil((this.maxDist - this.minDist) / SAMPLE_SPACING) + 1
     const rawElevation = new Float32Array(count)
@@ -132,16 +160,7 @@ export class Route {
   }
 
   segmentAt(d: number): relayLeg.Segment {
-    const q = d * Q
-    const segments = this.track.segments
-    let low = 0
-    let high = segments.length - 1
-    while (low < high) {
-      const mid = (low + high + 1) >> 1
-      if (segments[mid]!.from <= q) low = mid
-      else high = mid - 1
-    }
-    return segments[low]!
+    return relayLeg.segmentAt(this.track, Math.round(Math.max(0, Math.min(this.finish, d)) * Q))
   }
 
   /** Unsmoothed simulation ground height, metres. */
@@ -153,35 +172,69 @@ export class Route {
     return fromQ(segment.elevationFrom + (segment.elevationTo - segment.elevationFrom) * Math.max(0, Math.min(1, t)))
   }
 
-  /** How far the fork paths have separated at `d`, 0..1. */
-  forkSplit(d: number): number {
-    const { from, to } = this.fork
-    if (d <= from || d >= to) return 0
-    const u = (d - from) / (to - from)
-    return smoothstep(0, 0.3, u) * (1 - smoothstep(0.7, 1, u))
+  /** The fork whose span contains `d`, or null on the main road. */
+  forkAt(d: number): RouteFork | null {
+    const fork = relayLeg.forkAt(this.track, Math.round(d * Q))
+    return fork ? this.forks[fork.index] ?? null : null
   }
 
-  /** Lateral offset of a path's centre line from the main centre line, metres. */
+  /** The path a courier travelling on `path` physically occupies at `d`. */
+  activePath(path: relayLeg.Path, d: number): relayLeg.Path {
+    return relayLeg.activePathAt(this.track, Math.round(d * Q), path)
+  }
+
+  /** Lateral offset of a path's centre line from the main centre line, metres. Lane-aligned where a fork splits and rejoins. */
   pathOffset(path: relayLeg.Path, d: number): number {
-    if (path === 'main') return 0
-    const split = this.forkSplit(d)
-    if (split === 0) return 0
-    const { riskSide, separation } = this.fork
-    return path === 'risk' ? riskSide * separation * RISK_SHARE * split : -riskSide * separation * (1 - RISK_SHARE) * split
+    return path === 'main' ? 0 : fromQ(relayLeg.pathOffsetAt(this.track, Math.round(d * Q), path))
   }
 
+  /** Lanes, shoulders and edge kinds of `path` at `d`. Pass `out` from per-frame code. */
+  lanes(path: relayLeg.Path, d: number, out: PathLanes = createPathLanes()): PathLanes {
+    const segment = this.segmentAt(d)
+    out.width = fromQ(segment.laneWidth)
+    out.shoulder = fromQ(segment.shoulder)
+    const fork = path === 'main' ? null : this.forkAt(d)
+    if (fork && path !== 'main') {
+      const spec = fork[path]
+      out.count = spec.count
+      out.left = spec.left
+      out.right = spec.right
+    } else {
+      out.count = segment.laneCount
+      out.left = segment.leftEdge
+      out.right = segment.rightEdge
+    }
+    return out
+  }
+
+  /** Distance from a path's centre line to its edge line (lanes plus shoulder), metres. */
   halfWidth(path: relayLeg.Path, d: number): number {
-    if (path === 'safe' && d > this.fork.from && d < this.fork.to) return this.fork.safeHalfWidth
-    if (path === 'risk' && d > this.fork.from && d < this.fork.to) return this.fork.riskHalfWidth
-    if (d < 0) return fromQ(this.track.segments[0]!.halfWidth)
-    if (d > this.finish) return fromQ(this.track.segments[this.track.segments.length - 1]!.halfWidth)
-    return fromQ(this.segmentAt(d).halfWidth)
+    const lanes = this.lanes(path, d, this.lanesScratch)
+    return (lanes.count * lanes.width) / 2 + lanes.shoulder
   }
 
-  /** Whether the risk and safe decks are far enough apart to be drawn as two ribbons. */
-  forkSeparated(d: number): boolean {
+  /** Half of the paved lane area of a path, without shoulders, metres. */
+  laneSpan(path: relayLeg.Path, d: number): number {
+    const lanes = this.lanes(path, d, this.lanesScratch)
+    return (lanes.count * lanes.width) / 2
+  }
+
+  /** Lateral position of a lane slot's centre from the main centre line, metres. */
+  slotLateral(path: relayLeg.Path, slot: number, d: number): number {
+    const lanes = this.lanes(path, d, this.lanesScratch)
+    return this.pathOffset(path, d) + fromQ(relayLeg.laneCenterX(slot, Math.round(lanes.width * Q)))
+  }
+
+  /** Whether a fork's decks are far enough apart at `d` to be drawn as two ribbons. */
+  forkSeparated(fork: RouteFork, d: number): boolean {
     const offset = Math.abs(this.pathOffset('risk', d) - this.pathOffset('safe', d))
-    return offset > this.fork.safeHalfWidth + this.fork.riskHalfWidth
+    return offset > this.halfWidth('safe', d) + this.halfWidth('risk', d)
+  }
+
+  /** Whether a fork's lane areas have parted at `d`, leaving deck between them. */
+  forkLanesParted(fork: RouteFork, d: number): boolean {
+    const offset = Math.abs(this.pathOffset('risk', d) - this.pathOffset('safe', d))
+    return offset > this.laneSpan('safe', d) + this.laneSpan('risk', d)
   }
 
   frame(d: number, out: RouteFrame): RouteFrame {

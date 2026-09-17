@@ -3,8 +3,8 @@ import { TICK_MS, type RenderSnapshot } from './controller'
 
 /**
  * The race clock as it is on screen this frame, for systems that follow the race
- * in real time (music sync, ambience, live progress). The scene reuses one object
- * per mount, so copy any field that must outlive the callback.
+ * in real time (music sync, ambience, live progress, haptics). The scene reuses one
+ * object per mount, so copy any field that must outlive the callback.
  */
 export interface RaceFrame {
   /** Race tick on screen. Negative through the opening, counting up to 0 at the start. */
@@ -17,7 +17,7 @@ export interface RaceFrame {
   flow: number
   /** Forward speed on screen, 0 at stumble speed or standing still, 1 at the engine's top speed. */
   speed01: number
-  /** The courier is grinding a rail. */
+  /** Something is grinding under the board: a rail channel or a road edge. Drives the grind loop. */
   railing: boolean
   /** Route position of the simulation state behind this frame (Q16.16 metres), with its finish and the path it is on. */
   dist: number
@@ -25,14 +25,25 @@ export interface RaceFrame {
   path: relayLeg.Path
   /** Seconds the ghost is ahead at the courier's position, negative when the courier leads; null without a ghost. */
   ghostDelta: number | null
+  motion: relayLeg.Motion
+  /** Lane slot the courier holds, and the one it is moving to (equal once settled). */
+  lane: number
+  targetLane: number
+  /** Ticks of Relay Rush left; 0 outside a rush. */
+  rushTicks: number
+  /** -1 left, 1 right, 0 none: the edge being ground or fallen from. */
+  edgeSide: -1 | 0 | 1
 }
 
 const Q = 65536
 const STUMBLE_MPS = (relayLeg.STUMBLE_SPEED / Q) * relayLeg.TICK_RATE
-const TOP_MPS = ((relayLeg.BASE_SPEED + relayLeg.FLOW_SPEED + relayLeg.RAIL_SPEED + relayLeg.PAD_SPEED) / Q) * relayLeg.TICK_RATE
+const TOP_MPS = ((relayLeg.BASE_SPEED + relayLeg.FLOW_SPEED + relayLeg.RUSH_SPEED + relayLeg.RAIL_SPEED + relayLeg.PAD_SPEED) / Q) * relayLeg.TICK_RATE
 
 export function createRaceFrame(): RaceFrame {
-  return { tick: 0, alpha: 0, running: false, flow: 0, speed01: 0, railing: false, dist: 0, finishDist: 0, path: 'main', ghostDelta: null }
+  return {
+    tick: 0, alpha: 0, running: false, flow: 0, speed01: 0, railing: false, dist: 0, finishDist: 0, path: 'main', ghostDelta: null,
+    motion: 'riding', lane: 0, targetLane: 0, rushTicks: 0, edgeSide: 0,
+  }
 }
 
 /** Maps metres per second onto the engine's stumble..top speed range. */
@@ -55,13 +66,19 @@ export function writeRaceFrame(out: RaceFrame, snapshot: RenderSnapshot, speedMp
     out.alpha = phase === 'racing' ? snapshot.alpha : 0
   }
   const alpha = phase === 'racing' ? snapshot.alpha : 1
+  const racing = !paused && phase === 'racing'
   out.running = !paused && phase !== 'finished'
   out.flow = (previous.flow + (state.flow - previous.flow) * alpha) / Q
   out.speed01 = paused ? 0 : normalizedSpeed(speedMps)
-  out.railing = !paused && phase === 'racing' && state.railing === 1
+  out.railing = racing && (state.railing === 1 || state.motion === 'grinding')
   out.dist = state.dist
   out.finishDist = state.track.finishDist
   out.path = state.path
   out.ghostDelta = snapshot.ghostDelta
+  out.motion = state.motion
+  out.lane = state.lane
+  out.targetLane = state.targetLane
+  out.rushTicks = state.rushTicks
+  out.edgeSide = state.edgeSide
   return out
 }

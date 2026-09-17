@@ -1,7 +1,8 @@
-import type { relayLeg } from '@nim-relay/game-engine'
+import { relayLeg } from '@nim-relay/game-engine'
 import { CUES, CueGate, planEventCues, type CueName, type NamedCue } from './cues'
 import { AudioEngine } from './engine'
 import { vibrate, type HapticKind } from './haptics'
+import { FlowRise } from './mix'
 import { browserStorage, readMuted, writeMuted, type StorageAccess } from './preferences'
 import type { CeremonyStage, SceneKind } from './scenes'
 
@@ -58,6 +59,8 @@ export class AudioDirector {
   private readonly makeContext: () => AudioContext | null
   private readonly random: () => number
   private readonly gate = new CueGate()
+  private readonly flowRise = new FlowRise()
+  private rush = false
   private readonly listeners = new Set<() => void>()
   private readonly warned = new Set<string>()
   private snapshot: AudioSnapshot
@@ -132,6 +135,8 @@ export class AudioDirector {
     this.scene('race')
     this.raceWorld = world
     this.gate.reset()
+    this.flowRise.reset()
+    this.setRush(false)
     this.guard('startRace', () => this.engine?.prepareRace(world))
   }
 
@@ -146,9 +151,23 @@ export class AudioDirector {
     this.guard('syncRace', () => engine.syncRace(tick, running))
   }
 
-  /** FLOW 0..1: low filters the music, high adds the hat layer and width. */
+  /**
+   * FLOW 0..1: low filters the music, high adds the hat layer and width. Climbing into the mid or
+   * high tier plays the rise cue, in step with the HUD and the scene.
+   */
   setFlow(flow: number): void {
     this.guard('setFlow', () => this.engine?.setFlow(flow))
+    if (!Number.isFinite(flow)) return
+    // Relay Rush pins FLOW at full, so FLOW below full means the rush is over (run out, hit or fall).
+    if (this.rush && flow < 1) this.setRush(false)
+    if (this.flowRise.update(flow) && this.sceneKind === 'race' && !this.rush) this.cueNamed('flow-rise')
+  }
+
+  /** Relay Rush intensity. The director also starts it on RUSH_START and ends it when FLOW leaves full. */
+  setRush(active: boolean): void {
+    if (this.disposed || active === this.rush) return
+    this.rush = active
+    this.guard('setRush', () => this.engine?.setRush(active))
   }
 
   /** Speed 0..1: wind level and pitch, hover hum pitch. */
@@ -162,6 +181,7 @@ export class AudioDirector {
 
   /** Plays the cues of a relayLeg.EVENT bit mask, rate limited per cue. */
   cue(eventMask: number): void {
+    if (Number.isInteger(eventMask) && eventMask & relayLeg.EVENT.RUSH_START) this.setRush(true)
     if (!this.audible() || !Number.isInteger(eventMask) || eventMask <= 0) return
     const now = this.ctx?.currentTime ?? 0
     for (const name of planEventCues(eventMask, now, this.gate)) this.play(name)

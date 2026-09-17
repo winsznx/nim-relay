@@ -1,14 +1,20 @@
 import * as THREE from 'three'
+import type { relayLeg } from '@nim-relay/game-engine'
 import { createRouteFrame, type Route } from './route'
 
 /**
- * The race camera. A chase rig that lags, leans into steering and widens with
- * FLOW, plus authored shots for the arrival, the catch, the finish and the
- * handoff ceremony. Shots blend into each other; juice (landing dip, impact
- * shake, boost kick) layers on top of whatever shot is active.
+ * The race camera. A chase rig that trails lane changes with a controlled lag,
+ * leans into steering, widens with FLOW and gets restless at high FLOW, plus
+ * authored shots for the arrival, the catch, the finish and the handoff
+ * ceremony. Mid-race it reads the courier's motion: grinding an edge it tilts
+ * toward the drop, over the edge it holds at the lip and looks down after the
+ * courier, and it follows the tether back up. A relay cut in flight swings to a
+ * brief side angle on the arc while input stays live. Shots blend into each
+ * other; juice (landing compression, impact kicks, the Rush punch) layers on
+ * top of whatever shot is active.
  */
 
-export type CameraShot = 'arrival-relay' | 'arrival-short' | 'catch' | 'chase' | 'finish' | 'armed' | 'frozen' | 'launch' | 'departed'
+export type CameraShot = 'arrival-relay' | 'arrival-short' | 'catch' | 'chase' | 'finish' | 'failed' | 'armed' | 'frozen' | 'launch' | 'departed'
 
 export interface CameraInput {
   dt: number
@@ -32,6 +38,17 @@ export interface CameraInput {
   focus: THREE.Vector3
   /** The ghost's world position while it races close by on the same path, so the chase can keep it in frame. */
   companion: THREE.Vector3 | null
+  motion: relayLeg.Motion
+  /** -1 left, 1 right, 0 none: the edge being ground or fallen from. */
+  edgeSide: -1 | 0 | 1
+  /** Lateral position of the road edge on `edgeSide` from the main centre line, metres. */
+  edgeLateral: number
+  /** 0..1 Relay Rush. */
+  rush: number
+  /** 0..1 a relay cut in flight. */
+  cut: number
+  /** Side the cut's path peels off toward. */
+  cutSide: -1 | 1
 }
 
 interface Pose {
@@ -56,6 +73,11 @@ function damp(current: number, target: number, rate: number, dt: number): number
 
 /** Chase framing: the courier's torso sits this far below the screen centre, as a share of the half height (62% from the top). */
 const COURIER_SCREEN_DROP = 0.24
+/**
+ * Ceremony framing: where the courier and the hovering baton sit, as a share of the half height above the centre.
+ * The handoff sheet covers the bottom of a phone screen and the results header the top, so they sit in the band between.
+ */
+const CEREMONY_SUBJECT_Y = 0.27
 /** Board to torso centre of the crouched courier. */
 const COURIER_CENTRE = 0.75
 const HOVER_HEIGHT = 0.26
@@ -148,6 +170,15 @@ export class CameraRig {
   private shake = 0
   private kick = 0
   private orbit = 0
+  private grind = 0
+  private overEdge = 0
+  private cinematic = 0
+  private rushWiden = 0
+  private jolt = 0
+  private joltVelocity = 0
+  private readonly lip = new THREE.Vector3()
+  private readonly cinematicPosition = new THREE.Vector3()
+  private readonly cinematicTarget = new THREE.Vector3()
 
   constructor(route: Route, aspect: number) {
     this.route = route
@@ -160,10 +191,29 @@ export class CameraRig {
 
   hit(): void {
     this.shake = 1
+    this.joltVelocity += 3
   }
 
   boost(): void {
     this.kick = Math.min(1, this.kick + 0.5)
+  }
+
+  /** Relay Rush ignites: a hard FOV punch that settles into the wider Rush view. */
+  rush(): void {
+    this.kick = 1.6
+    this.shake = Math.max(this.shake, 0.35)
+  }
+
+  /** Drops every in-flight blend so the chase frames the courier where it is now: a respawn is an edit, not a pan. */
+  cut(): void {
+    this.blend = 1
+    this.overEdge = 0
+    this.cinematic = 0
+    this.grind = 0
+    this.dip = 0
+    this.dipVelocity = 0
+    this.jolt = 0
+    this.joltVelocity = 0
   }
 
   update(input: CameraInput): void {
@@ -188,14 +238,24 @@ export class CameraRig {
 
     this.dipVelocity += (-60 * this.dip - 9 * this.dipVelocity) * dt
     this.dip += this.dipVelocity * dt
+    this.joltVelocity += (-90 * this.jolt - 11 * this.joltVelocity) * dt
+    this.jolt += this.joltVelocity * dt
     this.shake = Math.max(0, this.shake - dt * 3.2)
     this.kick = Math.max(0, this.kick - dt * 1.6)
     camera.position.y += this.dip * 0.4
+    // An impact knocks the camera back along the route for a beat.
+    if (Math.abs(this.jolt) > 1e-4) camera.position.addScaledVector(this.route.frame(input.dist, this.frame).forward, -this.jolt * 0.35)
     if (this.shake > 0) {
       const amount = this.shake * this.shake * 0.16
       camera.position.x += Math.sin(input.time * 71) * amount
       camera.position.y += Math.sin(input.time * 53 + 1.3) * amount
       this.scratch.x += Math.sin(input.time * 61 + 2.1) * amount * 0.6
+    }
+    if (this.shot === 'chase') {
+      // High FLOW and Relay Rush make the rig restless: a fine, fast tremor that says speed.
+      const energy = THREE.MathUtils.smoothstep(input.flow, 0.75, 1) * 0.008 + input.rush * 0.016
+      camera.position.x += Math.sin(input.time * 37.3) * energy
+      camera.position.y += Math.sin(input.time * 43.1 + 0.7) * energy
     }
 
     this.up.set(0, 1, 0)
@@ -247,15 +307,24 @@ export class CameraRig {
       case 'chase': {
         const speedFactor = Math.max(0, Math.min(1, (input.speed - 26) / 24))
         const lift = Math.max(0, input.height - HOVER_HEIGHT)
-        this.followDistance = damp(this.followDistance, CHASE_DISTANCE + speedFactor * 0.55, 2.5, dt)
-        this.followLateral = damp(this.followLateral, input.pathCentre + (lateral - input.pathCentre) * 0.9, 6, dt)
-        this.followHeight = damp(this.followHeight, CHASE_HEIGHT + input.flow * 0.15, 3, dt)
-        this.followLift = damp(this.followLift, lift * CHASE_LIFT, 3.2, dt)
+        this.grind = damp(this.grind, input.motion === 'grinding' ? 1 : 0, 6, dt)
+        this.overEdge = damp(this.overEdge, input.motion === 'falling' || input.motion === 'tethering' || input.motion === 'failed' ? 1 : 0, 5, dt)
+        this.cinematic = damp(this.cinematic, input.cut, 4, dt)
+        this.rushWiden = damp(this.rushWiden, input.rush, 3, dt)
+        const side = input.edgeSide
+        this.followDistance = damp(this.followDistance, CHASE_DISTANCE + speedFactor * 0.55 - this.grind * 0.6, 2.5, dt)
+        // Lane changes: the camera trails the courier with a deliberate lag, and leans out over the drop on a grind.
+        const followTarget = input.pathCentre + (lateral - input.pathCentre) * 0.9 + side * this.grind * 0.3
+        this.followLateral = damp(this.followLateral, followTarget, 4.2, dt)
+        this.followHeight = damp(this.followHeight, CHASE_HEIGHT + input.flow * 0.15 + this.grind * 0.25, 3, dt)
+        this.followLift = damp(this.followLift, input.height > 0 ? lift * CHASE_LIFT : 0, 3.2, dt)
         this.lean = damp(this.lean, Math.max(-1, Math.min(1, input.lateralVelocity / 8)), 5, dt)
         this.routePoint(dist - this.followDistance, this.followLateral, this.followHeight + this.followLift, pose.position)
-        pose.fov = 58 + input.flow * 7 + speedFactor * 3
-        pose.roll = -this.lean * 0.04
+        pose.fov = 58 + input.flow * 7 + speedFactor * 3 + this.rushWiden * 7
+        pose.roll = -this.lean * 0.04 * (1 - this.grind) + side * this.grind * 0.045
         this.aimAtCourier(input, pose)
+        if (this.overEdge > 0.001) this.composeOverEdge(input, pose)
+        if (this.cinematic > 0.001) this.composeCut(input, pose)
         return
       }
       case 'finish': {
@@ -267,29 +336,41 @@ export class CameraRig {
         pose.roll = 0
         return
       }
-      case 'armed': {
-        this.orbit += dt * 0.08
-        this.routePoint(dist - 4.6, lateral - 2.5 + Math.sin(this.orbit) * 0.3, 0.75, pose.position)
-        this.routePoint(dist + 6, lateral, 0.55, pose.target)
+      case 'failed': {
+        // Kneeling at the lip: a low three-quarter view from ahead, the drop behind the courier.
+        this.orbit += dt * 0.1
+        const side = input.edgeSide === 0 ? 1 : input.edgeSide
+        this.routePoint(dist + 6.2, lateral - side * (3.6 + Math.sin(this.orbit) * 0.4), 1.5, pose.position)
+        this.routePoint(dist - 0.4, lateral + side * 0.4, 0.55, pose.target)
         pose.fov = 54
-        pose.roll = 0.03
+        pose.roll = 0
+        return
+      }
+      case 'armed': {
+        // High behind the courier's left shoulder, far enough back that the courier and the baton raised over it
+        // sit together between the results header and the handoff sheet.
+        this.orbit += dt * 0.08
+        this.routePoint(dist - 7.6, lateral - 3 + Math.sin(this.orbit) * 0.3, 3.4, pose.position)
+        pose.fov = 54
+        pose.roll = 0.02
+        this.frameSubject(this.routePoint(dist + 0.3, lateral + 0.2, HOVER_HEIGHT + 1.1, this.courierPoint), CEREMONY_SUBJECT_Y, pose)
         return
       }
       case 'frozen': {
+        // Time nearly stops and the camera eases in on the lifting baton, keeping it and the courier above the sheet.
         const t = smooth(input.shotProgress)
-        this.routePoint(dist - 7 + t * 2, lateral - 3.4 + t * 0.9, 0.9 + t * 0.35, pose.position)
-        this.scratch.copy(input.focus)
-        pose.target.copy(this.scratch).setY(this.scratch.y - 1.1)
-        pose.fov = 52 - t * 8
-        pose.roll = 0.03
+        this.routePoint(dist - 7.6 + t * 1.8, lateral - 3 + t * 0.6, 3.4 - t * 0.7, pose.position)
+        pose.fov = 54 - t * 4
+        pose.roll = 0.02
+        this.frameSubject(this.courierPoint.copy(input.focus).setY(input.focus.y - 1), CEREMONY_SUBJECT_Y, pose)
         return
       }
       case 'launch': {
         const t = smooth(input.shotProgress)
-        this.routePoint(dist - 3 - t * 4, lateral - 2 - t * 3, 1.4 + t * t * 26, pose.position)
-        pose.target.copy(input.focus)
+        this.routePoint(dist - 5.8 - t * 1.6, lateral - 2.4 - t * 2.6, 2.7 + t * t * 25, pose.position)
         pose.fov = 54 + t * 16
         pose.roll = 0
+        this.frameSubject(input.focus, CEREMONY_SUBJECT_Y * (1 - t), pose)
         return
       }
       case 'departed': {
@@ -302,6 +383,19 @@ export class CameraRig {
         return
       }
     }
+  }
+
+  /** Aims straight at `subject` horizontally and pitches so it lands at `screenY` (-1 bottom, 1 top) whatever the FOV. */
+  private frameSubject(subject: THREE.Vector3, screenY: number, pose: Pose): void {
+    const eye = pose.position
+    const dx = subject.x - eye.x
+    const dz = subject.z - eye.z
+    const reach = Math.max(0.001, Math.hypot(dx, dz))
+    const tanHalf = Math.tan(THREE.MathUtils.degToRad(pose.fov) / 2)
+    const pitch = Math.atan2(subject.y - eye.y, reach) - Math.atan(screenY * tanHalf)
+    const distance = Math.max(1, Math.hypot(reach, subject.y - eye.y))
+    const flat = Math.cos(pitch) * distance
+    pose.target.set(eye.x + (dx / reach) * flat, eye.y + Math.sin(pitch) * distance, eye.z + (dz / reach) * flat)
   }
 
   /**
@@ -344,6 +438,33 @@ export class CameraRig {
     const pitch = Math.atan2(courier.y - eye.y, courierReach) + Math.atan(COURIER_SCREEN_DROP * tanHalf)
     const reach = 20
     pose.target.set(eye.x + yawX * Math.cos(pitch) * reach, eye.y + Math.sin(pitch) * reach, eye.z + yawZ * Math.cos(pitch) * reach)
+  }
+
+  /**
+   * Over the edge: the camera swings out over the drop just behind where the courier went over and looks down
+   * after them, then follows them back up the tether. It hangs outside the edge line, so the deck never comes
+   * between it and the courier. Blended over the chase by how far over the edge the courier is.
+   */
+  private composeOverEdge(input: CameraInput, pose: Pose): void {
+    const side = input.edgeSide === 0 ? 1 : input.edgeSide
+    this.routePoint(input.dist - 5.2, input.edgeLateral + side * 2.4, 3.2, this.lip)
+    const weight = smooth(this.overEdge)
+    pose.position.lerp(this.lip, weight)
+    this.routePoint(input.dist, input.lateral, input.height + COURIER_CENTRE, this.courierPoint)
+    pose.target.lerp(this.courierPoint, weight)
+    pose.fov += (60 - pose.fov) * weight
+    pose.roll += (side * 0.06 - pose.roll) * weight
+  }
+
+  /** A relay cut in flight: a low side angle ahead of the courier, looking back across the arc. */
+  private composeCut(input: CameraInput, pose: Pose): void {
+    this.routePoint(input.dist + 2, input.lateral - input.cutSide * 4.8, input.height * 0.5 + 1.6, this.cinematicPosition)
+    this.routePoint(input.dist - 0.5, input.lateral, input.height + COURIER_CENTRE, this.cinematicTarget)
+    const weight = smooth(this.cinematic)
+    pose.position.lerp(this.cinematicPosition, weight)
+    pose.target.lerp(this.cinematicTarget, weight)
+    pose.fov += (54 - pose.fov) * weight
+    pose.roll *= 1 - weight
   }
 
   private resetFollow(lateral: number): void {

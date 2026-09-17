@@ -8,7 +8,7 @@ export function FirstRunHint() {
         <path className="leg-hint__arrow leg-hint__arrow--down" d="M 48 60 l -6 -7 h 12 z" />
         <circle className="leg-hint__thumb" cx="48" cy="44" r="9" />
       </svg>
-      <p>drag to steer, flick up to jump, flick down to slide</p>
+      <p>flick sideways to change lanes, up to jump, down to slide</p>
     </div>
   )
 }

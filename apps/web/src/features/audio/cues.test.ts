@@ -1,6 +1,7 @@
 import { relayLeg } from '@nim-relay/game-engine'
 import { describe, expect, it } from 'vitest'
 import { CUES, CueGate, EVENT_CUES, eventCues, planEventCues, voiceFor, type CueName } from './cues'
+import { SYNTH_SOUNDS } from './synth'
 import { SOUNDS } from './tracks'
 
 const { EVENT } = relayLeg
@@ -32,15 +33,33 @@ describe('event mask to cues', () => {
   })
 
   it('ignores an empty mask and bits the engine does not define', () => {
+    const undefinedBit = 2 ** 31
     expect(eventCues(0)).toEqual([])
-    expect(eventCues(1 << 30)).toEqual([])
-    expect(eventCues((1 << 30) | EVENT.JUMP)).toEqual(['jump'])
+    expect(eventCues(undefinedBit)).toEqual([])
+    expect(eventCues(undefinedBit + EVENT.JUMP)).toEqual(['jump'])
   })
 
-  it('only uses shipped sounds', () => {
+  it('gives every v6 moment its own voice', () => {
+    expect(eventCues(EVENT.LANE_SHIFT)).toEqual(['lane-shift'])
+    expect(eventCues(EVENT.LANE_ACQUIRED)).toEqual(['lane-acquired'])
+    expect(eventCues(EVENT.EDGE_GRIND | EVENT.SHOULDER)).toEqual(['edge-grind', 'shoulder'])
+    expect(eventCues(EVENT.RUSH_START | EVENT.FLOW_MAX)).toEqual(['rush-start'])
+    expect(eventCues(EVENT.GHOST_OVERTAKE | EVENT.DRAFTING)).toEqual(['ghost-overtake', 'drafting'])
+  })
+
+  it('lets a failed leg or a tether save speak over the fall around it', () => {
+    expect(eventCues(EVENT.LEG_FAILED | EVENT.FALL | EVENT.EDGE_GRIND)).toEqual(['leg-failed'])
+    expect(eventCues(EVENT.TETHER_SAVE | EVENT.LAND | EVENT.LANE_ACQUIRED)).toEqual(['tether-save'])
+    expect(eventCues(EVENT.EDGE_SAVE | EVENT.LANE_ACQUIRED)).toEqual(['edge-save'])
+  })
+
+  it('only uses shipped or synthesized sounds', () => {
     for (const [name, spec] of Object.entries(CUES)) {
       expect(spec.variants.length, name).toBeGreaterThan(0)
-      for (const sound of [...spec.variants, ...spec.layers]) expect(SOUNDS[sound], `${name}: ${sound}`).toBeDefined()
+      for (const sound of [...spec.variants, ...spec.layers]) {
+        const known = Object.hasOwn(SOUNDS, sound) || Object.hasOwn(SYNTH_SOUNDS, sound)
+        expect(known, `${name}: ${sound}`).toBe(true)
+      }
     }
   })
 })

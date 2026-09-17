@@ -1,28 +1,29 @@
 import type { RaceSnapshot } from '../controller'
-import { deltaChip } from '../format'
+import { displayName, routeReadout } from '../format'
 
 interface RaceHudProps {
   snapshot: RaceSnapshot
-  ghostName: string | null
+  /** The runner whose leg this one continues: the ghost being raced. */
+  previousName: string | null
+  /** Who waits at the handoff. Null in a relay leg means the handoff is open; ignored outside relay legs. */
+  nextName: string | null
+  relay: boolean
+  /** "HANDOFF TO YASMINE" while the handoff gate is in view. */
+  callout: string | null
   onPause(): void
   canPause: boolean
 }
 
-function GateGlyph() {
+/**
+ * The leg as a relay: the previous runner at one end, the next at the other, the courier travelling
+ * between them, and the split to the ghost underneath. Deliberately quiet: no speed, no score.
+ */
+export function RaceHud({ snapshot, previousName, nextName, relay, callout, onPause, canPause }: RaceHudProps) {
+  const percent = Math.round(snapshot.progress * 1000) / 10
+  const next = relay ? (nextName === null ? 'OPEN' : displayName(nextName)) : null
+  const readout = routeReadout(snapshot.progress, snapshot.ghostDelta)
   return (
-    <svg className="leg-route__gate" viewBox="0 0 20 20" aria-hidden="true">
-      <polygon points="10,1.5 17.4,5.75 17.4,14.25 10,18.5 2.6,14.25 2.6,5.75" />
-      <polygon className="leg-route__gate-core" points="10,6.5 13.1,8.25 13.1,11.75 10,13.5 6.9,11.75 6.9,8.25" />
-    </svg>
-  )
-}
-
-/** Route progress, the ghost race and pause. Deliberately quiet: no speed, no score. */
-export function RaceHud({ snapshot, ghostName, onPause, canPause }: RaceHudProps) {
-  const progress = Math.round(snapshot.progress * 1000) / 10
-  const chip = ghostName !== null && snapshot.ghostDelta !== null ? deltaChip(ghostName, snapshot.ghostDelta) : null
-  return (
-    <header className="leg-hud">
+    <header className="leg-hud" data-leader={snapshot.leader}>
       <div className="leg-hud__row">
         {canPause && (
           <button type="button" className="leg-pause" onClick={onPause} aria-label="Pause race">
@@ -30,26 +31,41 @@ export function RaceHud({ snapshot, ghostName, onPause, canPause }: RaceHudProps
           </button>
         )}
         <div
-          className="leg-route"
+          className="leg-relay"
           role="progressbar"
           aria-label="Distance to the handoff gate"
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-valuenow={Math.round(progress)}
+          aria-valuenow={Math.round(percent)}
+          aria-valuetext={readout}
         >
-          <div className="leg-route__rail">
-            <div className="leg-route__fill" style={{ transform: `scaleX(${snapshot.progress})` }} />
+          <div className="leg-relay__names" aria-hidden="true">
+            <span className="leg-relay__name leg-relay__name--previous">{previousName ? displayName(previousName) : ''}</span>
+            {next && (
+              <span className="leg-relay__name leg-relay__name--next" data-open={nextName === null ? 'true' : 'false'}>
+                {next}
+              </span>
+            )}
           </div>
-          {snapshot.ghostProgress !== null && <span className="leg-route__ghost" style={{ left: `${snapshot.ghostProgress * 100}%` }} />}
-          <span className="leg-route__you" style={{ left: `${progress}%` }} />
-          <GateGlyph />
+          <div className="leg-relay__track" aria-hidden="true">
+            <span className="leg-relay__end leg-relay__end--previous" />
+            <div className="leg-relay__rail">
+              <div className="leg-relay__fill" style={{ transform: `scaleX(${snapshot.progress})` }} />
+            </div>
+            {snapshot.ghostProgress !== null && <span className="leg-relay__ghost" style={{ left: `${snapshot.ghostProgress * 100}%` }} />}
+            <span className="leg-relay__you" style={{ left: `${percent}%` }} />
+            <span className="leg-relay__end leg-relay__end--next" />
+          </div>
+          {/* Keyed on the leader so an overtake, either way, replays the flash. */}
+          <p key={snapshot.leader} className="leg-relay__readout" data-leader={snapshot.leader} aria-hidden="true">
+            {readout}
+          </p>
         </div>
       </div>
-      {chip && (
-        <div key={chip.leader} className="leg-delta" data-leader={chip.leader} aria-live="polite">
-          <span className="leg-delta__name">{chip.label}</span>
-          <span className="leg-delta__value">{chip.value}</span>
-        </div>
+      {callout && (
+        <p className="leg-callout" role="status">
+          {callout}
+        </p>
       )}
     </header>
   )

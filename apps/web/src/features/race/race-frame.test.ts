@@ -5,13 +5,15 @@ import { createBot } from './dev/bot'
 import { createRaceFrame, normalizedSpeed, writeRaceFrame } from './race-frame'
 
 const config: relayLeg.Config = {
-  engineVersion: '5',
+  engineVersion: '6',
   challenge: 'relay-leg',
-  challengeVersion: '5',
+  challengeVersion: '6',
   seed: 'race-frame-test',
   world: 'coast',
   tier: 1,
   openingFlow: 0,
+  tetherSaves: 1,
+  ghostline: null,
 }
 
 const MPS = relayLeg.TICK_RATE / 65536
@@ -103,6 +105,24 @@ describe('writeRaceFrame courier state', () => {
     expect(frame).toMatchObject({ tick: 120, alpha: 0.5, running: true, flow: 0.5, railing: true })
   })
 
+  it('grinds under the board on a road edge as well as a rail channel', () => {
+    // #given a courier grinding the right edge
+    const snapshot = racingSnapshot({ motion: 'grinding', edgeSide: 1, railing: 0 }, 'racing')
+    // #when the frame is written
+    const frame = writeRaceFrame(createRaceFrame(), snapshot, 40)
+    // #then the grind loop has something to play, and the edge is named
+    expect(frame).toMatchObject({ railing: true, motion: 'grinding', edgeSide: 1 })
+  })
+
+  it('carries the lane change and Relay Rush for audio and haptics', () => {
+    // #given a courier shifting from the centre lane to the right during a rush
+    const snapshot = racingSnapshot({ lane: 0, targetLane: 2, rushTicks: 180 }, 'racing')
+    // #when the frame is written
+    const frame = writeRaceFrame(createRaceFrame(), snapshot, 40)
+    // #then both are on the frame
+    expect(frame).toMatchObject({ lane: 0, targetLane: 2, rushTicks: 180, motion: 'riding' })
+  })
+
   it('carries the simulation position and ghost gap behind the frame', () => {
     // #given a courier on the risk path with the ghost 0.25 s ahead
     const snapshot = { ...racingSnapshot({ dist: 700 * 65536, path: 'risk' }, 'racing'), ghostDelta: 0.25 }
@@ -125,7 +145,7 @@ describe('writeRaceFrame courier state', () => {
     // #given the engine's stumble, cruising and top speeds in metres per second
     const stumble = relayLeg.STUMBLE_SPEED * MPS
     const cruise = relayLeg.BASE_SPEED * MPS
-    const top = (relayLeg.BASE_SPEED + relayLeg.FLOW_SPEED + relayLeg.RAIL_SPEED + relayLeg.PAD_SPEED) * MPS
+    const top = (relayLeg.BASE_SPEED + relayLeg.FLOW_SPEED + relayLeg.RUSH_SPEED + relayLeg.RAIL_SPEED + relayLeg.PAD_SPEED) * MPS
     // #then stumble is 0, top is 1, cruising sits between and standing still clamps to 0
     expect(normalizedSpeed(stumble)).toBeCloseTo(0, 9)
     expect(normalizedSpeed(top)).toBeCloseTo(1, 9)

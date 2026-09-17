@@ -17,12 +17,105 @@ const RING_RADIUS = 21
 const RING_THICKNESS = 2.2
 const RING_DEPTH = 2.4
 
+const LABEL_HEIGHT = 2.6
+const LABEL_MAX_WIDTH = 32
+const LABEL_RISE = 13.5
+const LABEL_CANVAS_WIDTH = 1536
+const LABEL_CANVAS_HEIGHT = 160
+const LABEL_FONT = '800 104px Inter, "Helvetica Neue", Arial, sans-serif'
+
 export interface HandoffGate {
   group: THREE.Group
   /** World position at the lip of the launch platform, where the baton leaves. */
   launchPoint: THREE.Vector3
   update(time: number, finale: number): void
+  /** Holographic text across the top of the gate, e.g. "HANDOFF TO YASMINE"; null hides it. */
+  setHandoffLabel(text: string | null): void
   dispose(): void
+}
+
+interface HoloLabel {
+  mesh: THREE.Mesh
+  set(text: string | null): void
+  update(time: number, finale: number): void
+  dispose(): void
+}
+
+/** A gold hologram of text: scanlines drift through it and it flickers faintly as the gate powers up. */
+function createHoloLabel(): HoloLabel {
+  const canvas = document.createElement('canvas')
+  canvas.width = LABEL_CANVAS_WIDTH
+  canvas.height = LABEL_CANVAS_HEIGHT
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  const geometry = new THREE.PlaneGeometry(1, 1)
+  const material = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    fog: false,
+    uniforms: { uMap: { value: texture }, uTime: { value: 0 }, uIntensity: { value: 0.6 } },
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform sampler2D uMap;
+      uniform float uTime;
+      uniform float uIntensity;
+      varying vec2 vUv;
+      void main() {
+        float ink = texture2D(uMap, vUv).a;
+        float scan = 0.78 + 0.22 * sin(vUv.y * 90.0 - uTime * 6.0);
+        float band = fract(vUv.x - uTime * 0.25);
+        float sweep = smoothstep(0.0, 0.04, band) * smoothstep(0.1, 0.04, band) * 0.6;
+        float flicker = 0.92 + 0.08 * sin(uTime * 23.0) * sin(uTime * 7.3);
+        vec3 gold = vec3(2.6, 1.55, 0.42);
+        gl_FragColor = vec4(gold * ink * (scan + sweep) * flicker * uIntensity, 1.0);
+      }
+    `,
+  })
+  const mesh = new THREE.Mesh(geometry, material)
+  mesh.name = 'handoff-label'
+  mesh.visible = false
+  mesh.frustumCulled = false
+  return {
+    mesh,
+    set(text) {
+      const context = canvas.getContext('2d')
+      if (!text || !context) {
+        mesh.visible = false
+        return
+      }
+      const label = text.toUpperCase()
+      context.clearRect(0, 0, canvas.width, canvas.height)
+      context.font = LABEL_FONT
+      context.letterSpacing = '14px'
+      context.textAlign = 'center'
+      context.textBaseline = 'middle'
+      context.fillStyle = '#ffffff'
+      context.fillText(label, canvas.width / 2, canvas.height / 2 + 6, canvas.width - 40)
+      texture.needsUpdate = true
+      const aspect = canvas.width / canvas.height
+      const width = Math.min(LABEL_MAX_WIDTH, LABEL_HEIGHT * aspect)
+      mesh.scale.set(width, width / aspect, 1)
+      mesh.visible = true
+    },
+    update(time, finale) {
+      material.uniforms.uTime!.value = time
+      material.uniforms.uIntensity!.value = 0.55 + Math.max(0, Math.min(1, finale)) * 0.9
+    },
+    dispose() {
+      mesh.removeFromParent()
+      geometry.dispose()
+      material.dispose()
+      texture.dispose()
+    },
+  }
 }
 
 function hexRing(builder: MeshBuilder, radius: number, thickness: number, depth: number, color: THREE.Color, inner: THREE.Color): void {
@@ -193,6 +286,10 @@ export function createHandoffGate(route: Route, floorY: number): HandoffGate {
       }
     `,
   })
+  const label = createHoloLabel()
+  label.mesh.position.set(0, LABEL_RISE, RING_DEPTH / 2 + 0.6)
+  ringGroup.add(label.mesh)
+
   const beam = new THREE.Mesh(beamGeometry, beamMaterial)
   beam.position.copy(route.point(finish + PLATFORM_TO + 36, 0, -8, new THREE.Vector3()))
   beam.frustumCulled = false
@@ -210,8 +307,13 @@ export function createHandoffGate(route: Route, floorY: number): HandoffGate {
       glowMaterial.color.setScalar(0.6 + f * 0.35 + Math.sin(time * 2.4) * 0.04)
       beamMaterial.uniforms.uIntensity!.value = 0.45 + f * 1.1
       beamMaterial.uniforms.uTime!.value = time
+      label.update(time, f)
+    },
+    setHandoffLabel(text) {
+      label.set(text)
     },
     dispose() {
+      label.dispose()
       group.removeFromParent()
       for (const geometry of [structureGeometry, glowGeometry, innerGeometry, beamGeometry]) geometry.dispose()
       for (const material of [structureMaterial, glowMaterial, beamMaterial]) material.dispose()

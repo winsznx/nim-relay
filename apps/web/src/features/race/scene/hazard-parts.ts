@@ -15,8 +15,6 @@ export interface HazardMaterials {
   light: THREE.MeshBasicMaterial
   additive: THREE.MeshBasicMaterial
   gust: THREE.ShaderMaterial
-  /** Red energy curtain for closed doors. */
-  curtain: THREE.ShaderMaterial
   /** Floor telegraphs: red hazard stripes on blocked lanes, gold chevrons on open ones. */
   floor: THREE.ShaderMaterial
   update(time: number): void
@@ -34,7 +32,7 @@ const hazardRimChunk = [
 
 /**
  * Hazard bodies dissolve with a screen-space dither as the chase camera closes
- * on them, so a train pod or door post the courier has just passed never fills
+ * on them, so a gantry post or barrier the courier has just passed never fills
  * the lens.
  */
 const nearCameraDither = [
@@ -92,15 +90,34 @@ const warningFragment = /* glsl */ `
   }
 `
 
-export function createHazardMaterials(): HazardMaterials {
-  const hazardRim = { value: HAZARD_RIM }
-  const stripe = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.42, metalness: 0.35 })
-  const stripeColor = { value: new THREE.Color(0.75, 0.035, 0.05) }
-  const stripeGlow = { value: new THREE.Color(0.9, 0.04, 0.06) }
-  stripe.onBeforeCompile = shader => {
+export interface StripeOptions {
+  cacheKey: string
+  /** Stripe colour, or null to take it from each instance's colour. */
+  stripe: THREE.Color | null
+  /** Emissive strength of the stripes. */
+  glow: number
+  /** Body colour between stripes when stripes come from instances. */
+  body?: THREE.Color
+  /** Red fresnel edge on the silhouette. */
+  rim?: boolean
+}
+
+/**
+ * Armoured body with diagonal warning stripes on the faces a courier meets.
+ * Bodies dissolve near the camera so a passed obstacle never fills the lens.
+ */
+export function createStripeMaterial(options: StripeOptions): THREE.MeshStandardMaterial {
+  const material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.42, metalness: 0.35 })
+  const stripeColor = { value: options.stripe ?? new THREE.Color(1, 1, 1) }
+  const stripeGlow = { value: options.glow }
+  const body = { value: options.body ?? new THREE.Color(0.12, 0.12, 0.13) }
+  const rim = { value: options.rim === false ? new THREE.Color(0, 0, 0) : HAZARD_RIM }
+  const fromInstance = options.stripe === null
+  material.onBeforeCompile = shader => {
     shader.uniforms.uStripeColor = stripeColor
     shader.uniforms.uStripeGlow = stripeGlow
-    shader.uniforms.uHazardRim = hazardRim
+    shader.uniforms.uStripeBody = body
+    shader.uniforms.uHazardRim = rim
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vStripeCoord;\nvarying vec3 vStripeNormal;')
       .replace(
@@ -117,7 +134,7 @@ export function createHazardMaterials(): HazardMaterials {
         ].join('\n'),
       )
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec3 uStripeColor;\nuniform vec3 uStripeGlow;\nuniform vec3 uHazardRim;\nvarying vec3 vStripeCoord;\nvarying vec3 vStripeNormal;')
+      .replace('#include <common>', '#include <common>\nuniform vec3 uStripeColor;\nuniform float uStripeGlow;\nuniform vec3 uStripeBody;\nuniform vec3 uHazardRim;\nvarying vec3 vStripeCoord;\nvarying vec3 vStripeNormal;')
       .replace(
         '#include <color_fragment>',
         [
@@ -125,23 +142,35 @@ export function createHazardMaterials(): HazardMaterials {
           'float stripeFacing = step(0.55, abs(vStripeNormal.z));',
           'float stripeBand = step(0.5, fract((vStripeCoord.x + vStripeCoord.y) * 1.7));',
           'float stripeMask = stripeFacing * stripeBand;',
-          'diffuseColor.rgb = mix(diffuseColor.rgb * 0.16, uStripeColor, stripeMask);',
+          fromInstance ? 'vec3 stripeTint = diffuseColor.rgb;' : 'vec3 stripeTint = uStripeColor;',
+          fromInstance ? 'diffuseColor.rgb = mix(uStripeBody, stripeTint, stripeMask);' : 'diffuseColor.rgb = mix(diffuseColor.rgb * 0.16, stripeTint, stripeMask);',
         ].join('\n'),
       )
       .replace('#include <clipping_planes_fragment>', nearCameraDither)
-      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\ntotalEmissiveRadiance += uStripeGlow * stripeMask;\n${hazardRimChunk}`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\ntotalEmissiveRadiance += stripeTint * uStripeGlow * stripeMask;\n${hazardRimChunk}`)
   }
-  stripe.customProgramCacheKey = () => 'hazard-stripe'
+  material.customProgramCacheKey = () => options.cacheKey
+  return material
+}
 
-  const plain = new THREE.MeshStandardMaterial({ color: 0x1b1d24, roughness: 0.5, metalness: 0.55 })
-  plain.onBeforeCompile = shader => {
-    shader.uniforms.uHazardRim = hazardRim
+/** Dark armoured body with a red rim, tinted by instance colour. */
+export function createBodyMaterial(cacheKey: string, color: THREE.ColorRepresentation, rim = true): THREE.MeshStandardMaterial {
+  const material = new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.55 })
+  const rimColor = { value: rim ? HAZARD_RIM : new THREE.Color(0, 0, 0) }
+  material.onBeforeCompile = shader => {
+    shader.uniforms.uHazardRim = rimColor
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nuniform vec3 uHazardRim;')
       .replace('#include <clipping_planes_fragment>', nearCameraDither)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${hazardRimChunk}`)
   }
-  plain.customProgramCacheKey = () => 'hazard-plain'
+  material.customProgramCacheKey = () => cacheKey
+  return material
+}
+
+export function createHazardMaterials(): HazardMaterials {
+  const stripe = createStripeMaterial({ cacheKey: 'hazard-stripe', stripe: new THREE.Color(0.75, 0.035, 0.05), glow: 1.2 })
+  const plain = createBodyMaterial('hazard-plain', 0x1b1d24)
   const warning = new THREE.ShaderMaterial({
     vertexShader: warningVertex,
     fragmentShader: warningFragment,
@@ -152,7 +181,30 @@ export function createHazardMaterials(): HazardMaterials {
   const light = new THREE.MeshBasicMaterial({ color: 0xffffff })
   fadeNearCamera(light, 'hazard-light')
   const additive = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })
-  const gust = new THREE.ShaderMaterial({
+  const gust = createGustMaterial()
+  const floor = createFloorMaterial()
+  return {
+    stripe,
+    plain,
+    warning,
+    light,
+    additive,
+    gust,
+    floor,
+    update(time) {
+      gust.uniforms.uTime!.value = time
+      floor.uniforms.uTime!.value = time
+      warning.uniforms.uTime!.value = time
+    },
+    dispose() {
+      for (const material of [stripe, plain, warning, light, additive, gust, floor]) material.dispose()
+    },
+  }
+}
+
+/** Additive wind streaks. Instance colour: r intensity, g phase, b > 0.5 blows towards positive lateral. */
+export function createGustMaterial(): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
@@ -181,42 +233,14 @@ export function createHazardMaterials(): HazardMaterials {
       }
     `,
   })
-  const curtain = new THREE.ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-    side: THREE.DoubleSide,
-    uniforms: { uTime: { value: 0 } },
-    vertexShader: /* glsl */ `
-      varying vec2 vUv;
-      varying vec3 vColor;
-      varying vec2 vSize;
-      void main() {
-        vUv = uv;
-        vColor = instanceColor;
-        vSize = vec2(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz));
-        gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: /* glsl */ `
-      uniform float uTime;
-      varying vec2 vUv;
-      varying vec3 vColor;
-      varying vec2 vSize;
-      void main() {
-        vec2 metres = vUv * vSize;
-        float edge = max(smoothstep(0.1, 0.0, metres.x), smoothstep(vSize.x - 0.1, vSize.x, metres.x));
-        edge = max(edge, smoothstep(0.08, 0.0, metres.y));
-        float lines = 0.55 + 0.45 * sin(metres.y * 40.0 - uTime * 9.0);
-        float veil = 0.16 + 0.1 * lines;
-        float chevron = step(0.5, fract((metres.x + abs(metres.y - vSize.y * 0.5)) * 0.9));
-        float band = chevron * 0.08;
-        vec3 color = vColor * (veil + band + edge * 1.6);
-        gl_FragColor = vec4(color, 1.0);
-      }
-    `,
-  })
-  const floor = new THREE.ShaderMaterial({
+}
+
+/**
+ * Deck telegraph decals, sized from the instance scale. Red instances draw
+ * hazard stripes; gold or amber instances draw chevrons flowing down the route.
+ */
+export function createFloorMaterial(): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
@@ -252,25 +276,6 @@ export function createHazardMaterials(): HazardMaterials {
       }
     `,
   })
-  return {
-    stripe,
-    plain,
-    warning,
-    light,
-    additive,
-    gust,
-    curtain,
-    floor,
-    update(time) {
-      gust.uniforms.uTime!.value = time
-      curtain.uniforms.uTime!.value = time
-      floor.uniforms.uTime!.value = time
-      warning.uniforms.uTime!.value = time
-    },
-    dispose() {
-      for (const material of [stripe, plain, warning, light, additive, gust, curtain, floor]) material.dispose()
-    },
-  }
 }
 
 export function droneGeometry(): THREE.BufferGeometry {
@@ -280,13 +285,6 @@ export function droneGeometry(): THREE.BufferGeometry {
   const pod = new THREE.SphereGeometry(0.22, 10, 8)
   pod.translate(0, -0.18, -0.22)
   return mergeSimple([hull, arms, armsCross, pod])
-}
-
-/** Transit pod: unit width and height, 4.2 m long, nose towards -Z (the oncoming courier). */
-export function podGeometry(): THREE.BufferGeometry {
-  const body = new THREE.CapsuleGeometry(0.5, 3.2, 6, 16)
-  body.rotateX(Math.PI / 2)
-  return body
 }
 
 export function rotorGeometry(): THREE.BufferGeometry {

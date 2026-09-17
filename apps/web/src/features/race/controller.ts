@@ -1,4 +1,5 @@
 import { relayLeg } from '@nim-relay/game-engine'
+import { flowTier, type FlowTier } from './flow-tier'
 
 /**
  * Drives one relay leg: a fixed 60 Hz accumulator stepping the deterministic
@@ -13,7 +14,7 @@ export type RaceMode = 'relay' | 'practice' | 'daily' | 'watch'
 export type Leader = 'you' | 'ghost' | 'tied'
 
 export interface GhostRun {
-  /** The ghost's own leg config: same seed, world and tier, its own opening FLOW. */
+  /** The ghost's own leg config: same seed, world and tier, its own opening FLOW and ghostline. */
   config: relayLeg.Config
   trace: relayLeg.InputTrace
   name: string
@@ -21,7 +22,12 @@ export interface GhostRun {
   timeMs: number
 }
 
-export type RaceCueKind = 'catch' | 'go' | 'approach' | 'overtake' | 'overtaken' | 'finish'
+/**
+ * baton-separate: the scene lifted the baton out of the courier's hand after the finish.
+ * overtake/overtaken: only for a ghost raced without a ghostline; the engine raises
+ * GHOST_OVERTAKE and GHOST_OVERTAKEN itself when it has one.
+ */
+export type RaceCueKind = 'catch' | 'go' | 'approach' | 'overtake' | 'overtaken' | 'finish' | 'baton-separate'
 /** The scene adds `echo` when the courier passes a Relay Echo standing on its path. */
 export type RaceCue = { kind: 'events'; tick: number; events: number } | { kind: 'echo'; tick: number; echoId: string } | { kind: RaceCueKind; tick: number }
 
@@ -34,6 +40,14 @@ export interface RaceSnapshot {
   ghostProgress: number | null
   /** 0..1 */
   flow: number
+  flowTier: FlowTier
+  /** Share of the current Relay Rush still to run, 0..1, or null outside a rush. */
+  rush: number | null
+  motion: relayLeg.Motion
+  /** -1 left, 1 right, 0 none: the edge being ground or fallen from. */
+  edgeSide: -1 | 0 | 1
+  /** The courier is on a shoulder, outside the lanes, heading for an edge. */
+  shoulder: boolean
   /** Seconds the ghost is ahead at the courier's position; negative when the courier leads. */
   ghostDelta: number | null
   leader: Leader
@@ -94,12 +108,27 @@ const KEYFRAME_TICKS = 24
 const DEFAULT_CATCH_MS = 1200
 const PUBLISH_INTERVAL_MS = 50
 const LEAD_HYSTERESIS_SECONDS = 0.06
+/** A lane flick waits this long for its tick; flicks inside it queue and apply one tick apart. */
+export const SHIFT_QUEUE_MS = 150
+const SHIFT_QUEUE_LIMIT = 4
 
 interface PreparedGhost {
   run: GhostRun
   distances: Int32Array
   ticks: number
   cursor: relayLeg.InputCursor
+}
+
+interface QueuedShift {
+  direction: -1 | 1
+  at: number
+}
+
+/** Riding outside the outer lanes, between them and the road edge. */
+function onShoulder(state: relayLeg.State): boolean {
+  if (state.motion !== 'riding') return false
+  const layout = relayLeg.laneLayoutAt(state.track, state.dist, relayLeg.activePathAt(state.track, state.dist, state.path))
+  return Math.abs(state.x) > relayLeg.laneEdgeOf(layout)
 }
 
 function sameTrack(a: relayLeg.Config, b: relayLeg.Config): boolean {
@@ -143,13 +172,17 @@ export class RelayLegController {
   private published: RaceSnapshot
   private lastPublishAt = Number.NEGATIVE_INFINITY
   private lastTime: number | null = null
+  private clock = 0
   private accumulator = 0
-  private steer = 0
+  private nudge = 0
   private pendingAction: 0 | 1 | 2 = 0
+  private readonly shifts: QueuedShift[] = []
   private readonly recorded: relayLeg.Sample[] = []
   private lastSampleTick = 0
   private ghostIndex = 0
   private leader: Leader = 'tied'
+  /** Ticks the current Relay Rush started with, for draining it; 0 outside a rush. */
+  private rushLength = 0
 
   constructor(config: relayLeg.Config, options: ControllerOptions) {
     relayLeg.validateConfig(config)
@@ -181,7 +214,7 @@ export class RelayLegController {
       ghostPrevious: ghostState,
       frameEvents: 0,
       ghostFrameEvents: 0,
-      ghostDelta: this.ghost ? 0 : null,
+      ghostDelta: this.ghost || config.ghostline ? 0 : null,
       approaching: false,
     }
     this.published = this.buildSnapshot(null, null, false)
@@ -209,8 +242,17 @@ export class RelayLegController {
     }
   }
 
-  setSteer(value: number): void {
-    if (Number.isFinite(value)) this.steer = Math.max(-64, Math.min(64, Math.round(value)))
+  /** One lane shift. Flicks that arrive together queue and apply on consecutive ticks. */
+  shift(direction: -1 | 1): void {
+    if (this.render.phase !== 'racing' || (direction !== -1 && direction !== 1)) return
+    if (this.shifts.length >= SHIFT_QUEUE_LIMIT) this.shifts.shift()
+    this.shifts.push({ direction, at: this.clock })
+  }
+
+  /** Held fine offset inside the lane, -NUDGE_RANGE..NUDGE_RANGE; 0 lets the courier magnetize to its lane centre. */
+  setNudge(value: number): void {
+    if (!Number.isFinite(value)) return
+    this.nudge = Math.max(-relayLeg.NUDGE_RANGE, Math.min(relayLeg.NUDGE_RANGE, Math.round(value)))
   }
 
   jump(): void {
@@ -227,6 +269,7 @@ export class RelayLegController {
     this.render.activePhase = phase
     this.render.phase = 'paused'
     this.pendingAction = 0
+    this.shifts.length = 0
     this.lastTime = null
     this.publish(true)
   }
@@ -295,6 +338,7 @@ export class RelayLegController {
     const render = this.render
     this.accumulator += elapsed
     while (this.accumulator + 1e-6 >= TICK_MS && !render.state.finished) {
+      this.clock += TICK_MS
       this.stepTick()
       this.accumulator -= TICK_MS
     }
@@ -307,6 +351,15 @@ export class RelayLegController {
     if (now - this.lastPublishAt >= PUBLISH_INTERVAL_MS) this.publish(false, now)
   }
 
+  /** The next queued lane shift still inside its window, or 0. */
+  private takeShift(): -1 | 0 | 1 {
+    while (this.shifts.length > 0) {
+      const next = this.shifts.shift()!
+      if (this.clock - next.at <= SHIFT_QUEUE_MS) return next.direction
+    }
+    return 0
+  }
+
   private stepTick(): void {
     const render = this.render
     const state = render.state
@@ -314,21 +367,24 @@ export class RelayLegController {
     let input: relayLeg.Input
     if (this.playbackCursor) input = this.playbackCursor.at(tick)
     else if (this.autopilot) input = this.autopilot(state)
-    else input = { steer: this.steer, action: this.pendingAction }
+    else input = { shift: this.takeShift(), nudge: this.nudge, action: this.pendingAction }
     this.pendingAction = 0
 
     if (!this.playbackCursor) {
       const previous = this.recorded.at(-1)
-      if (!previous || previous[1] !== input.steer || input.action !== 0 || tick - this.lastSampleTick >= KEYFRAME_TICKS) {
-        this.recorded.push([tick - this.lastSampleTick, input.steer, input.action])
+      if (!previous || input.shift !== 0 || input.action !== 0 || previous[2] !== input.nudge || tick - this.lastSampleTick >= KEYFRAME_TICKS) {
+        this.recorded.push([tick - this.lastSampleTick, input.shift, input.nudge, input.action])
         this.lastSampleTick = tick
       }
     }
 
     render.previous = state
     render.state = relayLeg.step(state, input)
-    render.frameEvents |= render.state.events
-    if (render.state.events !== 0) this.emit({ kind: 'events', tick: render.state.tick, events: render.state.events })
+    const next = render.state
+    render.frameEvents |= next.events
+    if (next.events !== 0) this.emit({ kind: 'events', tick: next.tick, events: next.events })
+    if (next.rushTicks > state.rushTicks) this.rushLength = next.rushTicks
+    else if (next.rushTicks === 0) this.rushLength = 0
 
     if (this.ghost && render.ghost && !render.ghost.finished) {
       render.ghostPrevious = render.ghost
@@ -338,26 +394,39 @@ export class RelayLegController {
       render.ghostPrevious = render.ghost
     }
 
-    if (!render.approaching && render.state.dist >= this.approachDist) {
+    if (!render.approaching && next.dist >= this.approachDist) {
       render.approaching = true
-      this.emit({ kind: 'approach', tick: render.state.tick })
+      this.emit({ kind: 'approach', tick: next.tick })
     }
   }
 
+  /**
+   * The engine measures the gap to the previous runner's verified ghostline itself. A ghost raced
+   * without one (a local practice ghost) is measured here from its replayed distances.
+   */
   private updateGhostDelta(): void {
-    const ghost = this.ghost
     const render = this.render
-    if (!ghost) return
-    const dist = render.state.dist
-    while (this.ghostIndex < ghost.ticks && ghost.distances[this.ghostIndex]! < dist) this.ghostIndex++
-    const delta = (render.state.tick - this.ghostIndex) / relayLeg.TICK_RATE
-    render.ghostDelta = delta
-    const next: Leader = delta > LEAD_HYSTERESIS_SECONDS ? 'ghost' : delta < -LEAD_HYSTERESIS_SECONDS ? 'you' : this.leader
-    if (next !== this.leader) {
-      if (this.leader === 'ghost' && next === 'you') this.emit({ kind: 'overtake', tick: render.state.tick })
-      if (this.leader === 'you' && next === 'ghost') this.emit({ kind: 'overtaken', tick: render.state.tick })
-      this.leader = next
+    const state = render.state
+    if (this.config.ghostline) {
+      render.ghostDelta = state.ghostLeadTicks / relayLeg.TICK_RATE
+      this.leader = this.nextLeader(render.ghostDelta)
+      return
     }
+    const ghost = this.ghost
+    if (!ghost) return
+    while (this.ghostIndex < ghost.ticks && ghost.distances[this.ghostIndex]! < state.dist) this.ghostIndex++
+    const delta = (state.tick - this.ghostIndex) / relayLeg.TICK_RATE
+    render.ghostDelta = delta
+    const next = this.nextLeader(delta)
+    if (next !== this.leader) {
+      if (this.leader === 'ghost' && next === 'you') this.emit({ kind: 'overtake', tick: state.tick })
+      if (this.leader === 'you' && next === 'ghost') this.emit({ kind: 'overtaken', tick: state.tick })
+    }
+    this.leader = next
+  }
+
+  private nextLeader(delta: number): Leader {
+    return delta > LEAD_HYSTERESIS_SECONDS ? 'ghost' : delta < -LEAD_HYSTERESIS_SECONDS ? 'you' : this.leader
   }
 
   private finish(): void {
@@ -375,6 +444,7 @@ export class RelayLegController {
     render.alpha = 1
     render.phase = 'finished'
     render.activePhase = 'finished'
+    this.shifts.length = 0
     this.published = this.buildSnapshot(result, trace, divergence)
     this.emit({ kind: 'finish', tick: render.state.tick })
     for (const listener of this.listeners) listener()
@@ -384,13 +454,19 @@ export class RelayLegController {
     const render = this.render
     const state = render.state
     const finish = state.track.finishDist
+    const flow = state.flow / 65536
     return {
       phase: render.phase,
       mode: this.mode,
       tick: state.tick,
       progress: Math.min(1, state.dist / finish),
       ghostProgress: render.ghost ? Math.min(1, render.ghost.dist / finish) : null,
-      flow: state.flow / 65536,
+      flow,
+      flowTier: flowTier(flow, state.rushTicks),
+      rush: state.rushTicks > 0 ? Math.min(1, state.rushTicks / Math.max(1, this.rushLength)) : null,
+      motion: state.motion,
+      edgeSide: state.edgeSide,
+      shoulder: onShoulder(state),
       ghostDelta: render.ghostDelta,
       leader: this.leader,
       approaching: render.approaching,
