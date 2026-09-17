@@ -4,7 +4,7 @@
 
 Real NIM is the turn. Catch it, beat the ghost, pass it on.
 
-[Open NIM Relay](https://nim-relay.timjosh507.workers.dev) · [Testnet for test NIM](https://nim-relay-testnet.timjosh507.workers.dev) · [Public proof](https://nim-relay.timjosh507.workers.dev/proof)
+[Open NIM Relay](https://nimrelay.xyz) · [Testnet for test NIM](https://testnet.nimrelay.xyz) · [Public proof](https://nimrelay.xyz/proof)
 
 A living relay game where 1 real NIM travels hand to hand. The home is a 3D Earth showing each baton's journey. The holder carries the baton through a short high-speed leg against the verified ghost of the person who passed it to them, then throws it to the next runner and approves a real transfer in Nimiq Pay. Custody changes only after the Worker independently verifies that transaction on chain.
 

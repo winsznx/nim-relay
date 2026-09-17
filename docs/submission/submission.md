@@ -8,7 +8,7 @@ Paste these into the Mini Apps Competition portal. Limits come from the submissi
 | category | Games |
 | pricing | Free |
 | repo_url | https://github.com/winsznx/nim-relay (public, MIT; push `production-relay` first) |
-| demo_url | https://nim-relay.timjosh507.workers.dev |
+| demo_url | https://nimrelay.xyz |
 | video_url | YouTube, Loom, Vimeo or X link to a public demo video (required, not recorded yet) |
 | contact_email | your contact email |
 | x_account | winsznx |

@@ -35,8 +35,8 @@ interface BatonDetail {
 }
 
 const WORKERS: Record<NimiqNetwork, string> = {
-  TestAlbatross: 'https://nim-relay-testnet.timjosh507.workers.dev',
-  MainAlbatross: 'https://nim-relay.timjosh507.workers.dev',
+  TestAlbatross: 'https://testnet.nimrelay.xyz',
+  MainAlbatross: 'https://nimrelay.xyz',
 }
 
 function parseOptions(argv: string[]): Options {

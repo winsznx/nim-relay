@@ -7,12 +7,12 @@ target="${1:-}"
 case "$target" in
   testnet)
     env_flag=(--env testnet)
-    url="https://nim-relay-testnet.timjosh507.workers.dev"
+    url="https://testnet.nimrelay.xyz"
     expected_network="TestAlbatross"
     ;;
   mainnet)
     env_flag=(--env "")
-    url="https://nim-relay.timjosh507.workers.dev"
+    url="https://nimrelay.xyz"
     expected_network="MainAlbatross"
     ;;
   *)
