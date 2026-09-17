@@ -1,5 +1,5 @@
 import { sendRelayHandoff } from '../../lib/nimiq'
-import { readTransfer, saveTransfer } from '../../station/transfer-store'
+import { readTransfer, saveTransfer } from './transfer-store'
 import * as api from '../relays/api'
 import type { HandoffDeps } from './machine'
 

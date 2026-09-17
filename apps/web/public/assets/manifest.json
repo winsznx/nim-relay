@@ -2,28 +2,6 @@
   "version": 1,
   "assets": [
     {
-      "path": "courier.glb",
-      "name": "Aster relay courier",
-      "source": "Original procedural mesh authored for NIM Relay",
-      "license": "CC0-1.0",
-      "author": "NIM Relay contributors",
-      "generator": "scripts/assets/build-courier.mjs",
-      "animations": [
-        "idle",
-        "bank-left",
-        "bank-right",
-        "boost",
-        "jump",
-        "land",
-        "duck-drift",
-        "stumble",
-        "victory",
-        "baton-catch",
-        "baton-handoff"
-      ],
-      "optimization": "Shared low-poly geometry; reusable materials; no textures; runtime instancing for environment; adaptive DPR"
-    },
-    {
       "path": "audio/music/race-neon.m4a",
       "name": "Neon sign Circuit",
       "source": "https://opengameart.org/content/neon-sign-circuit",

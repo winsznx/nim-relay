@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { useQueries, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import type { BatonDetail, NetworkSnapshot, ShareSurface } from '@nim-relay/shared'
-import * as station from '../../station/api'
+import * as station from './station-api'
 import { useSession } from '../shell/session'
 import * as api from './api'
 import { isLiveUpdate } from './live'

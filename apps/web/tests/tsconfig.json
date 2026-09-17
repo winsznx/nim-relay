@@ -2,7 +2,8 @@
   "extends": "../tsconfig.json",
   "include": [
     "./*.ts",
-    "../playwright.game.config.ts"
+    "./lifecycle/*.ts",
+    "../playwright.*.config.ts"
   ],
   "compilerOptions": {
     "types": [

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { StationSnapshot } from '@nim-relay/shared'
-import * as station from '../../../station/api'
+import * as station from '../../relays/station-api'
 import * as api from '../../relays/api'
 import { relayKeys, useRefreshNetwork } from '../../relays/data'
 import { formatCount } from '../../relays/format'
