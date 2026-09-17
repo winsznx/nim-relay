@@ -426,16 +426,18 @@ a.nr-row {
   color: var(--nr-ink);
 }
 
-/* Toast */
+/* Toast. Centred by insets and auto margins, because its entry animation sets an inline transform. */
 .nr-toast {
   position: fixed;
   z-index: 60;
-  left: 50%;
+  left: max(16px, env(safe-area-inset-left, 0px));
+  right: max(16px, env(safe-area-inset-right, 0px));
   bottom: calc(var(--nr-nav-space) + 12px);
   display: flex;
   align-items: flex-start;
   gap: var(--nr-space-3);
-  width: min(420px, calc(100% - 2 * var(--nr-gutter)));
+  max-width: min(420px, calc(100vw - 32px));
+  margin: 0 auto;
   padding: 14px 10px 14px 16px;
   border-radius: var(--nr-radius-lg);
   border: 1px solid var(--nr-line-strong);
@@ -444,7 +446,6 @@ a.nr-row {
   -webkit-backdrop-filter: var(--nr-blur);
   box-shadow: var(--nr-shadow-float);
   font-size: var(--nr-text-sm);
-  transform: translateX(-50%);
 }
 .nr-toast__dot {
   flex: none;
@@ -462,7 +463,9 @@ a.nr-row {
 }
 .nr-toast p {
   flex: 1;
+  min-width: 0;
   margin: 0;
+  overflow-wrap: anywhere;
 }
 .nr-toast button {
   flex: none;

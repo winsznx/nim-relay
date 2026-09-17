@@ -1,7 +1,7 @@
 import type { TxVerificationFailure } from '@nim-relay/relay-protocol'
-import type { HandoffReasonCode, HandoffRejectionReason } from '@nim-relay/shared'
+import type { HandoffPendingReason, HandoffReasonCode, HandoffRejectionReason } from '@nim-relay/shared'
 
-const VERIFIER_REASONS: Record<TxVerificationFailure, HandoffReasonCode> = {
+const VERIFIER_REASONS: Record<TxVerificationFailure, HandoffPendingReason | HandoffRejectionReason> = {
   SENDER_MISMATCH: 'SENDER_MISMATCH',
   RECIPIENT_MISMATCH: 'RECIPIENT_MISMATCH',
   // Prepared intents never name the sender as recipient, so a self-transfer cannot pay the intended runner.
@@ -33,18 +33,19 @@ const REASON_CODES: readonly HandoffReasonCode[] = [
   'CUSTODY_CHANGED',
   'INTENT_EXPIRED',
   'RPC_UNAVAILABLE',
+  'NOT_SENT',
 ]
 
-export function verifierReason(failure: TxVerificationFailure): HandoffReasonCode {
+export function verifierReason(failure: TxVerificationFailure): HandoffPendingReason | HandoffRejectionReason {
   return VERIFIER_REASONS[failure]
 }
 
 /** Transient outcomes: the same transaction may still verify later. */
-export function isPendingReason(reason: HandoffReasonCode): reason is Exclude<HandoffReasonCode, HandoffRejectionReason> {
+export function isPendingReason(reason: HandoffReasonCode): reason is HandoffPendingReason {
   return reason === 'NOT_INCLUDED' || reason === 'INSUFFICIENT_CONFIRMATIONS' || reason === 'RPC_UNAVAILABLE'
 }
 
-export const REJECTION_REASONS: readonly HandoffRejectionReason[] = REASON_CODES.filter((code): code is HandoffRejectionReason => !isPendingReason(code))
+export const REJECTION_REASONS: readonly HandoffRejectionReason[] = REASON_CODES.filter((code): code is HandoffRejectionReason => code !== 'NOT_SENT' && !isPendingReason(code))
 
 /** Earlier releases stored free-form failure text; anything unrecognised was an unavailable lookup. */
 export function storedReason(failure: string | null): HandoffReasonCode | null {

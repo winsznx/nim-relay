@@ -18,7 +18,7 @@ export interface AlertFacts {
   /** Hash submissions and rejections in the rolling 24 hours. */
   verifications: { submitted: number; rejected: number }
   lastRpcUnavailableAt: number | null
-  /** Intents still attempting or submitted more than OPS_STUCK_HANDOFF_MS after they reached Nimiq Pay. */
+  /** Intents still attempting or submitted more than OPS_STUCK_HANDOFF_MS after they last reached Nimiq Pay. */
   stuckHandoffs: { attempting: number; submitted: number; oldestAttemptedAt: number | null }
   strandedBatons: number
   /** `waitingSince`: the later of the first unarchived change and the last successful archive. */

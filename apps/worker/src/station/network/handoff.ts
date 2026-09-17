@@ -121,23 +121,27 @@ function quickRecipientAllowed(baton: BatonRecord, recipientId: string): boolean
   return baton.handoffCount === 0 && (baton.recipientId === null || baton.recipientId === recipientId)
 }
 
+/**
+ * Every attempt opens Nimiq Pay again, so it moves `attemptedAt`: a transfer approved now stays includable for its
+ * whole validity window, and an attempted pass only expires once that window has passed.
+ */
 export async function attemptHandoff(context: NetworkContext, profile: Profile, body: unknown): Promise<NetworkHandoffIntent> {
-  const intent = ownIntent(context, intentBody.parse(body).id, profile)
+  const intent = ownIntentFor(context.state, body, profile.wallet)
   const now = Date.now()
   if (intent.state === 'prepared') {
     if (intent.expiresAt < now) throw new ApiError('handoff_expired', 410)
     intent.state = 'attempting'
-    intent.attemptedAt = now
   } else if (intent.state !== 'attempting') {
     throw new ApiError('handoff_not_sendable', 409)
   }
+  intent.attemptedAt = now
   await context.storage.setAlarm(now + RECONCILE_RETRY_MS)
   return intent
 }
 
 /** Only before the wallet opened: afterwards a transfer may exist and must be recovered, not rerouted. */
 export function cancelHandoff(context: NetworkContext, profile: Profile, body: unknown): NetworkHandoffIntent {
-  const intent = ownIntent(context, intentBody.parse(body).id, profile)
+  const intent = ownIntentFor(context.state, body, profile.wallet)
   if (intent.state !== 'prepared') throw new ApiError('check_wallet_before_rerouting', 409)
   intent.state = 'cancelled'
   return intent
@@ -146,7 +150,7 @@ export function cancelHandoff(context: NetworkContext, profile: Profile, body: u
 export async function submitHandoffTransaction(context: NetworkContext, profile: Profile, body: unknown, persist: Persist): Promise<NetworkConfirmation> {
   const input = confirmBody.parse(body)
   const txHash = input.txHash.toLowerCase()
-  const intent = ownIntent(context, input.id, profile)
+  const intent = ownIntent(context.state, input.id, profile.wallet)
   if (intent.txHash && intent.txHash !== txHash) throw new ApiError('different_transaction', 409)
   // Confirming the hash already bound is a re-check; operators count only newly sent hashes.
   const newHash = intent.txHash === null
@@ -155,11 +159,16 @@ export async function submitHandoffTransaction(context: NetworkContext, profile:
     return { status: 'rejected', reason: intent.failure ?? 'INTENT_EXPIRED', intent }
   }
   if (intent.state === 'prepared') throw new ApiError('handoff_not_attempted', 409)
-  if (newHash) countHashSubmission(context.ops, Date.now())
-  intent.txHash = txHash
-  if (intent.state !== 'verified') intent.state = 'submitted'
+  bindTransaction(context, intent, txHash)
   await persist()
   return confirmHandoff(context, intent, persist, hash => lookupTransaction(context.env, hash))
+}
+
+/** Binds the transaction a pass was sent with; operators count each newly bound hash as submitted. */
+export function bindTransaction(context: NetworkContext, intent: NetworkHandoffIntent, txHash: string): void {
+  if (intent.txHash === null) countHashSubmission(context.ops, Date.now())
+  intent.txHash = txHash
+  if (intent.state !== 'verified') intent.state = 'submitted'
 }
 
 /**
@@ -276,8 +285,14 @@ export function releaseLapsedReservation(context: NetworkContext, baton: BatonRe
   })
 }
 
-function ownIntent(context: NetworkContext, id: string, profile: Profile): NetworkHandoffIntent {
-  const intent = context.state.intents[id]
-  if (!intent || intent.sender !== paymentAddress(profile.wallet)) throw new ApiError('handoff_not_found', 404)
+/** Only the sender may act on an intent; anyone else is told it does not exist. */
+export function ownIntent(state: NetworkState, id: string, wallet: string): NetworkHandoffIntent {
+  const intent = state.intents[id]
+  if (!intent || intent.sender !== paymentAddress(wallet)) throw new ApiError('handoff_not_found', 404)
   return intent
+}
+
+/** The intent named by an `{ id }` request body, for its sender only. */
+export function ownIntentFor(state: NetworkState, body: unknown, wallet: string): NetworkHandoffIntent {
+  return ownIntent(state, intentBody.parse(body).id, wallet)
 }

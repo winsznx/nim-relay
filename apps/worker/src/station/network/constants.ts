@@ -21,6 +21,33 @@ export const MIN_CONFIRMATIONS = 2
 export const RECONCILE_RETRY_MS = 15_000
 export const RECONCILE_INTERVAL_MS = 30_000
 
+/**
+ * A block includes a transaction only below the transaction's validity start height plus 120 batches of 60 blocks:
+ * `Transaction::is_valid_at` in core-rs-albatross primitives/transaction/src/lib.rs, with `transaction_validity_window`
+ * and `blocks_per_batch` from MAINNET_POLICY and TESTNET_POLICY in primitives/src/policy.rs. Wallets set the start
+ * height to the chain height when they sign.
+ */
+export const TRANSACTION_VALIDITY_WINDOW_BLOCKS = 7_200
+/** BLOCK_SEPARATION_TIME in primitives/src/policy.rs. Both networks averaged 0.99 s per block over 86,400 blocks in September 2026. */
+export const BLOCK_SEPARATION_MS = 1_000
+/** An attempted pass whose hash has not arrived this long after the attempt is looked for on chain; the app usually reports it first. */
+export const UNSENT_PASS_LOOKUP_AFTER_MS = 2 * MINUTE_MS
+/**
+ * How long after the attempt a pass with no transfer on chain counts as never sent: the validity window of a transfer
+ * signed at the attempt, plus an hour for an approval signed later than the attempt and for slower blocks.
+ */
+export const UNSENT_PASS_EXPIRY_MS = TRANSACTION_VALIDITY_WINDOW_BLOCKS * BLOCK_SEPARATION_MS + HOUR_MS
+/** The alarm looks each attempted pass up at most this often, and at most this many passes per run. */
+export const UNSENT_PASS_RECHECK_MS = 5 * MINUTE_MS
+export const MAX_UNSENT_PASS_LOOKUPS = 5
+/** A holder's own check of a pass reaches the chain at most this often. */
+export const HANDOFF_CHECK_COOLDOWN_MS = 15_000
+/** Sender history is read this many transactions at a time, for at most this many pages per lookup. */
+export const SENDER_HISTORY_PAGE_SIZE = 50
+export const SENDER_HISTORY_MAX_PAGES = 4
+/** How far block timestamps and the Worker clock may disagree. */
+export const CHAIN_CLOCK_SKEW_MS = 10 * MINUTE_MS
+
 export const SECTOR_HANDOFFS = 10
 export const HANDOFF_MILESTONES: readonly number[] = [10, 25, 50, 100, 250]
 export const NEAR_MISS_LEGEND = 6

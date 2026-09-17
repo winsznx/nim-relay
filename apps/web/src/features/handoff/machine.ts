@@ -35,6 +35,7 @@ export type VerificationFailure =
   | 'DUPLICATE_TRANSACTION'
   | 'CUSTODY_CHANGED'
   | 'INTENT_EXPIRED'
+  | 'NOT_SENT'
   | 'UNKNOWN'
 
 export type HandoffStage =
@@ -46,6 +47,7 @@ export type HandoffStage =
   | { stage: 'wallet'; intent: NetworkHandoffIntent }
   | { stage: 'paused'; intent: NetworkHandoffIntent }
   | { stage: 'insufficient'; intent: NetworkHandoffIntent }
+  | { stage: 'checking'; intent: NetworkHandoffIntent }
   | { stage: 'recovery'; intent: NetworkHandoffIntent; invalidHash: boolean }
   | { stage: 'in-flight'; intent: NetworkHandoffIntent; hash: string; slow: boolean }
   | { stage: 'not-verified'; intent: NetworkHandoffIntent; hash: string; reason: VerificationFailure }
@@ -64,6 +66,8 @@ export interface HandoffDeps {
   attempt(intentId: string): Promise<NetworkHandoffIntent>
   cancel(intentId: string): Promise<NetworkHandoffIntent>
   confirm(intentId: string, hash: string): Promise<NetworkConfirmation>
+  /** Has the relay look for an attempted pass on chain and resolves with the pass as it stands afterwards. */
+  check(intentId: string): Promise<NetworkHandoffIntent>
   /** Opens native Nimiq Pay approval and resolves with the transaction hash. */
   send(intent: NetworkHandoffIntent): Promise<string>
   readTransfer(id: string): Promise<TransferRecord | undefined>
@@ -130,6 +134,7 @@ const KNOWN_FAILURES = new Set<VerificationFailure>([
   'DUPLICATE_TRANSACTION',
   'CUSTODY_CHANGED',
   'INTENT_EXPIRED',
+  'NOT_SENT',
 ])
 
 export function verificationFailure(reason: string | undefined): VerificationFailure {
@@ -179,11 +184,32 @@ export class HandoffOrchestrator {
 
   /** Restores an intent the server already holds, e.g. after the app was closed mid-handoff. */
   async resume(intent: NetworkHandoffIntent): Promise<void> {
+    const hash = intent.txHash ?? (await this.deps.readTransfer(intent.id))?.hash ?? null
+    if (intent.state === 'attempting' && hash === null) {
+      await this.checkChain(intent)
+      return
+    }
+    await this.restore(intent, hash)
+  }
+
+  /**
+   * Nimiq Pay opened for this pass, but no transaction hash reached this device or the relay: an approval may have gone
+   * through anyway. The relay looks for the transfer on chain before the holder is asked to recover it by hand.
+   */
+  private async checkChain(intent: NetworkHandoffIntent): Promise<void> {
+    const generation = ++this.generation
+    this.set({ stage: 'checking', intent })
+    // Without an answer from the relay, the holder recovers the pass by hand as before.
+    const checked = await this.deps.check(intent.id).catch(() => intent)
+    if (generation !== this.generation) return
+    await this.restore(checked, checked.txHash)
+  }
+
+  private async restore(intent: NetworkHandoffIntent, hash: string | null): Promise<void> {
     if (intent.state === 'verified' && intent.txHash) {
       this.set({ stage: 'confirmed', intent, hash: intent.txHash, baton: null })
       return
     }
-    const hash = intent.txHash ?? (await this.deps.readTransfer(intent.id))?.hash ?? null
     if (hash) {
       await this.confirmLoop(intent, hash)
       return

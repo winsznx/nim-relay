@@ -26,7 +26,7 @@ export const DEFINITIONS = {
   attempted: 'Intents the app sent to Nimiq Pay for approval.',
   submitted: 'Intents that received a transaction hash at least once.',
   verified: 'Intents whose transfer verified on chain.',
-  outcomes: 'Where the other intents stand now. Expired includes passes whose baton changed hands first.',
+  outcomes: 'Where the other intents stand now. Expired includes passes never sent in time and passes whose baton changed hands first.',
   medianAttemptToVerified: 'Median time from sending to Nimiq Pay to verification, over the verified intents above.',
   rejections: 'Transaction hashes that can never verify their intent, by reason, recorded on these days.',
 

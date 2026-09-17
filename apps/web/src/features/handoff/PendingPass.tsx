@@ -85,6 +85,8 @@ export function PendingPass({ intent, onConfirmed, onCancelled }: PendingPassPro
                 </button>
               </>
             )
+          case 'checking':
+            return <p className="handoff-status">Checking the Nimiq network for this pass…</p>
           case 'recovery':
             return (
               <form
@@ -95,6 +97,7 @@ export function PendingPass({ intent, onConfirmed, onCancelled }: PendingPassPro
                 }}
               >
                 <p>An earlier approval may already be on the network. Find the transfer in your Nimiq Pay activity and paste its reference.</p>
+                <p className="handoff-muted">If you declined in Nimiq Pay, choose ‘My wallet shows no transfer’ to approve again, or wait for this pass to expire to choose another runner.</p>
                 <label className="nr-field">
                   <span className="nr-field__label">Transaction reference</span>
                   <input className="nr-input" value={hash} onChange={event => setHash(event.target.value)} autoCapitalize="off" autoCorrect="off" spellCheck={false} />

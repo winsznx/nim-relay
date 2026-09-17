@@ -52,7 +52,8 @@ export async function claimInvite(context: NetworkContext, profile: Profile, bod
   if (invite.recipientId && invite.recipientId !== profile.id) throw new ApiError('invite_is_for_another_courier', 403)
   const baton = findBaton(context.state, invite.batonId)
   if (baton.holder.id !== invite.from.id || baton.status === 'completed') throw new ApiError('invite_no_longer_current', 410)
-  if (openIntentFor(context.state, baton.id)) throw new ApiError('handoff_already_prepared', 409)
+  // Addressed to the invitee: the open pass is the holder's to finish, or to let expire.
+  if (openIntentFor(context.state, baton.id)) throw new ApiError('holder_pass_in_progress', 409)
   invite.claimedBy = profile.id
   baton.recipientId = profile.id
   baton.recipientReservedAt = now

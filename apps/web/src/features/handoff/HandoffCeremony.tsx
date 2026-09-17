@@ -241,6 +241,21 @@ export function HandoffCeremony({ machine, roster, batonName, value, createInvit
             </>
           ),
         }
+      case 'checking':
+        return {
+          key: 'checking',
+          content: (
+            <HoloCard labelledBy={TITLE_ID}>
+              <p className="handoff-eyebrow">Nimiq network</p>
+              <h2 id={TITLE_ID} className="handoff-title">
+                Checking for your pass
+              </h2>
+              <p className="handoff-status" role="status">
+                Looking for a transfer to {stage.intent.recipientName}
+              </p>
+            </HoloCard>
+          ),
+        }
       case 'recovery':
         return {
           key: 'recovery',

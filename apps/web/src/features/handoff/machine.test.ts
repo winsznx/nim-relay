@@ -44,6 +44,7 @@ function harness(overrides: Partial<HandoffDeps> = {}) {
     attempt: vi.fn(async () => intent({ state: 'attempting' })),
     cancel: vi.fn(async () => intent({ state: 'cancelled' })),
     confirm: vi.fn(async (): Promise<NetworkConfirmation> => ({ status: 'verified', intent: intent({ state: 'verified', txHash: HASH }) })),
+    check: vi.fn(async () => intent({ state: 'attempting', attemptedAt: 1 })),
     send: vi.fn(async () => HASH),
     readTransfer: async id => records.get(id),
     saveTransfer: async record => {
@@ -188,10 +189,90 @@ describe('handoff ceremony', () => {
     expect(machine.getSnapshot()).toEqual({ stage: 'choose', notice: null })
   })
 
+  it('never checks the chain for a pass whose hash this device kept', async () => {
+    // #given a sent pass the relay still sees as attempting
+    const { deps, machine, records } = harness()
+    records.set('intent-1', { id: 'intent-1', hash: HASH, state: 'sent' })
+    // #when it resumes
+    await machine.resume(intent({ state: 'attempting', attemptedAt: 1 }))
+    // #then the kept hash is confirmed directly
+    expect([vi.mocked(deps.check).mock.calls, vi.mocked(deps.confirm).mock.calls]).toEqual([[], [['intent-1', HASH]]])
+  })
+
+  it('reports a pass that expired unsent as not verified', async () => {
+    // #given the relay ended the pass before its late transfer was confirmed
+    const { machine } = harness({ confirm: vi.fn(async (): Promise<NetworkConfirmation> => ({ status: 'rejected', reason: 'NOT_SENT' })) })
+    // #when the holder throws and approves
+    aim(machine)
+    await machine.throwBaton(launch)
+    // #then the reason survives to the copy
+    expect(machine.getSnapshot()).toMatchObject({ stage: 'not-verified', reason: 'NOT_SENT' })
+  })
+
   it('classifies Nimiq Pay errors', () => {
     expect(classifyWalletError(Object.assign(new Error('User rejected'), { type: 'PermissionDeniedError' }))).toBe('declined')
     expect(classifyWalletError(new Error('Insufficient funds'))).toBe('insufficient')
     expect(classifyWalletError(new Error('Network error while broadcasting'))).toBe('ambiguous')
+  })
+})
+
+describe('resuming an attempted pass without a transaction hash', () => {
+  const attempted = intent({ state: 'attempting', attemptedAt: 1 })
+
+  it('shows the relay checking the chain before anything else', async () => {
+    // #given a relay that has not answered the check yet
+    let answer: (checked: NetworkHandoffIntent) => void = () => undefined
+    const { machine } = harness({
+      check: vi.fn(
+        () =>
+          new Promise<NetworkHandoffIntent>(resolve => {
+            answer = resolve
+          }),
+      ),
+    })
+    // #when the pass resumes
+    const resumed = machine.resume(attempted)
+    await vi.waitFor(() => expect(machine.getSnapshot().stage).toBe('checking'))
+    answer(attempted)
+    await resumed
+    // #then recovery is offered only once the check found nothing
+    expect(machine.getSnapshot()).toEqual({ stage: 'recovery', intent: attempted, invalidHash: false })
+  })
+
+  it('confirms a transfer the relay found and verified on chain', async () => {
+    // #given the relay found the approval that went through
+    const { deps, machine } = harness({ check: vi.fn(async () => intent({ state: 'verified', status: 'verified', txHash: HASH, attemptedAt: 1 })) })
+    // #when the pass resumes
+    await machine.resume(attempted)
+    // #then it is confirmed without opening Nimiq Pay
+    expect([machine.getSnapshot(), vi.mocked(deps.check).mock.calls, vi.mocked(deps.send).mock.calls.length]).toMatchObject([{ stage: 'confirmed', hash: HASH }, [['intent-1']], 0])
+  })
+
+  it('follows a found transfer that still waits for confirmations', async () => {
+    // #given the relay bound a transfer that is not confirmed yet
+    const { deps, machine } = harness({ check: vi.fn(async () => intent({ state: 'submitted', txHash: HASH, attemptedAt: 1 })) })
+    // #when the pass resumes
+    await machine.resume(attempted)
+    // #then it confirms through the bound hash
+    expect([machine.getSnapshot().stage, vi.mocked(deps.confirm).mock.calls]).toEqual(['confirmed', [['intent-1', HASH]]])
+  })
+
+  it('returns to choosing a runner when the pass expired unsent', async () => {
+    // #given the relay proved no transfer can arrive anymore
+    const { machine } = harness({ check: vi.fn(async () => intent({ state: 'expired', failure: 'NOT_SENT', attemptedAt: 1 })) })
+    // #when the pass resumes
+    await machine.resume(attempted)
+    // #then the holder chooses again with the baton still theirs
+    expect(machine.getSnapshot()).toEqual({ stage: 'choose', notice: null })
+  })
+
+  it('offers recovery when the check fails, and never reopens Nimiq Pay', async () => {
+    // #given a relay that cannot be reached
+    const { deps, machine } = harness({ check: vi.fn(async () => Promise.reject(new ApiError('station_unavailable'))) })
+    // #when the pass resumes
+    await machine.resume(attempted)
+    // #then the holder recovers the pass by hand
+    expect([machine.getSnapshot().stage, vi.mocked(deps.send).mock.calls.length]).toEqual(['recovery', 0])
   })
 })
 

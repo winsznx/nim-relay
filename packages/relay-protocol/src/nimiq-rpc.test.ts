@@ -101,3 +101,94 @@ describe('current Albatross RPC transaction shape', () => {
     }
   })
 })
+
+describe('address history', () => {
+  const SENDER = 'NQ16 2SSN 82TL SMQS KXT3 Q01V CMAL NU6F 1LJG'
+  const RELAY_DATA = 'NR1.AUR0RA0001.3.AAAAAAAAAAAAAAAAAAAAAA'
+  const hex = (text: string) => Array.from(new TextEncoder().encode(text), byte => byte.toString(16).padStart(2, '0')).join('')
+  // Entries shaped like a MainAlbatross getTransactionsByAddress response, September 2026.
+  const transfer = {
+    hash: 'B'.repeat(64),
+    blockNumber: 61835272,
+    timestamp: 1789640190390,
+    confirmations: 5,
+    size: 195,
+    relatedAddresses: [SENDER, 'NQ87 BLXR 6NUY 1TAJ TDTA SP4Y 53DJ X96M CLCK'],
+    from: SENDER,
+    fromType: 0,
+    to: 'NQ87 BLXR 6NUY 1TAJ TDTA SP4Y 53DJ X96M CLCK',
+    toType: 0,
+    value: 100000,
+    fee: 0,
+    senderData: '',
+    recipientData: hex(RELAY_DATA),
+    flags: 0,
+    validityStartHeight: 61835264,
+    proof: '00',
+    networkId: 24,
+    executionResult: true,
+  }
+  const staking = { ...transfer, hash: 'c'.repeat(64), blockNumber: 61835262, timestamp: 1789640180391, confirmations: 15, to: 'NQ77 0000 0000 0000 0000 0000 0000 0000 0001', toType: 3, recipientData: 'ab'.repeat(97) }
+  const history = (data: unknown) => fakeFetch([{ body: { jsonrpc: '2.0', result: { data, metadata: null }, id: 1 } }])
+
+  it('reads entries newest first and keeps an entry the verifier cannot read in its place', async () => {
+    // #given a page with a relay transfer and a staking transaction whose data outgrows a basic transfer
+    const client = new NimiqRpcClient({ rpcUrl: 'https://example.invalid', fetchImpl: history([transfer, staking]) })
+    // #when the sender's history is read
+    const entries = await client.getTransactionsByAddress(SENDER, 50)
+    // #then both entries keep their hash and block time, and only the transfer is read as one
+    expect(entries).toEqual([
+      {
+        hash: 'b'.repeat(64),
+        timestamp: transfer.timestamp,
+        transaction: { hash: 'b'.repeat(64), sender: SENDER, recipient: transfer.to, value: '100000', data: RELAY_DATA, network: 'MainAlbatross', blockNumber: 61835272, confirmations: 5, executionResult: true },
+      },
+      { hash: staking.hash, timestamp: staking.timestamp, transaction: null },
+    ])
+  })
+
+  it('always sends address, page size and start hash as positional params', async () => {
+    // #given a node that answers with an empty history
+    const fetchImpl = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ jsonrpc: '2.0', result: { data: [], metadata: null }, id: 1 })))
+    const client = new NimiqRpcClient({ rpcUrl: 'https://example.invalid', fetchImpl })
+    // #when the first page and the page before a known hash are read
+    await client.getTransactionsByAddress(SENDER, 50)
+    await client.getTransactionsByAddress(SENDER, 50, staking.hash)
+    // #then each request names the method with all three params
+    const requests = fetchImpl.mock.calls.map(([, init]) => JSON.parse(String(init?.body)) as { method: string; params: unknown[] })
+    expect(requests.map(request => [request.method, request.params])).toEqual([
+      ['getTransactionsByAddress', [SENDER, 50, null]],
+      ['getTransactionsByAddress', [SENDER, 50, staking.hash]],
+    ])
+  })
+
+  it('rejects a history that is not a list, or an entry without a hash or block time', async () => {
+    for (const data of [null, transfer, [{ ...transfer, timestamp: undefined }], [{ ...transfer, hash: 'abc123' }]]) {
+      const client = new NimiqRpcClient({ rpcUrl: 'https://example.invalid', fetchImpl: history(data) })
+      await expect(client.getTransactionsByAddress(SENDER, 50)).rejects.toThrow()
+    }
+  })
+})
+
+describe('chain head', () => {
+  // Shaped like a TestAlbatross getLatestBlock response, September 2026.
+  const head = { hash: 'd'.repeat(64), size: 338, batch: 144099, epoch: 201, network: 'TestAlbatross', version: 2, number: 11677919, timestamp: 1789640392508, parentHash: 'e'.repeat(64) }
+
+  it('reads the head block number, time and network without its body', async () => {
+    // #given a node at block 11677919
+    const fetchImpl = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ jsonrpc: '2.0', result: { data: head, metadata: null }, id: 1 })))
+    const client = new NimiqRpcClient({ rpcUrl: 'https://example.invalid', fetchImpl })
+    // #when its head is read
+    const latest = await client.getLatestBlock()
+    // #then the block comes back without asking for its body
+    const request = JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body)) as { method: string; params: unknown[] }
+    expect([latest, request.method, request.params]).toEqual([{ blockNumber: 11677919, timestamp: 1789640392508, network: 'TestAlbatross' }, 'getLatestBlock', [false]])
+  })
+
+  it('rejects a head without a block number or time', async () => {
+    for (const data of [null, { ...head, number: undefined }, { ...head, timestamp: -1 }]) {
+      const client = new NimiqRpcClient({ rpcUrl: 'https://example.invalid', fetchImpl: fakeFetch([{ body: { result: { data } } }]) })
+      await expect(client.getLatestBlock()).rejects.toThrow()
+    }
+  })
+})

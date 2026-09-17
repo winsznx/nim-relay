@@ -18,6 +18,7 @@ export function sceneStateFor(stage: HandoffStage['stage']): CeremonySceneState 
       return 'armed'
     case 'preparing':
     case 'wallet':
+    case 'checking':
     case 'recovery':
     case 'in-flight':
       return 'frozen'
@@ -66,6 +67,8 @@ export function verificationCopy(reason: VerificationFailure): string {
       return 'This baton moved on before your pass was confirmed.'
     case 'INTENT_EXPIRED':
       return 'This pass expired before it was sent. Throw again to start a new one.'
+    case 'NOT_SENT':
+      return 'This pass expired because no transfer for it reached the network in time. Throw again to start a new one.'
     case 'UNKNOWN':
       return 'The relay could not match this transfer to your pass.'
   }

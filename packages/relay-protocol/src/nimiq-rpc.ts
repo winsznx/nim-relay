@@ -32,6 +32,26 @@ export interface NimiqTransaction {
   executionResult: boolean | null
 }
 
+/** One entry of an address's transaction history. */
+export interface AddressHistoryEntry {
+  hash: string
+  /** Unix milliseconds of the block that included the transaction. */
+  timestamp: number
+  /**
+   * The transaction as the verifier reads it, or null when it cannot: a history also holds staking and contract
+   * transactions whose data runs past the 64 bytes of a basic transfer.
+   */
+  transaction: NimiqTransaction | null
+}
+
+/** The head block a node serves. */
+export interface ChainHead {
+  blockNumber: number
+  /** Unix milliseconds. */
+  timestamp: number
+  network: string | null
+}
+
 class NimiqRpcError extends Error {
   constructor(
     message: string,
@@ -122,6 +142,45 @@ export class NimiqRpcClient {
       }
       throw err
     }
+  }
+
+  /**
+   * The latest transactions `address` sent or received, newest first, continuing before the `startAt` hash when given
+   * (`get_transactions_by_address` in core-rs-albatross rpc-interface/src/blockchain.rs). The node reads positional
+   * params strictly, so all three are always sent.
+   */
+  async getTransactionsByAddress(address: string, max: number, startAt: string | null = null): Promise<AddressHistoryEntry[]> {
+    const raw = await this.call<unknown>('getTransactionsByAddress', [address, max, startAt])
+    if (!Array.isArray(raw)) throw new Error('RPC transaction history invalid')
+    return raw.map(historyEntry)
+  }
+
+  async getLatestBlock(): Promise<ChainHead> {
+    const raw = await this.call<unknown>('getLatestBlock', [false])
+    if (!raw || typeof raw !== 'object') throw new Error('RPC block invalid')
+    const { number, timestamp, network } = raw as Record<string, unknown>
+    if (!isWholeNumber(number) || !isWholeNumber(timestamp)) throw new Error('RPC block head invalid')
+    return { blockNumber: number, timestamp, network: typeof network === 'string' ? network : null }
+  }
+}
+
+function isWholeNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+}
+
+function historyEntry(raw: unknown): AddressHistoryEntry {
+  if (!raw || typeof raw !== 'object') throw new Error('RPC history entry invalid')
+  const { hash, timestamp } = raw as Record<string, unknown>
+  if (typeof hash !== 'string' || !/^[a-f0-9]{64}$/i.test(hash)) throw new Error('RPC history entry hash invalid')
+  if (!isWholeNumber(timestamp)) throw new Error('RPC history entry timestamp invalid')
+  return { hash: hash.toLowerCase(), timestamp, transaction: readableTransaction(raw, hash) }
+}
+
+function readableTransaction(raw: unknown, hash: string): NimiqTransaction | null {
+  try {
+    return normalizeTransaction(raw, hash)
+  } catch {
+    return null
   }
 }
 

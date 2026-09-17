@@ -1,8 +1,8 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { expect, test, type Page } from '@playwright/test'
-import type { NetworkSnapshot } from '@nim-relay/shared'
-import { RUNNERS, emptySnapshot, mockRelayApi, populatedNetwork, raceLive, signedInAs } from './relay-fixtures'
+import type { NetworkHandoffIntent, NetworkInvite, NetworkSnapshot } from '@nim-relay/shared'
+import { HOUR, RUNNERS, emptySnapshot, hash, mockRelayApi, populatedNetwork, raceLive, signedInAs } from './relay-fixtures'
 import { socialNetwork } from './social-fixtures'
 
 const SHOTS = '/tmp/nim-relay-world/shots'
@@ -196,6 +196,114 @@ test('a leg raced right now shows live on the world and the journey, and goes qu
   } finally {
     clearInterval(reports)
   }
+})
+
+test.describe('an invitation while the holder has a pass in progress', () => {
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 430, height: 932 },
+  ]) {
+    test(`tells the invitee in a toast that fits a ${viewport.width}×${viewport.height} phone`, async ({ page }) => {
+      // #given Sam opens Mateo's invitation while Mateo's pass is still open
+      await page.setViewportSize(viewport)
+      const problems = collectProblems(page)
+      const network = populatedNetwork()
+      await mockRelayApi(page, network, signedInAs(RUNNERS.sam, network.snapshot))
+      const token = hash(77)
+      const invite: NetworkInvite = { id: 'invite-mateo', token, batonId: 'b-global', from: RUNNERS.mateo, recipientId: null, createdAt: Date.now() - HOUR, expiresAt: Date.now() + 23 * HOUR, claimedBy: null, url: `https://nimrelay.xyz/invite/${token}` }
+      await page.route(`**/api/station/network/invites/${token}`, route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(invite) }))
+      await page.route('**/api/station/network/invite/claim', route => route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ error: 'holder_pass_in_progress' }) }))
+      await page.goto(`/invite/${token}`)
+
+      // #when Sam accepts
+      await page.getByRole('button', { name: 'Accept invitation' }).click()
+
+      // #then the toast speaks to Sam rather than the holder, whole on screen, centred above the bottom navigation
+      const toast = page.locator('.nr-toast')
+      await expect(toast).toBeVisible()
+      await page.waitForTimeout(400)
+      await page.screenshot({ path: `${SHOTS}/invite-holder-pass-${viewport.width}.png` })
+      await expect(toast.locator('p')).toHaveText('The holder has a pass in progress. Ask them to finish it, or try again after it expires.')
+      const box = await toast.boundingBox()
+      const navBox = await nav(page).boundingBox()
+      expect(
+        box &&
+          navBox && {
+            insideLeft: box.x >= 16,
+            insideRight: box.x + box.width <= viewport.width - 16,
+            centred: Math.abs(box.x + box.width / 2 - viewport.width / 2) <= 1,
+            aboveNav: box.y + box.height <= navBox.y,
+          },
+      ).toEqual({ insideLeft: true, insideRight: true, centred: true, aboveNav: true })
+      expect(problems.filter(problem => !problem.includes('status of 409'))).toEqual([])
+    })
+  }
+})
+
+test('a holder back at a pass Nimiq Pay never reported has the chain checked, then recovers it by hand', async ({ page }) => {
+  // #given Mateo reopens Global Relay #001 while the pass he declined in Nimiq Pay is still open on the relay
+  const problems = collectProblems(page)
+  const network = populatedNetwork()
+  const account = signedInAs(RUNNERS.mateo, network.snapshot)
+  const detail = network.details['G7K2M9Q4XA']
+  if (!detail) throw new Error('Global Relay #001 is missing from the fixture')
+  const attemptedAt = Date.now() - HOUR
+  const intent: NetworkHandoffIntent = {
+    id: '6a0c2f7e-8d4b-4f1a-9c3e-2b7d5e1f0a93',
+    batonId: detail.baton.id,
+    runId: 'run-mateo-5',
+    recipientId: RUNNERS.sam.id,
+    recipientName: RUNNERS.sam.name,
+    sender: RUNNERS.mateo.wallet,
+    recipient: RUNNERS.sam.wallet,
+    value: detail.baton.value,
+    data: 'NR1.G7K2M9Q4XA.5.AAAAAAAAAAAAAAAAAAAAAA',
+    network: 'TestAlbatross',
+    leg: 5,
+    status: 'pending',
+    state: 'attempting',
+    txHash: null,
+    createdAt: attemptedAt - 60_000,
+    expiresAt: attemptedAt + 4 * 60_000,
+    attemptedAt,
+    failure: null,
+    note: null,
+  }
+  detail.pendingHandoff = intent
+  account.snapshot.pendingHandoff = intent
+  await mockRelayApi(page, network, account)
+  const checked = new Set<string>()
+  let answerCheck: () => void = () => undefined
+  const checkAnswered = new Promise<void>(resolve => {
+    answerCheck = resolve
+  })
+  await page.route('**/api/station/network/handoff/check', async route => {
+    checked.add((route.request().postDataJSON() as { id: string }).id)
+    await checkAnswered
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(intent) })
+  })
+
+  // #when he opens the journey
+  await page.goto('/relay/G7K2M9Q4XA')
+
+  // #then the relay checks the chain for the pass before anything else
+  const pass = page.getByRole('region', { name: 'Finish your pass to Sam Reed' })
+  await expect(pass.getByText('Checking the Nimiq network for this pass…')).toBeVisible()
+  await page.waitForTimeout(400)
+  await pass.screenshot({ path: `${SHOTS}/pending-pass-checking.png` })
+
+  // #when the chain shows nothing yet
+  answerCheck()
+
+  // #then he recovers the pass by hand, told what a decline means for it
+  await expect(pass.getByRole('button', { name: 'Verify the pass' })).toBeVisible()
+  await expect(pass.getByText('If you declined in Nimiq Pay, choose ‘My wallet shows no transfer’ to approve again, or wait for this pass to expire to choose another runner.')).toBeVisible()
+  await expect(pass.getByRole('button', { name: 'My wallet shows no transfer' })).toBeVisible()
+  await page.waitForTimeout(400)
+  await pass.screenshot({ path: `${SHOTS}/pending-pass-recovery.png` })
+  // React's development double mount resumes the pass twice; either way only this pass is checked.
+  expect(checked).toEqual(new Set([intent.id]))
+  expect(problems).toEqual([])
 })
 
 test('the local Worker serves the world and its not-found answers', async ({ page, request }) => {

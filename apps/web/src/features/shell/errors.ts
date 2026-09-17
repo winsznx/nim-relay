@@ -37,6 +37,7 @@ const API_COPY: Record<string, string> = {
   handoff_not_attempted: 'Approve this pass in Nimiq Pay before checking its confirmation.',
   handoff_not_found: 'That pass isn’t on your account.',
   handoff_not_sendable: 'This pass can no longer be sent. Open the journey to see where the baton is.',
+  holder_pass_in_progress: 'The holder has a pass in progress. Ask them to finish it, or try again after it expires.',
   invalid_trace: 'This ride couldn’t be verified, so it wasn’t saved. Ride the leg again.',
   invite_already_claimed: 'Another runner already accepted this invite.',
   invite_expired: 'This invite has expired. Ask the holder for a new link.',
@@ -124,6 +125,7 @@ const CONFIRMATION_COPY: Record<HandoffReasonCode, string> = {
   DUPLICATE_TRANSACTION: 'That transaction already counts for another handoff.',
   CUSTODY_CHANGED: 'This baton changed hands before your pass was confirmed.',
   INTENT_EXPIRED: 'This pass expired before it was sent. Start a new pass.',
+  NOT_SENT: 'No transfer for this pass reached the network in time, so it expired. The baton is still with you.',
 }
 
 /** Copy for the verifier's reason when a submitted pass is still pending or was rejected. */

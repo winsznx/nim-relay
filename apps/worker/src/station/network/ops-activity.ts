@@ -72,10 +72,11 @@ export function opsFunnel(context: NetworkContext, now: number): OpsFunnel {
 
 /**
  * Whether a transaction hash was ever bound to the intent. Binding makes it submitted, and every verification
- * outcome after that leaves a verified state or a reason, even when a rejection released the hash again.
+ * outcome after that leaves a verified state or a reason, even when a rejection released the hash again. NOT_SENT is
+ * the one reason an intent gets without a hash, and it replaces any earlier reason.
  */
 function hashReceived(intent: NetworkHandoffIntent): boolean {
-  return intent.state === 'submitted' || intent.state === 'verified' || intent.failure !== null
+  return intent.state === 'submitted' || intent.state === 'verified' || (intent.failure !== null && intent.failure !== 'NOT_SENT')
 }
 
 function rejectionsFrom(context: NetworkContext, firstDate: string): Record<HandoffRejectionReason, number> {

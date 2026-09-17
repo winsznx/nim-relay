@@ -173,11 +173,14 @@ export type HandoffReasonCode =
   | 'CUSTODY_CHANGED'
   | 'INTENT_EXPIRED'
   | 'RPC_UNAVAILABLE'
+  /** No transaction hash arrived and the sender's chain history holds no matching transfer, past the last block that could include one. */
+  | 'NOT_SENT'
 
 export interface NetworkHandoffIntent extends HandoffIntent {
   batonId: string
   createdAt: number
   expiresAt: number
+  /** When the app last opened Nimiq Pay for this pass. */
   attemptedAt: number | null
   state: 'prepared' | 'attempting' | 'submitted' | 'verified' | 'cancelled' | 'expired'
   /** Reason of the latest pending or rejected verification. */
@@ -194,7 +197,7 @@ export interface NetworkConfirmation { status: 'pending' | 'rejected' | 'verifie
 
 export interface NetworkNotification {
   id: string
-  type: 'incoming_baton' | 'your_turn' | 'ghost_beaten' | 'rematch' | 'crew_streak_risk' | 'rival_update' | 'daily_active' | 'recipient_timeout'
+  type: 'incoming_baton' | 'your_turn' | 'ghost_beaten' | 'rematch' | 'crew_streak_risk' | 'rival_update' | 'daily_active' | 'recipient_timeout' | 'pass_not_sent'
   title: string
   body: string
   batonId: string | null
@@ -328,8 +331,10 @@ export type ShareSurface = 'chronicle' | 'result' | 'daily' | 'crew' | 'handoff'
 export interface TrackEventInput { kind: 'share'; surface: ShareSurface; visitor?: string }
 export interface TrackEventResult { counted: boolean }
 
-/** Reasons a submitted transaction can never verify its intent. The others only mean "check again later". */
-export type HandoffRejectionReason = Exclude<HandoffReasonCode, 'NOT_INCLUDED' | 'INSUFFICIENT_CONFIRMATIONS' | 'RPC_UNAVAILABLE'>
+/** Verification outcomes that only mean "check again later". */
+export type HandoffPendingReason = 'NOT_INCLUDED' | 'INSUFFICIENT_CONFIRMATIONS' | 'RPC_UNAVAILABLE'
+/** Reasons a submitted transaction can never verify its intent. NOT_SENT ends an intent no transaction was submitted for. */
+export type HandoffRejectionReason = Exclude<HandoffReasonCode, HandoffPendingReason | 'NOT_SENT'>
 /** Why a signed relay-network race submission was rejected and flagged for operators. */
 export type OpsFlagReason = 'INVALID_TRACE' | 'MAC_MISMATCH'
 

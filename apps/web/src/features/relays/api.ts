@@ -76,6 +76,11 @@ export const prepareNetworkHandoff = (runId: string, recipient: string, launch?:
 export const attemptNetworkHandoff = (id: string) => request<NetworkHandoffIntent>('/handoff/attempt', { id })
 export const cancelNetworkHandoff = (id: string) => request<NetworkHandoffIntent>('/handoff/cancel', { id })
 export const confirmNetworkHandoff = (id: string, txHash: string) => request<NetworkConfirmation>('/handoff/confirm', { id, txHash })
+/**
+ * Has the relay look for an attempted pass on chain now: a transfer found there is bound and verified, and a pass no
+ * transfer can reach anymore expires. Resolves with the pass as it stands afterwards. Holder only.
+ */
+export const checkNetworkHandoff = (id: string) => request<NetworkHandoffIntent>('/handoff/check', { id })
 export const createNetworkInvite = (batonId: string) => request<NetworkInvite>('/invite', { batonId })
 export const openNetworkInvite = (token: string) => request<NetworkInvite>(`/invites/${encodeURIComponent(token)}`)
 export const claimNetworkInvite = (token: string) => request<BatonDetail>('/invite/claim', { token })

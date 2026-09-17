@@ -53,6 +53,7 @@ function updateItem(item: NetworkNotification, codeOf: (batonId: string | null) 
     case 'rival_update':
       return open('See rivalry', pathFor('rivals'))
     case 'recipient_timeout':
+    case 'pass_not_sent':
       return open('Choose runner', journey ?? pathFor('world'))
     case 'daily_active':
       return open('Ride', pathFor('daily'))
@@ -60,6 +61,9 @@ function updateItem(item: NetworkNotification, codeOf: (batonId: string | null) 
       return open('Crew', pathFor('crew'))
     case 'incoming_baton':
     case 'your_turn':
+      return open('View', journey ?? pathFor('world'))
+    default:
+      // A notification type added on the server after this bundle loaded still renders instead of breaking the inbox.
       return open('View', journey ?? pathFor('world'))
   }
 }

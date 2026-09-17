@@ -2,18 +2,19 @@ import { DurableObject } from 'cloudflare:workers'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
 import { deriveCommitment, encodeTxData, paymentAddress, NimiqRpcClient, verifyHandoffTransaction } from '@nim-relay/relay-protocol'
-import { isFailedLeg, type CanonicalGhost, type HandoffIntent, type IssuedRace, type LegProgressResult, type OpsReport, type StationProfile, type StationSnapshot, type SubmittedRace } from '@nim-relay/shared'
+import { isFailedLeg, type CanonicalGhost, type HandoffIntent, type IssuedRace, type LegProgressResult, type NetworkHandoffIntent, type OpsReport, type StationProfile, type StationSnapshot, type SubmittedRace } from '@nim-relay/shared'
 import type { Env } from '../env'
 import type { PlayerRecord } from '../auth/store'
 import { ApiError, type Profile, type Run, type State } from './model'
-import { RECONCILE_INTERVAL_MS } from './network/constants'
+import { HANDOFF_CHECK_COOLDOWN_MS, MAX_UNSENT_PASS_LOOKUPS, RECONCILE_INTERVAL_MS, UNSENT_PASS_LOOKUP_AFTER_MS, UNSENT_PASS_RECHECK_MS } from './network/constants'
 import { lookupTransaction, type TransactionLookup } from './network/handoff'
+import { attemptedPass, AttemptLookupPacer, HANDOFF_CHECK_PATH, lookUpAttemptedPass, type AttemptEvidence } from './network/handoff-recovery'
 import { LiveLegs, liveKeyPrefix } from './network/live'
 import { LiveUpdates } from './network/live-updates'
 import { isOperator } from './network/ops'
 import { recordRefusedSubmission, type SubmissionRefusal } from './network/ops-ledger'
 import { LEG_PROGRESS_PATH } from './network/progress'
-import { isPublicNetworkPath, RelayNetworkService } from './network/service'
+import { isPublicNetworkPath, RelayNetworkService, type ChainLookups } from './network/service'
 import { networkStateKey } from './network/state'
 import { canonicalGhost, replayRace } from './race-engines'
 import { mac, signedFields, timingSafeEqual } from './signing'
@@ -46,12 +47,17 @@ const publicProfile = ({ wallet: _wallet, rivals: _rivals, best: _best, bestRunI
 export class StationRoom extends DurableObject<Env> {
   private readonly live = new LiveLegs(this.ctx.storage, liveKeyPrefix(networkStateKey(this.env.NIMIQ_NETWORK)))
   private readonly liveUpdates = new LiveUpdates(() => this.broadcast({ type: 'network_updated', live: true }))
+  private readonly attemptLookups = new AttemptLookupPacer()
 
   override async fetch(request: Request): Promise<Response> {
     if (request.headers.get('Upgrade') === 'websocket') { const pair = new WebSocketPair(); this.ctx.acceptWebSocket(pair[1]); return new Response(null, { status: 101, webSocket: pair[0] }) }
-    return this.ctx.blockConcurrencyWhile(async () => {
-      try { return await this.handle(request) } catch (error) { if (error instanceof ApiError) return Response.json({ error: error.code }, { status: error.status }); if (error instanceof z.ZodError) return Response.json({ error: 'bad_request' }, { status: 400 }); console.error('Station request failed', error instanceof Error ? error.message : 'unknown'); return Response.json({ error: 'station_unavailable' }, { status: 503 }) }
-    })
+    // A handoff check reads the chain, which must never hold the critical section.
+    if (new URL(request.url).pathname === `/network${HANDOFF_CHECK_PATH}`) return this.respond(async () => Response.json(await this.checkHandoff(await request.json() as StationEnvelope)))
+    return this.ctx.blockConcurrencyWhile(() => this.respond(() => this.handle(request)))
+  }
+
+  private async respond(work: () => Promise<Response>): Promise<Response> {
+    try { return await work() } catch (error) { if (error instanceof ApiError) return Response.json({ error: error.code }, { status: error.status }); if (error instanceof z.ZodError) return Response.json({ error: 'bad_request' }, { status: 400 }); console.error('Station request failed', error instanceof Error ? error.message : 'unknown'); return Response.json({ error: 'station_unavailable' }, { status: 503 }) }
   }
   override async webSocketMessage(ws: WebSocket): Promise<void> { ws.send(JSON.stringify({ type: 'refresh' })) }
   override async webSocketClose(): Promise<void> {}
@@ -257,7 +263,7 @@ export class StationRoom extends DurableObject<Env> {
    * fresh load, so a request served while the alarm waits on the network is never overwritten.
    */
   override async alarm(): Promise<void> {
-    const lookups = await this.lookUpSubmittedTransfers()
+    const lookups = await this.lookUpChain()
     await this.exclusively(async () => {
       const network = await this.loadNetwork()
       await network.reconcile(lookups)
@@ -285,11 +291,44 @@ export class StationRoom extends DurableObject<Env> {
     return RelayNetworkService.load(this.ctx.storage, this.env, product, this.live)
   }
 
-  private async lookUpSubmittedTransfers(): Promise<Map<string, TransactionLookup>> {
+  /** Submitted transfers every run; attempted passes once their hash is overdue, paced and capped per run. */
+  private async lookUpChain(): Promise<ChainLookups> {
     const network = await this.loadNetwork()
-    const lookups = new Map<string, TransactionLookup>()
-    for (const txHash of network.submittedTransactionHashes()) lookups.set(txHash, await lookupTransaction(this.env, txHash))
-    return lookups
+    const now = Date.now()
+    const transactions = new Map<string, TransactionLookup>()
+    for (const txHash of network.submittedTransactionHashes()) transactions.set(txHash, await lookupTransaction(this.env, txHash))
+    const passes = network.attemptedPasses()
+    this.attemptLookups.retain(passes)
+    const overdue = passes.filter(pass => now - pass.attemptedAt >= UNSENT_PASS_LOOKUP_AFTER_MS)
+    const attempts: AttemptEvidence[] = []
+    for (const pass of this.attemptLookups.take(overdue, now, UNSENT_PASS_RECHECK_MS, MAX_UNSENT_PASS_LOOKUPS)) attempts.push(await lookUpAttemptedPass(this.env, pass, network.usedTransactions(), now))
+    return { transactions, attempts }
+  }
+
+  /**
+   * POST /network/handoff/check: the holder has the chain searched for their attempted pass now, at most once per
+   * HANDOFF_CHECK_COOLDOWN_MS. As in the alarm, the lookup runs between critical sections: one reads the pass, the
+   * other applies what the chain showed to a fresh load. Returns the pass as it stands afterwards.
+   */
+  private async checkHandoff(envelope: StationEnvelope): Promise<NetworkHandoffIntent> {
+    const { player, body } = envelope
+    if (!player) throw new ApiError('sign_in_to_join', 401)
+    const read = await this.exclusively(async () => {
+      const network = await this.loadNetwork()
+      const intent = network.ownIntent(player.walletAddress, body)
+      return { intent, pass: attemptedPass(intent), usedTx: network.usedTransactions() }
+    })
+    const now = Date.now()
+    if (!read.pass || this.attemptLookups.take([read.pass], now, HANDOFF_CHECK_COOLDOWN_MS, 1).length === 0) return read.intent
+    const evidence = await lookUpAttemptedPass(this.env, read.pass, read.usedTx, now)
+    const applied = await this.exclusively(async () => {
+      const network = await this.loadNetwork()
+      const changed = await network.applyAttemptEvidence(evidence)
+      if (changed) await network.persist()
+      return { intent: network.ownIntent(player.walletAddress, body), version: changed ? network.state.version : null }
+    })
+    if (applied.version !== null) this.broadcast({ type: 'network_updated', version: applied.version })
+    return applied.intent
   }
 
   /** Archives a snapshot, then clears its archive flag only if no write happened meanwhile. Returns whether work remains. */

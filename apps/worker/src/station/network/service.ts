@@ -9,7 +9,8 @@ import { batonChronicle } from './chronicle'
 import { RECONCILE_RETRY_MS } from './constants'
 import { settleDailies } from './daily'
 import { loadGhost } from './ghosts'
-import { attemptHandoff, awaitsAcceptance, cancelHandoff, confirmHandoff, prepareHandoff, releaseLapsedReservation, strandIdleBaton, submitHandoffTransaction, type TransactionLookup } from './handoff'
+import { attemptHandoff, awaitsAcceptance, cancelHandoff, confirmHandoff, ownIntentFor, prepareHandoff, releaseLapsedReservation, strandIdleBaton, submitHandoffTransaction, type TransactionLookup } from './handoff'
+import { applyAttemptEvidence, attemptedPass, type AttemptedPass, type AttemptEvidence } from './handoff-recovery'
 import type { LiveLegs } from './live'
 import { findBaton, isOpenIntent } from './lookups'
 import { opsReport } from './ops'
@@ -39,6 +40,14 @@ const trackBody = z.object({
 })
 
 const PUBLIC_PREFIXES = ['/public', '/batons/', '/replays/', '/invites/', '/runners/', '/chronicles/', '/track']
+
+/** Chain lookups the room makes before entering its critical section. */
+export interface ChainLookups {
+  /** Submitted transfers, by transaction hash. */
+  transactions: ReadonlyMap<string, TransactionLookup>
+  /** Attempted passes whose transaction hash never arrived. */
+  attempts: readonly AttemptEvidence[]
+}
 
 /** Network routes that work signed out. Paths are relative to /network. */
 export function isPublicNetworkPath(path: string): boolean {
@@ -243,18 +252,42 @@ export class RelayNetworkService {
     return Object.values(this.state.intents).flatMap(intent => (intent.state === 'submitted' && intent.txHash ? [intent.txHash] : []))
   }
 
+  /** Passes that reached Nimiq Pay with no transaction hash bound, oldest attempt first. The room looks them up like submitted transfers. */
+  attemptedPasses(): AttemptedPass[] {
+    return Object.values(this.state.intents)
+      .flatMap(intent => attemptedPass(intent) ?? [])
+      .sort((a, b) => a.attemptedAt - b.attemptedAt)
+  }
+
+  /** Transaction hash -> id of the intent it verified. */
+  usedTransactions(): Readonly<Record<string, string>> {
+    return this.context.product.usedTx
+  }
+
+  /** The intent named by an `{ id }` body, for the runner who sends it from `wallet` only. */
+  ownIntent(wallet: string, body: unknown): NetworkHandoffIntent {
+    return ownIntentFor(this.state, body, wallet)
+  }
+
+  /** Applies a chain lookup of an attempted pass made outside the critical section. Returns whether the pass changed. */
+  applyAttemptEvidence(evidence: AttemptEvidence): Promise<boolean> {
+    return applyAttemptEvidence(this.context, evidence, () => this.persist())
+  }
+
   /**
-   * Alarm work, run inside the room's critical section: re-verify submitted transfers against lookups made beforehand,
-   * expire unsent intents, strand idle batons, release lapsed reservations and settle ended Dailies.
+   * Alarm work, run inside the room's critical section: re-verify submitted transfers and resolve attempted passes from
+   * lookups made beforehand, expire prepared intents never attempted, strand idle batons, release lapsed reservations
+   * and settle ended Dailies.
    */
-  async reconcile(lookups: ReadonlyMap<string, TransactionLookup>): Promise<void> {
+  async reconcile(lookups: ChainLookups): Promise<void> {
     const { state } = this
     const now = Date.now()
     for (const intent of Object.values(state.intents)) {
       if (intent.state === 'prepared' && intent.expiresAt < now) intent.state = 'expired'
-      const lookup = intent.state === 'submitted' && intent.txHash ? lookups.get(intent.txHash) : undefined
+      const lookup = intent.state === 'submitted' && intent.txHash ? lookups.transactions.get(intent.txHash) : undefined
       if (lookup) await this.reconfirm(intent, lookup)
     }
+    for (const evidence of lookups.attempts) await this.resolveAttempt(evidence)
     for (const baton of Object.values(state.batons)) {
       strandIdleBaton(state, baton, now)
       releaseLapsedReservation(this.context, baton, now)
@@ -292,6 +325,15 @@ export class RelayNetworkService {
     } catch (error) {
       // Custody changes only after every lookup succeeded, so a failed confirmation leaves nothing half-applied.
       console.error('Handoff reconciliation deferred', intent.id, error instanceof Error ? error.message : 'unknown')
+    }
+  }
+
+  private async resolveAttempt(evidence: AttemptEvidence): Promise<void> {
+    try {
+      await this.applyAttemptEvidence(evidence)
+    } catch (error) {
+      // As in reconfirm: a found transfer moves custody only after every lookup succeeded.
+      console.error('Attempted pass reconciliation deferred', evidence.intentId, error instanceof Error ? error.message : 'unknown')
     }
   }
 

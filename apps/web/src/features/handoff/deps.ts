@@ -11,6 +11,7 @@ export const handoffDeps: HandoffDeps = {
   attempt: id => api.attemptNetworkHandoff(id),
   cancel: id => api.cancelNetworkHandoff(id),
   confirm: (id, hash) => api.confirmNetworkHandoff(id, hash),
+  check: id => api.checkNetworkHandoff(id),
   send: intent => sendRelayHandoff(intent),
   readTransfer,
   saveTransfer,
