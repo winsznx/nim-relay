@@ -1,4 +1,4 @@
-import type { BatonHandoff, NetworkHandoffIntent } from '@nim-relay/shared'
+import type { BatonHandoff, NetworkHandoffIntent, RelayNote } from '@nim-relay/shared'
 import { batonDisplayName, nextSerial } from './identity'
 import { storedReason } from './reasons'
 import { sectorSeed } from './route'
@@ -14,8 +14,8 @@ const LEGACY_ROUTE_TIER = 1
 type WithOptional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>
 type StoredMember = WithOptional<Member, 'completedRuns' | 'legs' | 'legMarks'>
 type StoredBaton = WithOptional<BatonRecord, 'serial' | 'displayName' | 'route' | 'completedAt' | 'recipientReservedAt' | 'recipientAcceptedAt'>
-type StoredHandoff = WithOptional<BatonHandoff, 'sector' | 'race' | 'rescue'>
-type StoredIntent = Omit<NetworkHandoffIntent, 'failure'> & { failure: string | null }
+type StoredHandoff = WithOptional<BatonHandoff, 'sector' | 'race' | 'rescue' | 'note'>
+type StoredIntent = Omit<NetworkHandoffIntent, 'failure' | 'note'> & { failure: string | null; note?: RelayNote | null }
 type StoredDailyEntry = WithOptional<DailyEntry, 'seed' | 'completed'>
 
 /** Network state as written by any release so far: fields added later may be missing. */
@@ -97,7 +97,7 @@ export function normalizeNetworkState(stored: StoredNetworkState): NetworkState 
     members: mapValues(stored.members, normalizeMember),
     batons: {},
     handoffs: stored.handoffs.map(normalizeHandoff),
-    intents: mapValues(stored.intents, intent => ({ ...intent, failure: storedReason(intent.failure) })),
+    intents: mapValues(stored.intents, intent => ({ ...intent, failure: storedReason(intent.failure), note: intent.note ?? null })),
     daily: mapValues(stored.daily, (entries, date) => mapValues(entries, entry => normalizeDailyEntry(entry, date))),
     dailyBests: stored.dailyBests ?? {},
     dailySettledThrough: stored.dailySettledThrough ?? null,
@@ -114,7 +114,7 @@ function normalizeMember(member: StoredMember): Member {
 }
 
 function normalizeHandoff(handoff: StoredHandoff): BatonHandoff {
-  return { ...handoff, sector: handoff.sector ?? null, race: handoff.race ?? null, rescue: handoff.rescue ?? false }
+  return { ...handoff, sector: handoff.sector ?? null, race: handoff.race ?? null, rescue: handoff.rescue ?? false, note: handoff.note ?? null }
 }
 
 function normalizeDailyEntry(entry: StoredDailyEntry, date: string): DailyEntry {

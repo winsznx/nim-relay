@@ -1,11 +1,10 @@
 import { relayLeg } from '@nim-relay/game-engine'
-import type { CanonicalGhost, NetworkDaily, RelayLegConfig, StationWorld } from '@nim-relay/shared'
+import type { NetworkDaily, RelayLegTier, StationWorld } from '@nim-relay/shared'
 import { ApiError, type Profile, type Run } from '../model'
 import { unlockAchievement } from './achievements'
 import { utcDate, utcDayIndex } from './calendar'
 import { DAILY_LEADERBOARD_SIZE, DAILY_TIER, DAILY_TOP_SHARE_MIN_ENTRIES } from './constants'
-import { loadGhost } from './ghosts'
-import { legConfig } from './route'
+import { loadRun } from './lookups'
 import { networkRunner } from './runners'
 import type { DailyEntry, NetworkContext, NetworkState } from './types'
 
@@ -13,17 +12,16 @@ export interface DailyCourse {
   date: string
   world: StationWorld
   seed: string
-  config: RelayLegConfig
+  tier: RelayLegTier
 }
 
-const DAILY_SEED = /^daily-(\d{4}-\d{2}-\d{2})-v[45]$/
+const DAILY_SEED = /^daily-(\d{4}-\d{2}-\d{2})-v[4-6]$/
 
-/** One course for everyone per UTC day, on the standard tier with no inherited FLOW. */
+/** One v6 course for everyone per UTC day, on the standard tier. Its config is issued per ride with no inherited FLOW. */
 export function dailyCourse(now: number): DailyCourse {
   const date = utcDate(now)
   const world = relayLeg.WORLDS[utcDayIndex(now) % relayLeg.WORLDS.length]!
-  const seed = `daily-${date}-v5`
-  return { date, world, seed, config: legConfig({ seed, world, tier: DAILY_TIER }, 0) }
+  return { date, world, seed: `daily-${date}-v6`, tier: DAILY_TIER }
 }
 
 export function dailyKey(date: string, playerId: string): string {
@@ -60,11 +58,12 @@ export function pickDailyGhostEntry(entries: Record<string, DailyEntry>, playerI
   return faster.at(-1) ?? candidates[0]!
 }
 
-export async function selectDailyGhost(context: NetworkContext, playerId: string, course: DailyCourse): Promise<CanonicalGhost | null> {
+/** The run behind the skill-matched Daily ghost, if any entry fits. */
+export async function selectDailyGhostRun(context: NetworkContext, playerId: string, course: DailyCourse): Promise<Run | undefined> {
   const best = context.state.dailyBests[dailyKey(course.date, playerId)]
   const personalBestMs = best?.seed === course.seed ? best.timeMs : null
   const entry = pickDailyGhostEntry(context.state.daily[course.date] ?? {}, playerId, course.seed, personalBestMs)
-  return entry ? loadGhost(context, entry.runId) : null
+  return loadRun(context.storage, entry?.runId ?? null)
 }
 
 /** Practice counts toward the personal best, so the Daily ghost adapts before the official attempt. */

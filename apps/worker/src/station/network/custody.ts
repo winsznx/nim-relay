@@ -59,10 +59,11 @@ export async function applyVerifiedHandoff(context: NetworkContext, transfer: Ve
     qualified: true,
     confirmations: transfer.confirmations,
     blockNumber: transfer.blockNumber,
-    // A leg issued before the baton had a sector course (a v4 leg in flight at upgrade) belongs to no sector.
+    // A leg issued on a course the baton has since left (a v4 leg in flight at upgrade) belongs to no sector.
     sector: racesRoute(run.issued.config, baton.route) ? baton.route.sector : null,
     race,
     rescue: baton.status === 'stranded',
+    note: intent.note,
   }
   state.handoffs.push(handoff)
   intent.state = 'verified'
@@ -83,7 +84,7 @@ export async function applyVerifiedHandoff(context: NetworkContext, transfer: Ve
   awardHandoffAchievements(state, context.product, baton, handoff)
   if (wonRivalry && rivalry) awardRivalChampions(state, baton, rivalry.rival.title, now)
   if (baton.status === 'completed') baton.completedAt ??= now
-  notify(state, recipient.id, { type: 'incoming_baton', title: `${sender.name} passed you the baton`, body: `${baton.displayName} · Handoff ${intent.leg}`, batonId: baton.id, runId: intent.runId })
+  notify(state, recipient.id, { type: 'incoming_baton', title: `${sender.name} passed you the baton`, body: `${baton.displayName} · Handoff ${intent.leg}`, batonId: baton.id, runId: intent.runId, note: intent.note?.text ?? null })
 }
 
 function handoffRace(run: Run): HandoffRace {

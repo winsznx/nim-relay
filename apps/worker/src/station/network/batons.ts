@@ -6,6 +6,7 @@ import { batonEchoes } from './echoes'
 import { sectorGhost } from './ghosts'
 import { batonDisplayName, nextSerial, shortCode } from './identity'
 import { handoffsOf, loadRun, notify, openIntentFor } from './lookups'
+import { handoffForViewer } from './notes'
 import { openingRoute, tierFor } from './route'
 import { networkRunner, requireCourier } from './runners'
 import type { BatonRecord, NetworkContext } from './types'
@@ -111,14 +112,19 @@ export function transactingWallets(handoffs: readonly BatonHandoff[]): number {
   return new Set(handoffs.filter(handoff => handoff.qualified).flatMap(handoff => [handoff.from.wallet, handoff.to.wallet])).size
 }
 
-export async function batonDetail(context: NetworkContext, baton: BatonRecord, profile: Profile | null): Promise<BatonDetail> {
+/**
+ * `profile` is the runner acting on the baton, who also sees its open pass while holding it. `viewerId` reads the
+ * private notes of the handoffs they sent or received and defaults to that runner; the public baton page passes only
+ * its signed-in reader, or null.
+ */
+export async function batonDetail(context: NetworkContext, baton: BatonRecord, profile: Profile | null, viewerId: string | null = profile?.id ?? null): Promise<BatonDetail> {
   const handoffs = handoffsOf(context.state, baton.id)
   const previousRun = await loadRun(context.storage, baton.previousRunId)
   const now = Date.now()
   const live = context.live.liveFor(baton, now)
   return {
     baton: presentBatonWithStops(baton, handoffs, now, live),
-    handoffs,
+    handoffs: handoffs.map(handoff => handoffForViewer(handoff, viewerId)),
     ghost: sectorGhost(context, baton, previousRun),
     pendingHandoff: profile?.id === baton.holder.id ? openIntentFor(context.state, baton.id) : null,
     notableRuns: await notableRuns(context, handoffs),

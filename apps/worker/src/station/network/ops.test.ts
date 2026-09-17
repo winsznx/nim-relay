@@ -1,13 +1,35 @@
 import { runInDurableObject, SELF } from 'cloudflare:test'
 import { describe, expect, it, vi } from 'vitest'
+import { relayLeg } from '@nim-relay/game-engine'
 import { paymentAddress } from '@nim-relay/relay-protocol'
 import type { IssuedRace, NetworkHandoffIntent, OpsDay, OpsReport, RaceTrace, TrackEventResult } from '@nim-relay/shared'
 import { readNetworkState } from './state'
-import { api, call, chainTransfer, confirmWith, createBaton, IDLE_TRACE, joinNetwork, operator, passBaton, prepareAndAttempt, raceLeg, randomTxHash, runner, stationRoom, TEST_OPERATOR_HANDLE, type TestRunner } from './testing'
+import {
+  api,
+  call,
+  chainTransfer,
+  confirmWith,
+  createBaton,
+  failingTrace,
+  finishingTrace,
+  IDLE_TRACE,
+  joinNetwork,
+  operator,
+  passBaton,
+  prepareAndAttempt,
+  raceLeg,
+  randomTxHash,
+  runner,
+  stationRoom,
+  TEST_OPERATOR_HANDLE,
+  v6Config,
+  withLateSample,
+  type TestRunner,
+} from './testing'
 
 const NETWORK_KEY = 'network:TestAlbatross'
-/** Four-field station samples: never a valid v5 relay leg trace. */
-const STATION_TRACE = [[0, 0, 0, 0]]
+/** Three-field v5 samples: never a valid v6 relay leg trace. */
+const V5_SHAPED_TRACE = [[0, 0, 0]]
 
 async function opsReport(): Promise<OpsReport> {
   return call<OpsReport>((await operator()).cookie, '/network/ops')
@@ -132,8 +154,8 @@ describe('operator run counters', () => {
     const courier = await runner()
     const issued = await issueLeg(courier, 'Bad trace')
     const before = await opsReport()
-    // #when a trace in the station sample shape is submitted twice
-    const statuses = [await submitStatus(courier, issued, STATION_TRACE), await submitStatus(courier, issued, STATION_TRACE)]
+    // #when a trace in the v5 sample shape is submitted twice
+    const statuses = [await submitStatus(courier, issued, V5_SHAPED_TRACE), await submitStatus(courier, issued, V5_SHAPED_TRACE)]
     const after = await opsReport()
     // #then both are refused as before, count as rejected, and fold into one flagged entry
     expect({
@@ -145,6 +167,39 @@ describe('operator run counters', () => {
       statuses: [400, 400],
       rejected: 2,
       submitted: 2,
+      flagged: [{ handle: courier.p.handle, reason: 'INVALID_TRACE', mode: 'global', practice: false, at: expect.any(Number), attempts: 2 }],
+    })
+  })
+
+  it('count samples after a failed or finished leg as an invalid trace, never as an outage', async () => {
+    // #given an issued leg, and its failing and finishing traces, each sampled past the tick its leg ended on
+    const courier = await runner()
+    const issued = await issueLeg(courier, 'Past the line')
+    const config = v6Config(issued.config)
+    const raced = [failingTrace(config), finishingTrace(config)]
+    const late = raced.map(trace => withLateSample(trace, relayLeg.replay({ ...config, inputTrace: trace }).ticks))
+    const before = await opsReport()
+    // #when both late traces are submitted, and then the finishing trace as it was raced
+    const refused: unknown[] = []
+    for (const inputTrace of late) {
+      const response = await api(courier.cookie, '/submit', { issued, inputTrace })
+      refused.push([response.status, await response.json()])
+    }
+    const recorded = await submitStatus(courier, issued, raced[1]!)
+    const after = await opsReport()
+    // #then both are refused as invalid traces, counted and flagged once by handle, and the raced trace still records
+    expect({
+      refused,
+      recorded,
+      rejected: change(today(after).runsRejected, today(before).runsRejected),
+      flagged: after.flaggedRuns.filter(run => run.handle === courier.p.handle),
+    }).toEqual({
+      refused: [
+        [400, { error: 'invalid_trace' }],
+        [400, { error: 'invalid_trace' }],
+      ],
+      recorded: 200,
+      rejected: 2,
       flagged: [{ handle: courier.p.handle, reason: 'INVALID_TRACE', mode: 'global', practice: false, at: expect.any(Number), attempts: 2 }],
     })
   })
@@ -221,7 +276,7 @@ describe('operator report privacy', () => {
     const invite = await call<{ token: string }>(a.cookie, '/network/invite', { batonId: journey.baton.id })
     const pass = await passBaton(a, b, journey.baton.id)
     const flagged = await call<IssuedRace>(b.cookie, '/network/issue', { batonId: journey.baton.id })
-    await submitStatus(b, flagged, STATION_TRACE)
+    await submitStatus(b, flagged, V5_SHAPED_TRACE)
     const ops = await operator()
     // #when the operator reads the report
     const text = await (await api(ops.cookie, '/network/ops')).text()

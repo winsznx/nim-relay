@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { CORPUS_SIZE, corpusCase, corpusPolicy, type GoldenEntry } from '../../src/relay-leg/corpus-cases'
+import { CORPUS_SIZE, corpusCase, corpusConfig, corpusPolicy, type GoldenEntry } from '../../src/relay-leg/corpus-cases'
 import { replay } from '../../src/relay-leg/result'
 import { playLeg } from '../../src/relay-leg/test-bots'
 
@@ -8,8 +8,9 @@ import { playLeg } from '../../src/relay-leg/test-bots'
 //   pnpm --filter @nim-relay/game-engine exec tsx tests/relay-leg-corpus/generate.ts
 const golden: GoldenEntry[] = Array.from({ length: CORPUS_SIZE }, (_, index) => {
   const entry = corpusCase(index)
-  const { trace } = playLeg(entry.config, corpusPolicy(entry))
-  const result = replay({ ...entry.config, inputTrace: trace })
+  const config = corpusConfig(entry)
+  const { trace } = playLeg(config, corpusPolicy(entry))
+  const result = replay({ ...config, inputTrace: trace })
   return { resultHash: result.resultHash, ticks: result.ticks, score: result.score }
 })
 

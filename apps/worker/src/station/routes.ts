@@ -13,9 +13,16 @@ const crossOrigin = (origin: string | undefined, env: Env, url: string) => Boole
 
 stationRoutes.get('/public', c => stationRoom(c.env).fetch(new Request('https://station/public')))
 stationRoutes.get('/network/public', c => stationRoom(c.env).fetch(new Request('https://station/network/public', { method: 'POST', body: '{}' })))
-for (const path of ['/network/batons/:code', '/network/replays/:id', '/network/invites/:token', '/network/runners/:handle', '/network/chronicles/:code']) {
+for (const path of ['/network/replays/:id', '/network/invites/:token', '/network/runners/:handle', '/network/chronicles/:code']) {
   stationRoutes.get(path, c => stationRoom(c.env).fetch(new Request(`https://station${c.req.path.slice('/api/station'.length)}`, { method: 'POST', body: '{}' })))
 }
+
+/** Baton pages work signed in or out; the sender and recipient of a handoff also read its private note. */
+stationRoutes.get('/network/batons/:code', async c => {
+  const session = await lookupSession(c.env, getAuthStore(c.env), c.req.raw)
+  const actorId = session.ok ? session.session.playerId : null
+  return stationRoom(c.env).fetch(new Request(`https://station${c.req.path.slice('/api/station'.length)}`, { method: 'POST', body: JSON.stringify({ body: null, actorId }) }))
+})
 
 /** Share tracking works signed in or out; a signed-in runner is counted under their own cap. */
 stationRoutes.post('/network/track', async c => {

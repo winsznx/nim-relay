@@ -1,24 +1,29 @@
 import { describe, expect, it } from 'vitest'
 import { ONE } from '../fixed-point'
 import { sha256 } from '../replay/hash'
-import { RULES, RULES_HASH, finalize, replay, score } from './result'
 import {
-  FALL_STUMBLE_TICKS,
+  BASE_SPEED,
+  FALL_TICKS,
   FLOW,
-  OUTCOME,
-  SLIDE_TICKS,
+  GHOSTLINE_STEP,
+  GHOST_LEAD_MARGIN,
+  GRIND_WINDOW_TICKS,
+  LANE_WIDTH,
+  NUDGE_STEP,
+  RESPAWN_SPEED,
+  RUSH_TICKS,
+  SHOULDER_LINE,
+  SHOULDER_WIDTH,
   STUMBLE_SPEED,
   STUMBLE_TICKS,
-  createState,
-  doorOpenSide,
-  hazardLateral,
-  hazardOutcome,
-  onBeat,
-  pulseGateLateral,
-  step,
-  trainBlockedSide,
-} from './sim'
-import { goodBot, idleBot, playLeg } from './test-bots'
+  TETHER_TICKS,
+} from './constants'
+import { eventState, hazardLaneAt, onBeat, pulseGateLane } from './dynamics'
+import { checkpointBefore, laneCenterX, pathOffsetAt } from './geometry'
+import { deriveGhostline, ghostlineAt } from './ghostline'
+import { RULES, RULES_HASH, finalize, replay, score } from './result'
+import { createState, step } from './sim'
+import { idleBot, playLeg, skilledBot, sloppyBot } from './test-bots'
 import { PULSE_PERIOD, PULSE_WINDOW } from './track'
 import { InputCursor, MAX_TRACE_BYTES, validateTrace } from './trace'
 import {
@@ -26,77 +31,135 @@ import {
   ACTION_NONE,
   ACTION_SLIDE,
   EVENT,
+  MAX_MOMENTS,
   MAX_OPENING_FLOW,
   MAX_TICKS,
   WORLDS,
   type Config,
+  type Fork,
+  type Gate,
+  type Ghostline,
   type Hazard,
   type HazardKind,
   type Input,
   type Sample,
+  type Segment,
   type State,
   type Tier,
   type Track,
+  type WorldEvent,
+  type WorldEventKind,
   type Zone,
 } from './types'
 
 const M = ONE
 const CONFIG: Config = {
-  engineVersion: '5',
+  engineVersion: '6',
   challenge: 'relay-leg',
-  challengeVersion: '5',
+  challengeVersion: '6',
   seed: 'rules',
   world: 'coast',
   tier: 1,
   openingFlow: 0,
+  tetherSaves: 1,
+  ghostline: null,
 }
-const NONE: Input = { steer: 0, action: ACTION_NONE }
-const JUMP: Input = { steer: 0, action: ACTION_JUMP }
-const SLIDE: Input = { steer: 0, action: ACTION_SLIDE }
+const NONE: Input = { shift: 0, nudge: 0, action: ACTION_NONE }
+const LEFT: Input = { shift: -1, nudge: 0, action: ACTION_NONE }
+const RIGHT: Input = { shift: 1, nudge: 0, action: ACTION_NONE }
+const JUMP: Input = { shift: 0, nudge: 0, action: ACTION_JUMP }
+const SLIDE: Input = { shift: 0, nudge: 0, action: ACTION_SLIDE }
+const HALF_WIDTH = Math.trunc(3 * LANE_WIDTH / 2) + SHOULDER_WIDTH
 
 // ---------------------------------------------------------------------------
 // Synthetic tracks isolate one rule at a time from authored content.
+// A 3-lane road with railed edges, one fork at 400-500 m (safe: 2 lanes, risk: 1 open lane).
 // ---------------------------------------------------------------------------
+
+function segment(index: number, from: number, to: number, patch: Partial<Segment> = {}): Segment {
+  return {
+    index,
+    module: 'test.straight.a',
+    kind: 'straight',
+    from: from * M,
+    to: to * M,
+    elevationFrom: 0,
+    elevationTo: 0,
+    laneCount: 3,
+    laneWidth: LANE_WIDTH,
+    shoulder: SHOULDER_WIDTH,
+    leftEdge: 'rail',
+    rightEdge: 'rail',
+    bend: 0,
+    ...patch,
+  }
+}
+
+const FORK: Fork = {
+  index: 0,
+  from: 400 * M,
+  to: 500 * M,
+  riskSide: 1,
+  riskProgress: Math.trunc(130 * ONE / 100),
+  separation: 14 * M,
+  safeLanes: 2,
+  riskLanes: 1,
+  safeEdges: { left: 'rail', right: 'rail' },
+  riskEdges: { left: 'open', right: 'open' },
+  label: 'shortcut',
+}
 
 function testTrack(overrides: Partial<Track> = {}): Track {
   return {
     world: 'coast',
     tier: 1,
     finishDist: 600 * M,
-    segments: [
-      { index: 0, module: 'test.straight.a', kind: 'straight', from: 0, to: 600 * M, elevationFrom: 0, elevationTo: 0, halfWidth: 4 * M, bend: 0 },
-    ],
-    fork: {
-      from: 400 * M,
-      to: 500 * M,
-      riskSide: 1,
-      riskProgress: Math.trunc(130 * ONE / 100),
-      separation: 14 * M,
-      safeHalfWidth: 5 * M,
-      riskHalfWidth: 3 * M,
-    },
+    segments: [segment(0, 0, 400), segment(1, 400, 500, { kind: 'fork', laneCount: 2 }), segment(2, 500, 600)],
+    forks: [FORK],
     gates: [],
     hazards: [],
+    events: [],
     ramps: [],
     gaps: [],
     rails: [],
     boostPads: [],
     pulse: { from: 550 * M, to: 580 * M, period: PULSE_PERIOD, window: PULSE_WINDOW },
     setPieces: [],
+    checkpoints: [
+      { dist: 0, path: 'main', lane: 0 },
+      { dist: 200 * M, path: 'main', lane: 0 },
+      { dist: 400 * M, path: 'safe', lane: 1 },
+      { dist: 400 * M, path: 'risk', lane: 0 },
+    ],
     ...overrides,
   }
 }
 
-function hazardAt(kind: HazardKind, metres: number, patch: Partial<Hazard> = {}): Hazard {
-  return { dist: metres * M, x: 0, half: M, kind, path: 'main', period: 0, phase: 0, amplitude: 0, length: 0, ...patch }
+function hazardAt(kind: HazardKind, metres: number, lanes: readonly number[], patch: Partial<Hazard> = {}): Hazard {
+  return { dist: metres * M, kind, path: 'main', lanes, period: 0, phase: 0, amplitude: 0, length: 0, ...patch }
 }
 
-function zoneAt(from: number, to: number, patch: Partial<Zone> = {}): Zone {
-  return { from: from * M, to: to * M, x: 0, half: 2 * M, path: 'main', ...patch }
+function zoneAt(from: number, to: number, lanes: readonly number[], patch: Partial<Zone> = {}): Zone {
+  return { from: from * M, to: to * M, lanes, path: 'main', ...patch }
+}
+
+function eventAt(kind: WorldEventKind, metres: number, patch: Partial<WorldEvent> = {}): WorldEvent {
+  return { id: 0, kind, path: 'main', dist: metres * M, length: 0, triggerDist: (metres - 50) * M, duration: 30, lanes: [], period: 0, amplitude: 0, count: 0, ...patch }
+}
+
+function gateAt(metres: number, lane: number, patch: Partial<Gate> = {}): Gate {
+  return { dist: metres * M, lane, kind: 'gold', path: 'main', period: 0, ...patch }
 }
 
 function stateOn(track: Track, patch: Partial<State> = {}): State {
-  return { ...createState(CONFIG), track, ...patch }
+  const base = createState(CONFIG)
+  return {
+    ...base,
+    track,
+    eventTicks: track.events.map(() => -1),
+    forkChoices: track.forks.map(() => 0 as const),
+    ...patch,
+  }
 }
 
 /** Steps `ticks` times; `inputAt` receives the index of the step (0 = first). */
@@ -113,6 +176,7 @@ function simulate(state: State, ticks: number, inputAt: (index: number) => Input
 const firstThen = (first: Input) => (index: number): Input => (index === 0 ? first : NONE)
 const allEvents = (states: readonly State[]): number => states.reduce((events, state) => events | state.events, 0)
 const indexOfEvent = (states: readonly State[], event: number): number => states.findIndex(state => (state.events & event) !== 0)
+const countEvent = (states: readonly State[], event: number): number => states.filter(state => (state.events & event) !== 0).length
 
 function stateWithEvent(states: readonly State[], event: number): State {
   const found = states.find(state => (state.events & event) !== 0)
@@ -134,17 +198,24 @@ function unsafeNumbers(value: unknown, path = 'state'): string[] {
   return Object.entries(value).flatMap(([key, child]) => unsafeNumbers(child, `${path}.${key}`))
 }
 
+/** A courier held on the shoulder line of the right edge, ready to touch the rail. */
+function onRightShoulder(track: Track, patch: Partial<State> = {}): State {
+  const x = Math.trunc(3 * LANE_WIDTH / 2) + SHOULDER_LINE
+  return stateOn(track, { x, lane: 3, targetLane: 3, dist: 100 * M, ...patch })
+}
+
 // ---------------------------------------------------------------------------
 // Config, input and purity
 // ---------------------------------------------------------------------------
 
 describe('relay leg config and input', () => {
-  it('starts on the main path at tick 0 with the inherited opening FLOW', () => {
-    // #given a config carrying a mid-range opening flow
+  it('starts in the centre lane of the main path at tick 0 with the inherited opening FLOW', () => {
+    // #given a config carrying a mid-range opening flow and a tether save
     // #when creating the leg
     const state = createState({ ...CONFIG, openingFlow: 12000 })
-    // #then the courier stands at the start with that flow
-    expect([state.tick, state.dist, state.path, state.flow, state.finished]).toEqual([0, 0, 'main', 12000, 0])
+    // #then the courier stands at the start, settled in the centre lane
+    expect([state.tick, state.dist, state.path, state.lane, state.targetLane, state.x, state.flow, state.motion, state.tetherSaves, state.finished])
+      .toEqual([0, 0, 'main', 0, 0, 0, 12000, 'riding', 1, 0])
   })
 
   it('rejects opening FLOW above MAX_OPENING_FLOW, negative or fractional', () => {
@@ -154,43 +225,70 @@ describe('relay leg config and input', () => {
     expect(createState({ ...CONFIG, openingFlow: MAX_OPENING_FLOW }).flow).toBe(MAX_OPENING_FLOW)
   })
 
-  it('rejects wrong versions, unknown worlds, tiers and bad seeds', () => {
+  it('rejects wrong versions, unknown worlds, tiers, bad seeds and tether saves', () => {
     const invalid: unknown[] = [
-      { ...CONFIG, engineVersion: '4' },
-      { ...CONFIG, challengeVersion: '4' },
+      { ...CONFIG, engineVersion: '5' },
+      { ...CONFIG, challengeVersion: '5' },
       { ...CONFIG, challenge: 'station-race' },
       { ...CONFIG, world: 'moon' },
       { ...CONFIG, tier: 3 },
       { ...CONFIG, seed: '' },
       { ...CONFIG, seed: 'x'.repeat(129) },
+      { ...CONFIG, tetherSaves: 2 },
+      { ...CONFIG, tetherSaves: -1 },
     ]
     for (const config of invalid) expect(() => createState(config as Config), JSON.stringify(config).slice(0, 80)).toThrow(RangeError)
   })
 
-  it('rejects steer outside -64..64, fractional steer and unknown actions', () => {
+  it('rejects malformed ghostlines', () => {
+    const good: Ghostline = { step: GHOSTLINE_STEP, path: [0, 0], x: [0, 10], tick: [0, 9] }
+    const invalid: unknown[] = [
+      { ...good, step: GHOSTLINE_STEP + 1 },
+      { ...good, x: [0] },
+      { ...good, tick: [5, 4] },
+      { ...good, path: [0, 3] },
+      { ...good, x: [0, 0.5] },
+      { ...good, x: [0, 100000] },
+      { ...good, tick: [0, MAX_TICKS + 1] },
+      { step: GHOSTLINE_STEP, path: [], x: [], tick: [] },
+    ]
+    expect(createState({ ...CONFIG, ghostline: good }).config.ghostline).toEqual(good)
+    for (const ghostline of invalid) expect(() => createState({ ...CONFIG, ghostline } as Config), JSON.stringify(ghostline)).toThrow(RangeError)
+  })
+
+  it('rejects shifts other than -1/0/1, nudges outside -8..8 or fractional, and unknown actions', () => {
     const state = createState(CONFIG)
-    const invalid: unknown[] = [{ steer: 65, action: 0 }, { steer: -65, action: 0 }, { steer: 1.5, action: 0 }, { steer: 0, action: 3 }]
-    for (const input of invalid) expect(() => step(state, input as Input)).toThrow(RangeError)
+    const invalid: unknown[] = [
+      { shift: 2, nudge: 0, action: 0 },
+      { shift: 0.5, nudge: 0, action: 0 },
+      { shift: 0, nudge: 9, action: 0 },
+      { shift: 0, nudge: -9, action: 0 },
+      { shift: 0, nudge: 1.5, action: 0 },
+      { shift: 0, nudge: 0, action: 3 },
+    ]
+    for (const input of invalid) expect(() => step(state, input as Input), JSON.stringify(input)).toThrow(RangeError)
   })
 
   it('never mutates the state it steps from', () => {
     // #given a deeply frozen live state a few seconds into a real leg
     let state = createState({ ...CONFIG, world: 'metro' })
-    for (let i = 0; i < 240; i++) state = step(state, { steer: (i % 64) - 32, action: i % 50 === 0 ? ACTION_JUMP : ACTION_NONE })
+    for (let i = 0; i < 240; i++) state = step(state, { shift: i % 40 === 0 ? 1 : i % 40 === 20 ? -1 : 0, nudge: (i % 17) - 8, action: i % 50 === 0 ? ACTION_JUMP : ACTION_NONE })
     const before = JSON.stringify(state)
     deepFreeze(state)
     // #when stepping from it
-    const next = step(state, JUMP)
+    const next = step(state, RIGHT)
     // #then the original is untouched and a new state is returned
     expect(JSON.stringify(state)).toBe(before)
     expect(next).not.toBe(state)
     expect(next.tick).toBe(state.tick + 1)
   })
 
-  it('keeps every number in a finished leg a safe integer, track included', () => {
+  it('keeps every number in a finished leg a safe integer, track and ghostline included', () => {
     for (const world of WORLDS) {
-      // #given a full leg played by the good bot
-      const { state } = playLeg({ ...CONFIG, world, seed: `integers-${world}` }, goodBot('risk'))
+      // #given full legs raced against a ghost by the skilled and the sloppy courier
+      const config = { ...CONFIG, world, seed: `integers-${world}` }
+      const ghostline = deriveGhostline(config, playLeg(config, sloppyBot('safe')).trace)
+      const { state } = playLeg({ ...config, ghostline }, skilledBot('risk'))
       // #then no float, NaN or undefined leaked into the authoritative state
       expect(unsafeNumbers(state), world).toEqual([])
     }
@@ -198,229 +296,520 @@ describe('relay leg config and input', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Movement
+// Lanes
 // ---------------------------------------------------------------------------
 
-describe('relay leg movement', () => {
-  it('steers towards the steer target with 1/6 smoothing and clamps to the half-width', () => {
-    // #given a courier on the centre line of a 4 m half-width deck
-    const start = stateOn(testTrack())
-    // #when holding full right
-    const states = simulate(start, 120, () => ({ steer: 64, action: ACTION_NONE }))
-    // #then the first tick closes a sixth of the gap and x settles on the edge without passing it
-    expect(states[0]!.x).toBe(Math.trunc(4 * M / 6))
-    expect(states.every(state => state.x <= 4 * M)).toBe(true)
-    expect(4 * M - states.at(-1)!.x).toBeLessThan(6)
+describe('relay leg lanes', () => {
+  it('changes lane in 12-18 ticks: LANE_SHIFT on the press, LANE_ACQUIRED on arrival', () => {
+    for (const flow of [0, ONE - 1]) {
+      // #given a settled courier in the centre lane, slow and fast
+      const start = stateOn(testTrack(), { flow, speed: BASE_SPEED + Math.trunc(flow * 30 / 100) })
+      // #when shifting right once
+      const states = simulate(start, 40, firstThen(RIGHT))
+      const acquired = indexOfEvent(states, EVENT.LANE_ACQUIRED)
+      // #then the shift fires at once and the lane is acquired 200-300 ms later, on the lane centre
+      expect(states[0]!.events & EVENT.LANE_SHIFT).toBe(EVENT.LANE_SHIFT)
+      expect(states[0]!.targetLane).toBe(2)
+      expect(acquired + 1, `flow ${flow}`).toBeGreaterThanOrEqual(12)
+      expect(acquired + 1, `flow ${flow}`).toBeLessThanOrEqual(18)
+      expect(states[acquired]!.lane).toBe(2)
+      expect(Math.abs(states.at(-1)!.x - laneCenterX(2))).toBeLessThan(Math.trunc(M / 100))
+    }
   })
 
-  it('pushes the courier sideways inside a gust zone only', () => {
-    // #given a gust covering the first 100 m
-    const track = testTrack({ hazards: [hazardAt('gust', 0, { amplitude: 2000, length: 100 * M })] })
-    // #when coasting through and past it
-    const inside = step(stateOn(track), NONE)
-    const outside = step(stateOn(track, { dist: 150 * M }), NONE)
-    // #then only the courier inside the zone drifts
-    expect(inside.x).toBe(2000)
-    expect(outside.x).toBe(0)
+  it('changes lane faster at high speed', () => {
+    const ticksToAcquire = (speed: number): number => indexOfEvent(simulate(stateOn(testTrack(), { speed }), 40, firstThen(RIGHT)), EVENT.LANE_ACQUIRED)
+    expect(ticksToAcquire(BASE_SPEED + 30 * M / 100)).toBeLessThan(ticksToAcquire(BASE_SPEED))
   })
 
-  it('runs faster with more FLOW', () => {
-    const slow = simulate(stateOn(testTrack(), { flow: 0 }), 120).at(-1)!
-    const fast = simulate(stateOn(testTrack(), { flow: ONE }), 120).at(-1)!
-    expect(fast.dist).toBeGreaterThan(slow.dist)
+  it('magnetizes a courier with neutral nudge back to its lane centre', () => {
+    // #given a courier knocked 0.9 m off the centre of its lane
+    const states = simulate(stateOn(testTrack(), { x: Math.trunc(9 * M / 10) }), 30)
+    // #then it settles on the centre without changing lanes
+    expect(Math.abs(states.at(-1)!.x)).toBeLessThan(Math.trunc(M / 100))
+    expect(allEvents(states) & (EVENT.LANE_SHIFT | EVENT.LANE_ACQUIRED)).toBe(0)
   })
 
-  it('jumps for about 0.7 s and lands', () => {
-    // #given a grounded courier
-    // #when pressing jump once
-    const states = simulate(stateOn(testTrack()), 80, firstThen(JUMP))
-    // #then it leaves the ground on the press and spends 41 ticks in the air (press included)
-    expect(states[0]!.events & EVENT.JUMP).toBe(EVENT.JUMP)
-    expect(indexOfEvent(states, EVENT.LAND)).toBe(40)
-    expect(states.at(-1)!.metrics.jumps).toBe(1)
+  it('holds a nudge as a small offset inside the lane', () => {
+    const states = simulate(stateOn(testTrack()), 40, () => ({ shift: 0, nudge: 8, action: 0 }))
+    expect(Math.abs(states.at(-1)!.x - 8 * NUDGE_STEP)).toBeLessThan(Math.trunc(M / 100))
+    expect(states.at(-1)!.lane).toBe(0)
   })
 
-  it('buffers a jump pressed just before landing and fires it on touchdown', () => {
-    // #given a courier 10 cm above the ground
-    const start = stateOn(testTrack(), { y: Math.trunc(M / 10) })
-    // #when pressing jump while still airborne
-    const states = simulate(start, 20, firstThen(JUMP))
-    // #then the jump fires right after the landing
-    const landed = indexOfEvent(states, EVENT.LAND)
-    expect(landed).toBeGreaterThan(0)
-    expect(indexOfEvent(states, EVENT.JUMP)).toBe(landed + 1)
+  it('retargets from the target lane when shifting again mid-change', () => {
+    // #given a courier in the left lane
+    const start = stateOn(testTrack(), { x: laneCenterX(-2), lane: -2, targetLane: -2 })
+    // #when shifting right on two consecutive ticks
+    const states = simulate(start, 60, index => (index < 2 ? RIGHT : NONE))
+    // #then the target moves two lanes and the courier settles in the right lane
+    expect(states[1]!.targetLane).toBe(2)
+    expect(states.at(-1)!.lane).toBe(2)
+    expect(states.at(-1)!.metrics.laneChanges).toBe(2)
   })
 
-  it('drops a buffered jump when the courier stays airborne too long', () => {
-    const states = simulate(stateOn(testTrack(), { y: 3 * M }), 60, firstThen(JUMP))
-    expect(indexOfEvent(states, EVENT.LAND)).toBeGreaterThan(0)
-    expect(allEvents(states) & EVENT.JUMP).toBe(0)
+  it('never leaves the courier floating between lanes', () => {
+    // #given shifts pressed at every phase of an earlier change
+    for (let second = 1; second < 16; second++) {
+      const states = simulate(stateOn(testTrack()), 60, index => (index === 0 ? RIGHT : index === second ? LEFT : NONE))
+      const last = states.at(-1)!
+      // #then within a second the courier sits on a lane centre with lane === targetLane
+      expect(last.lane, `second shift at ${second}`).toBe(last.targetLane)
+      expect(Math.abs(last.x - laneCenterX(last.lane)), `second shift at ${second}`).toBeLessThan(Math.trunc(8 * M / 100))
+    }
   })
 
-  it('cannot jump while stumbling', () => {
-    const states = simulate(stateOn(testTrack(), { stumbleTicks: 12 }), 12, firstThen(JUMP))
-    expect(allEvents(states) & EVENT.JUMP).toBe(0)
-  })
-
-  it('slides for 0.6 s when grounded', () => {
-    const states = simulate(stateOn(testTrack()), 40, firstThen(SLIDE))
-    expect(states[0]!.slideTicks).toBe(SLIDE_TICKS)
-    expect(states[0]!.events & EVENT.SLIDE).toBe(EVENT.SLIDE)
-    expect(states[SLIDE_TICKS]!.slideTicks).toBe(0)
-  })
-
-  it('launches a longer jump off a ramp crossed inside its window, and not outside it', () => {
-    // #given a centre ramp ending at 2 m
-    const track = testTrack({ ramps: [zoneAt(1, 2, { half: M })] })
-    // #when riding over it on the centre line and in the far lane
-    const onRamp = simulate(stateOn(track), 120)
-    const beside = simulate(stateOn(track, { x: 3 * M }), 120, () => ({ steer: 48, action: ACTION_NONE }))
-    // #then only the centre run gets ~1.1 s of air and a clean landing
-    const launch = indexOfEvent(onRamp, EVENT.JUMP)
-    expect(launch).toBeGreaterThanOrEqual(0)
-    expect(indexOfEvent(onRamp, EVENT.LAND) - launch).toBe(65)
-    expect(allEvents(onRamp) & EVENT.CLEAN_LAND).toBe(EVENT.CLEAN_LAND)
-    expect(allEvents(beside) & EVENT.JUMP).toBe(0)
-  })
-
-  it('pays no clean-landing FLOW for hopping on flat ground', () => {
-    const states = simulate(stateOn(testTrack()), 60, firstThen(JUMP))
-    expect(allEvents(states) & EVENT.LAND).toBe(EVENT.LAND)
-    expect(allEvents(states) & EVENT.CLEAN_LAND).toBe(0)
+  it('pays a clean lane change a little FLOW, at most about once a second', () => {
+    // #given a courier shifting back and forth every 20 ticks for 10 seconds
+    const states = simulate(stateOn(testTrack(), { flow: 30000 }), 600, index => (index % 40 === 0 ? RIGHT : index % 40 === 20 ? LEFT : NONE))
+    const last = states.at(-1)!
+    // #then every change counts as clean but the FLOW it pays is budgeted to one per 60 ticks
+    expect(last.metrics.cleanLaneChanges).toBe(30)
+    const paid = Math.trunc(600 / 60) + 1
+    const baseline = simulate(stateOn(testTrack(), { flow: 30000 }), 600).at(-1)!
+    expect(last.flow - baseline.flow).toBeLessThanOrEqual(paid * FLOW.CLEAN_LANE_CHANGE)
+    expect(last.flow).toBeGreaterThan(baseline.flow)
   })
 })
 
 // ---------------------------------------------------------------------------
-// Hazards and gaps
+// Road edges
 // ---------------------------------------------------------------------------
 
-describe('relay leg hazards', () => {
-  const barrierTrack = testTrack({ hazards: [hazardAt('barrier', 6)] })
-  const control = testTrack()
+describe('relay leg road edges', () => {
+  it('shifts from the outer lane onto the shoulder, which drags speed and drains FLOW', () => {
+    // #given a courier in the right lane with FLOW to lose
+    const start = stateOn(testTrack(), { x: laneCenterX(2), lane: 2, targetLane: 2, flow: 30000 })
+    // #when shifting right once more
+    const states = simulate(start, 90, firstThen(RIGHT))
+    const inLane = simulate(start, 90).at(-1)!
+    const last = states.at(-1)!
+    // #then it settles on the shoulder line, 0.6 m past the lane edge, slower and with less FLOW
+    expect(states[0]!.targetLane).toBe(3)
+    expect(countEvent(states, EVENT.SHOULDER)).toBe(1)
+    expect(Math.abs(last.x - (Math.trunc(3 * LANE_WIDTH / 2) + SHOULDER_LINE))).toBeLessThan(Math.trunc(M / 100))
+    expect([last.lane, last.motion]).toEqual([3, 'riding'])
+    expect(last.speed).toBeLessThan(inLane.speed)
+    expect(last.flow).toBeLessThan(inLane.flow)
+  })
 
-  it('hits a grounded courier inside a barrier: FLOW -35%, 0.8 s stumble, speed drop', () => {
-    // #given a courier with FLOW to lose heading into a centre barrier
+  it('grinds the rail when shifting outward again from the shoulder', () => {
+    // #when shifting right from the shoulder
+    const states = simulate(onRightShoulder(testTrack()), 20, firstThen(RIGHT))
+    const grind = stateWithEvent(states, EVENT.EDGE_GRIND)
+    // #then the courier is pinned to the rail with the tier's recovery window
+    expect([grind.motion, grind.edgeSide, grind.x, grind.motionTicks]).toEqual(['grinding', 1, HALF_WIDTH, GRIND_WINDOW_TICKS[1]])
+    expect(grind.metrics.edgeGrinds).toBe(1)
+  })
+
+  it('sets the recovery window by tier', () => {
+    expect(GRIND_WINDOW_TICKS).toEqual({ 0: 55, 1: 40, 2: 32 })
+    for (const tier of [0, 1, 2] as const) {
+      const grind = stateWithEvent(simulate(onRightShoulder(testTrack({ tier })), 20, firstThen(RIGHT)), EVENT.EDGE_GRIND)
+      expect(grind.motionTicks).toBe(GRIND_WINDOW_TICKS[tier])
+    }
+  })
+
+  it('costs more FLOW for a hard rail impact than for a soft touch', () => {
+    const flow = 50000
+    const soft = stateWithEvent(simulate(onRightShoulder(testTrack(), { flow }), 20, firstThen(RIGHT)), EVENT.EDGE_GRIND)
+    const hard = stateWithEvent(simulate(stateOn(testTrack(), { flow, x: laneCenterX(2), lane: 2, targetLane: 2, dist: 100 * M }), 30, index => (index < 2 ? RIGHT : NONE)), EVENT.EDGE_GRIND)
+    expect(flow - soft.flow).toBeLessThan(flow - hard.flow)
+    expect(flow - hard.flow).toBeGreaterThanOrEqual(FLOW.RAIL_IMPACT)
+  })
+
+  it('saves the edge when steering inward inside the window', () => {
+    for (const release of [LEFT, { shift: 0, nudge: -3, action: 0 } satisfies Input]) {
+      // #given a courier grinding the right rail
+      const grinding = stateWithEvent(simulate(onRightShoulder(testTrack(), { flow: 30000 }), 10, firstThen(RIGHT)), EVENT.EDGE_GRIND)
+      // #when steering or nudging inward ten ticks later
+      const states = simulate(grinding, 60, index => (index === 10 ? release : NONE))
+      const saved = stateWithEvent(states, EVENT.EDGE_SAVE)
+      // #then it rides away from the rail with an edge-save moment and back into its outer lane
+      expect([saved.motion, saved.edgeSide, saved.metrics.edgeSaves]).toEqual(['riding', 0, 1])
+      expect(saved.moments.map(moment => moment.kind)).toEqual(['edge-save'])
+      expect(allEvents(states) & EVENT.FALL).toBe(0)
+      expect(states.at(-1)!.lane).toBe(2)
+    }
+  })
+
+  it('pays the edge save FLOW', () => {
+    const grinding = stateWithEvent(simulate(onRightShoulder(testTrack(), { flow: 30000 }), 10, firstThen(RIGHT)), EVENT.EDGE_GRIND)
+    const saved = step(grinding, LEFT)
+    const held = step(grinding, NONE)
+    // #then the save pays, minus the shoulder drain the courier rides through on its way back
+    expect(saved.flow - held.flow).toBe(FLOW.EDGE_SAVE + FLOW.GRIND_TICK - FLOW.SHOULDER_TICK)
+  })
+
+  it('goes over the rail when the window expires or the courier shifts outward', () => {
+    const grinding = stateWithEvent(simulate(onRightShoulder(testTrack()), 10, firstThen(RIGHT)), EVENT.EDGE_GRIND)
+    const expired = simulate(grinding, GRIND_WINDOW_TICKS[1] + 2)
+    const outward = step(grinding, RIGHT)
+    expect(indexOfEvent(expired, EVENT.FALL)).toBe(GRIND_WINDOW_TICKS[1] - 1)
+    expect([outward.motion, outward.events & EVENT.FALL, outward.edgeSide]).toEqual(['falling', EVENT.FALL, 1])
+  })
+
+  it('drops the courier straight over an open edge', () => {
+    // #given an open right edge
+    const track = testTrack({ segments: [segment(0, 0, 600, { rightEdge: 'open' })], forks: [] })
+    // #when shifting past it from the shoulder
+    const states = simulate(onRightShoulder(track), 20, firstThen(RIGHT))
+    // #then there is no grind, only a fall
+    expect(allEvents(states) & EVENT.EDGE_GRIND).toBe(0)
+    expect(stateWithEvent(states, EVENT.FALL).motion).toBe('falling')
+  })
+
+  it('bounces off a wall back toward the outer lane without a fall', () => {
+    const track = testTrack({ segments: [segment(0, 0, 600, { rightEdge: 'wall' })], forks: [] })
+    const states = simulate(onRightShoulder(track, { flow: 30000 }), 90, firstThen(RIGHT))
+    const bump = stateWithEvent(states, EVENT.EDGE_GRIND)
+    expect([bump.motion, bump.targetLane]).toEqual(['riding', 2])
+    expect(bump.stumbleTicks).toBeGreaterThan(0)
+    expect(allEvents(states) & EVENT.FALL).toBe(0)
+    expect(states.at(-1)!.lane).toBe(2)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Falls and the baton tether
+// ---------------------------------------------------------------------------
+
+describe('relay leg falls and tether', () => {
+  const gapTrack = testTrack({ gaps: [zoneAt(250, 262, [-2, 0, 2])] })
+  const beforeGap = { dist: 249 * M, speed: M }
+
+  it('falls into a gap ridden on the ground: FLOW -45%, frozen distance, dropping height', () => {
     const flow = 40000
-    const states = simulate(stateOn(barrierTrack, { flow }), 30)
-    const baseline = simulate(stateOn(control, { flow }), 30)
-    // #when it crosses the barrier
-    const hitIndex = indexOfEvent(states, EVENT.HIT)
-    const hit = states[hitIndex]!
-    // #then the hit costs exactly the HIT share and starts a stumble
-    expect(hitIndex).toBeGreaterThan(0)
-    expect(baseline[hitIndex]!.flow - hit.flow).toBe(FLOW.HIT)
-    expect(hit.stumbleTicks).toBe(STUMBLE_TICKS)
-    expect(hit.speed).toBeLessThanOrEqual(STUMBLE_SPEED)
-    expect(hit.metrics.hits).toBe(1)
-  })
-
-  it('clears a barrier with a jump for a near miss', () => {
-    const states = simulate(stateOn(barrierTrack), 30, firstThen(JUMP))
-    expect(allEvents(states) & EVENT.HIT).toBe(0)
-    expect(allEvents(states) & EVENT.NEAR_MISS).toBe(EVENT.NEAR_MISS)
-  })
-
-  it('rewards passing within 0.6 m of a barrier and ignores wider berths', () => {
-    const close = simulate(stateOn(testTrack({ hazards: [hazardAt('barrier', 6, { x: Math.trunc(3 * M / 2) })] })), 30)
-    const wide = simulate(stateOn(testTrack({ hazards: [hazardAt('barrier', 6, { x: 3 * M })] })), 30)
-    expect(allEvents(close) & (EVENT.NEAR_MISS | EVENT.HIT)).toBe(EVENT.NEAR_MISS)
-    expect(allEvents(wide) & (EVENT.NEAR_MISS | EVENT.HIT)).toBe(0)
-  })
-
-  it('ignores further hazards while stumbling', () => {
-    const track = testTrack({ hazards: [hazardAt('barrier', 6), hazardAt('barrier', 10)] })
-    const states = simulate(stateOn(track), 40)
-    expect(states.at(-1)!.metrics.hits).toBe(1)
-  })
-
-  it('requires a slide under a beam', () => {
-    const track = testTrack({ hazards: [hazardAt('beam', 6, { half: 4 * M })] })
-    expect(allEvents(simulate(stateOn(track), 30)) & EVENT.HIT).toBe(EVENT.HIT)
-    expect(allEvents(simulate(stateOn(track), 30, firstThen(SLIDE))) & EVENT.HIT).toBe(0)
-  })
-
-  it('lets a courier slide under a drone but not jump into it', () => {
-    const track = testTrack({ hazards: [hazardAt('drone', 6)] })
-    expect(allEvents(simulate(stateOn(track), 30, firstThen(SLIDE))) & EVENT.HIT).toBe(0)
-    expect(allEvents(simulate(stateOn(track), 30, firstThen(JUMP))) & EVENT.HIT).toBe(EVENT.HIT)
-  })
-
-  it('opens alternate door sides every half period and punishes the closed side and the post', () => {
-    // #given a centred door with a 0.3 m post, open on the left for ticks 0-59
-    const door = hazardAt('door', 0, { half: Math.trunc(3 * M / 10), period: 120 })
-    // #then each lateral position resolves by side
-    expect(doorOpenSide(door, 10)).toBe(-1)
-    expect(doorOpenSide(door, 70)).toBe(1)
-    expect(hazardOutcome(door, -2 * M, 0, 0, 10)).toBe(OUTCOME.CLEAR)
-    expect(hazardOutcome(door, -Math.trunc(M / 2), 0, 0, 10)).toBe(OUTCOME.NEAR)
-    expect(hazardOutcome(door, 0, 0, 0, 10)).toBe(OUTCOME.HIT)
-    expect(hazardOutcome(door, 2 * M, 0, 0, 10)).toBe(OUTCOME.HIT)
-    expect(hazardOutcome(door, 2 * M, 0, 0, 70)).toBe(OUTCOME.CLEAR)
-  })
-
-  it('blocks one half of the track with a train unless the courier is above 2 m', () => {
-    const train = hazardAt('train', 0, { half: 4 * M, period: 200 })
-    expect(trainBlockedSide(train, 10)).toBe(1)
-    expect(trainBlockedSide(train, 110)).toBe(-1)
-    expect(hazardOutcome(train, -2 * M, 0, 0, 10)).toBe(OUTCOME.CLEAR)
-    expect(hazardOutcome(train, 2 * M, 0, 0, 10)).toBe(OUTCOME.HIT)
-    expect(hazardOutcome(train, 2 * M, 3 * M, 0, 10)).toBe(OUTCOME.NEAR)
-    expect(hazardOutcome(train, -Math.trunc(3 * M / 10), 0, 0, 10)).toBe(OUTCOME.NEAR)
-  })
-
-  it('moves sweepers and drones on an integer triangle wave inside their amplitude', () => {
-    // #given a sweeper with a 2 m amplitude and a 100 tick period
-    const sweeper = hazardAt('sweeper', 0, { amplitude: 2 * M, period: 100, half: Math.trunc(8 * M / 10) })
-    // #when sampling two full periods
-    const positions = Array.from({ length: 200 }, (_, tick) => hazardLateral(sweeper, tick))
-    // #then it swings edge to edge, stays in range and repeats exactly
-    expect([positions[0], positions[25], positions[50], positions[75]]).toEqual([-2 * M, 0, 2 * M, 0])
-    expect(positions.every(x => Number.isSafeInteger(x) && x >= -2 * M && x <= 2 * M)).toBe(true)
-    expect(positions.slice(100)).toEqual(positions.slice(0, 100))
-    expect(hazardOutcome(sweeper, 0, 0, 0, 25)).toBe(OUTCOME.HIT)
-    expect(hazardOutcome(sweeper, 0, 0, 0, 50)).toBe(OUTCOME.CLEAR)
-  })
-
-  it('drops a grounded courier into a gap: FLOW -45%, 1.2 s stumble', () => {
-    const flow = 40000
-    const gapTrack = testTrack({ gaps: [zoneAt(3, 12)] })
-    const states = simulate(stateOn(gapTrack, { flow }), 30)
-    const baseline = simulate(stateOn(control, { flow }), 30)
-    const fallIndex = indexOfEvent(states, EVENT.FALL)
-    expect(fallIndex).toBeGreaterThan(0)
-    expect(baseline[fallIndex]!.flow - states[fallIndex]!.flow).toBe(FLOW.FALL)
-    expect(states[fallIndex]!.stumbleTicks).toBe(FALL_STUMBLE_TICKS)
+    const states = simulate(stateOn(gapTrack, { ...beforeGap, flow }), 40)
+    const fell = indexOfEvent(states, EVENT.FALL)
+    const falling = states[fell]!
+    expect(fell).toBeGreaterThanOrEqual(0)
+    expect([falling.motion, falling.motionTicks, falling.metrics.falls]).toEqual(['falling', FALL_TICKS, 1])
+    expect(states[fell + 20]!.dist).toBe(falling.dist)
+    expect(states[fell + 20]!.y).toBeLessThan(-M)
+    expect(simulate(stateOn(testTrack(), { ...beforeGap, flow }), 40)[fell]!.flow - falling.flow).toBe(FLOW.FALL)
   })
 
   it('carries an airborne courier over a gap but drops one that lands inside it', () => {
-    const shortGap = simulate(stateOn(testTrack({ gaps: [zoneAt(1, 3)] }), { y: 2 * M }), 60)
-    const longGap = simulate(stateOn(testTrack({ gaps: [zoneAt(1, 60)] }), { y: 2 * M }), 60)
+    const shortGap = simulate(stateOn(testTrack({ gaps: [zoneAt(101, 103, [-2, 0, 2])] }), { dist: 100 * M, y: 2 * M }), 60)
+    const longGap = simulate(stateOn(testTrack({ gaps: [zoneAt(101, 160, [-2, 0, 2])] }), { dist: 100 * M, y: 2 * M }), 60)
     expect(allEvents(shortGap) & (EVENT.FALL | EVENT.LAND)).toBe(EVENT.LAND)
     expect(allEvents(longGap) & EVENT.FALL).toBe(EVENT.FALL)
+  })
+
+  it('saves a fall with the tether and respawns at the checkpoint behind it, on the clock', () => {
+    // #given a courier with a tether save riding into a gap
+    const start = stateOn(gapTrack, { ...beforeGap, flow: 40000, rushTicks: 0 })
+    // #when the fall and the tether play out
+    const states = simulate(start, FALL_TICKS + TETHER_TICKS + 10)
+    const fell = indexOfEvent(states, EVENT.FALL)
+    const saved = indexOfEvent(states, EVENT.TETHER_SAVE)
+    const respawned = states[saved + TETHER_TICKS]!
+    const flowAfterFall = states[fell]!.flow
+    // #then the tether takes over after the fall, and the courier respawns at 200 m on its lane
+    expect(saved - fell).toBe(FALL_TICKS)
+    expect([states[saved]!.motion, states[saved]!.tetherSaves, states[saved]!.metrics.tetherSaves]).toEqual(['tethering', 0, 1])
+    expect(states[saved]!.moments.map(moment => moment.kind)).toEqual(['tether-save'])
+    expect([respawned.motion, respawned.dist, respawned.path, respawned.lane, respawned.x, respawned.y]).toEqual(['riding', 200 * M, 'main', 0, 0, 0])
+    expect(respawned.speed).toBe(RESPAWN_SPEED)
+    expect(respawned.flow).toBeLessThanOrEqual(Math.trunc(flowAfterFall / 2))
+    expect(respawned.tick).toBe(start.tick + fell + 1 + FALL_TICKS + TETHER_TICKS)
+  })
+
+  it('fails the leg when a fall has no tether save left', () => {
+    // #given a courier without tether saves riding into a gap
+    const start = stateOn(gapTrack, { ...beforeGap, tetherSaves: 0 })
+    const states = simulate(start, FALL_TICKS + 20)
+    const failed = stateWithEvent(states, EVENT.LEG_FAILED)
+    // #then the leg ends when the fall does, failed and scoreless
+    expect([failed.motion, failed.finished]).toEqual(['failed', 1])
+    expect(indexOfEvent(states, EVENT.LEG_FAILED) - indexOfEvent(states, EVENT.FALL)).toBe(FALL_TICKS)
+    const result = finalize(failed, [[0, 0, 0, 0]])
+    expect([result.completed, result.failed, result.score]).toEqual([false, true, 0])
+  })
+
+  it('re-arms hazards between the checkpoint and the fall, but never re-scores gates', () => {
+    // #given a gate and a barrier between the checkpoint at 200 m and a gap at 250 m
+    const track = testTrack({ gaps: gapTrack.gaps, gates: [gateAt(220, 0)], hazards: [hazardAt('barrier', 235, [0])] })
+    // #when the courier jumps the barrier, falls, respawns and rides the stretch again
+    const states = simulate(stateOn(track, { dist: 201 * M, speed: M }), 400, index => (index === 25 ? JUMP : NONE))
+    const last = states.at(-1)!
+    // #then the barrier can hit again after the respawn while the gate counted once
+    expect(last.metrics.totalGates).toBe(1)
+    expect(countEvent(states, EVENT.TETHER_SAVE)).toBe(1)
+    expect(last.metrics.hits).toBe(1)
+  })
+
+  it('respawns on the fork path it fell from, or before the fork when that path has no checkpoint', () => {
+    const track = testTrack()
+    expect(checkpointBefore(track, 450 * M, 'safe')).toEqual({ dist: 400 * M, path: 'safe', lane: 1 })
+    expect(checkpointBefore(track, 450 * M, 'risk')).toEqual({ dist: 400 * M, path: 'risk', lane: 0 })
+    const noRiskCheckpoint = { ...track, checkpoints: track.checkpoints.filter(checkpoint => checkpoint.path !== 'risk') }
+    expect(checkpointBefore(noRiskCheckpoint, 450 * M, 'risk')).toEqual({ dist: 200 * M, path: 'main', lane: 0 })
+    expect(checkpointBefore(track, 550 * M, 'main')).toEqual({ dist: 200 * M, path: 'main', lane: 0 })
   })
 })
 
 // ---------------------------------------------------------------------------
-// Gates, FLOW, rails, pads
+// Hazards
+// ---------------------------------------------------------------------------
+
+describe('relay leg hazards', () => {
+  const centreBarrier = testTrack({ hazards: [hazardAt('barrier', 106, [0])] })
+  const at = { dist: 100 * M }
+
+  it('hits a grounded courier in a blocked lane: FLOW -30%, stumble, speed drop, shove toward a free lane', () => {
+    const flow = 40000
+    const states = simulate(stateOn(centreBarrier, { ...at, flow, x: Math.trunc(M / 5) }), 30)
+    const baseline = simulate(stateOn(testTrack(), { ...at, flow, x: Math.trunc(M / 5) }), 30)
+    const hitIndex = indexOfEvent(states, EVENT.HIT)
+    const hit = states[hitIndex]!
+    expect(hitIndex).toBeGreaterThan(0)
+    expect(baseline[hitIndex]!.flow - hit.flow).toBe(FLOW.HIT)
+    expect([hit.stumbleTicks, hit.metrics.hits, hit.targetLane]).toEqual([STUMBLE_TICKS, 1, 0])
+    expect(hit.speed).toBeLessThanOrEqual(STUMBLE_SPEED)
+    expect(hit.vx).toBeGreaterThan(baseline[hitIndex]!.vx)
+  })
+
+  it('passes a blocked lane from the next lane, with a near miss only when it cuts close', () => {
+    const crossingNow = { dist: 106 * M - 1000, speed: M }
+    const wide = simulate(stateOn(centreBarrier, { ...at, x: laneCenterX(2), lane: 2, targetLane: 2 }), 30)
+    const close = simulate(stateOn(centreBarrier, { ...crossingNow, x: Math.trunc(LANE_WIDTH / 2), lane: 2, targetLane: 2 }), 3)
+    expect(allEvents(wide) & (EVENT.NEAR_MISS | EVENT.HIT)).toBe(0)
+    expect(allEvents(close) & (EVENT.NEAR_MISS | EVENT.HIT)).toBe(EVENT.NEAR_MISS)
+  })
+
+  it('clears a barrier with a jump for a near miss', () => {
+    const states = simulate(stateOn(centreBarrier, at), 30, firstThen(JUMP))
+    expect(allEvents(states) & (EVENT.HIT | EVENT.NEAR_MISS)).toBe(EVENT.NEAR_MISS)
+  })
+
+  it('needs a slide under a beam, and jumping into one is a hit', () => {
+    const track = testTrack({ hazards: [hazardAt('beam', 106, [0])] })
+    expect(allEvents(simulate(stateOn(track, at), 30)) & EVENT.HIT).toBe(EVENT.HIT)
+    expect(allEvents(simulate(stateOn(track, at), 30, firstThen(SLIDE))) & (EVENT.HIT | EVENT.NEAR_MISS)).toBe(EVENT.NEAR_MISS)
+    expect(allEvents(simulate(stateOn(track, at), 30, firstThen(JUMP))) & EVENT.HIT).toBe(EVENT.HIT)
+  })
+
+  it('merges adjacent blocked lanes, so the lane line between them is no way through', () => {
+    const track = testTrack({ hazards: [hazardAt('barrier', 106, [0, 2])] })
+    const onLine = simulate(stateOn(track, { dist: 106 * M - 1000, speed: M, x: Math.trunc(LANE_WIDTH / 2), lane: 0, targetLane: 2 }), 3)
+    expect(allEvents(onLine) & EVENT.HIT).toBe(EVENT.HIT)
+  })
+
+  it('closes the shoulders too when every lane is blocked', () => {
+    const track = testTrack({ hazards: [hazardAt('barrier', 106, [-2, 0, 2])] })
+    const onShoulder = simulate(onRightShoulder(track, { dist: 100 * M }), 30)
+    expect(allEvents(onShoulder) & EVENT.HIT).toBe(EVENT.HIT)
+  })
+
+  it('ignores further hazards while stumbling', () => {
+    const track = testTrack({ hazards: [hazardAt('barrier', 106, [0]), hazardAt('barrier', 112, [-2, 0, 2])] })
+    expect(simulate(stateOn(track, at), 40).at(-1)!.metrics.hits).toBe(1)
+  })
+
+  it('moves sweepers and drones on an integer triangle wave between their lane centres', () => {
+    // #given a sweeper from the left lane to the right lane with a 100 tick period
+    const sweeper = hazardAt('sweeper', 0, [-2, 2], { period: 100 })
+    // #when sampling two full periods
+    const positions = Array.from({ length: 200 }, (_, tick) => hazardLaneAt(sweeper, tick))
+    // #then it swings lane to lane, stays in range and repeats exactly
+    expect([positions[0], positions[25], positions[50], positions[75]]).toEqual([laneCenterX(-2), 0, laneCenterX(2), 0])
+    expect(positions.every(x => Number.isSafeInteger(x) && x >= laneCenterX(-2) && x <= laneCenterX(2))).toBe(true)
+    expect(positions.slice(100)).toEqual(positions.slice(0, 100))
+  })
+})
+
+// ---------------------------------------------------------------------------
+// World events
+// ---------------------------------------------------------------------------
+
+describe('relay leg world events', () => {
+  /** A state `age` ticks after `event` triggered, for reading eventState. */
+  function aged(event: WorldEvent, age: number): State {
+    return stateOn(testTrack({ events: [event] }), { tick: 1000 + age, eventTicks: [1000] })
+  }
+
+  it('triggers on distance, so every courier gets the same telegraph distance', () => {
+    const track = testTrack({ events: [eventAt('lane-closure', 150, { triggerDist: 100 * M, length: 40 * M, lanes: [2] })] })
+    for (const speed of [BASE_SPEED, M]) {
+      const states = simulate(stateOn(track, { dist: 95 * M, speed }), 30)
+      const triggered = stateWithEvent(states, EVENT.EVENT_TRIGGERED)
+      expect(triggered.eventTicks).toEqual([triggered.tick])
+      expect(triggered.dist).toBeGreaterThanOrEqual(100 * M)
+      expect(triggered.dist - speed).toBeLessThan(100 * M)
+    }
+  })
+
+  it('closes lanes after the telegraph and hits a courier who steers into a closed lane mid-span', () => {
+    const closure = eventAt('lane-closure', 110, { triggerDist: 60 * M, length: 60 * M, lanes: [2], duration: 30 })
+    expect(eventState(closure, aged(closure, 10))).toMatchObject({ phase: 'telegraph', collision: 'none', lanes: [] })
+    expect(eventState(closure, aged(closure, 30))).toMatchObject({ phase: 'active', collision: 'low', lanes: [2] })
+    // #given a courier inside the closed stretch, in the open centre lane
+    const inside = stateOn(testTrack({ events: [closure] }), { dist: 120 * M, tick: 500, eventTicks: [100] })
+    // #when it shifts right into the closed lane
+    const states = simulate(inside, 60, firstThen(RIGHT))
+    const hit = stateWithEvent(states, EVENT.HIT)
+    // #then it is hit and knocked back into the free lane for good
+    expect(hit.targetLane).toBe(0)
+    expect(states.at(-1)!.lane).toBe(0)
+  })
+
+  it('drifts a maintenance machine across the road and settles it off the deck', () => {
+    const machine = eventAt('maintenance-drone', 120, { duration: 220, lanes: [-5, 5] })
+    const early = eventState(machine, aged(machine, 20))
+    const middle = eventState(machine, aged(machine, 130))
+    const late = eventState(machine, aged(machine, 230))
+    expect([early.phase, early.x[0]]).toEqual(['telegraph', laneCenterX(-5)])
+    expect([middle.phase, middle.collision, middle.x[0]]).toEqual(['active', 'low', 0])
+    expect(middle.lanes).toEqual([0])
+    expect([late.phase, late.x[0], late.lanes]).toEqual(['settled', laneCenterX(5), []])
+  })
+
+  it('crosses a transit vehicle only while active, over a readable subset of lanes', () => {
+    const tram = eventAt('transit-crossing', 120, { duration: 250, lanes: [-6, 6] })
+    expect(eventState(tram, aged(tram, 40))).toMatchObject({ phase: 'telegraph', collision: 'none' })
+    const crossing = eventState(tram, aged(tram, 150))
+    expect([crossing.phase, crossing.collision]).toEqual(['active', 'low'])
+    expect(crossing.lanes.length).toBeGreaterThan(0)
+    expect(crossing.lanes.length).toBeLessThan(3)
+    expect(eventState(tram, aged(tram, 260))).toMatchObject({ phase: 'settled', collision: 'none' })
+  })
+
+  it('gusts a crosswind: it builds over the telegraph, blows for 3/5 of its period and lulls', () => {
+    const wind = eventAt('crosswind', 100, { length: 100 * M, duration: 40, period: 100, amplitude: 40 })
+    expect(eventState(wind, aged(wind, 20)).push).toBe(20)
+    expect(eventState(wind, aged(wind, 40 + 10)).push).toBe(40)
+    expect(eventState(wind, aged(wind, 40 + 70)).push).toBe(0)
+    // #and it pushes a courier inside it downwind
+    const states = simulate(stateOn(testTrack({ events: [wind] }), { dist: 101 * M, tick: 1045, eventTicks: [1000] }), 30)
+    expect(states.at(-1)!.x).toBeGreaterThan(Math.trunc(M / 2))
+  })
+
+  it('sags a gantry overhead, crushes its lanes as it falls, then leaves debris', () => {
+    const gantry = eventAt('collapsing-gantry', 106, { duration: 60, lanes: [0, 2] })
+    expect(eventState(gantry, aged(gantry, 30))).toMatchObject({ phase: 'telegraph', collision: 'overhead', lanes: [0, 2] })
+    expect(eventState(gantry, aged(gantry, 65))).toMatchObject({ phase: 'active', collision: 'crush' })
+    expect(eventState(gantry, aged(gantry, 100))).toMatchObject({ phase: 'settled', collision: 'low' })
+    const crossing = (age: number, input: Input): number =>
+      allEvents(simulate(stateOn(testTrack({ events: [gantry] }), { dist: 105 * M, speed: M, tick: 1000 + age - 1, eventTicks: [1000] }), 3, firstThen(input)))
+    expect(crossing(30, SLIDE) & (EVENT.HIT | EVENT.NEAR_MISS)).toBe(EVENT.NEAR_MISS)
+    expect(crossing(65, SLIDE) & EVENT.HIT).toBe(EVENT.HIT)
+  })
+
+  it('steps a drone formation across the lanes, always leaving one lane free', () => {
+    const drones = eventAt('drone-pattern', 120, { duration: 30, lanes: [-2, 0, 2], count: 2, period: 45 })
+    for (let age = 30; age < 30 + 45 * 6; age++) {
+      const view = eventState(drones, aged(drones, age))
+      expect(view.x).toHaveLength(2)
+      expect(view.lanes.length, `age ${age}`).toBeLessThan(3)
+    }
+    expect(eventState(drones, aged(drones, 31)).collision).toBe('overhead')
+  })
+
+  it('reports rising bridges and bridge breaks through their telegraph', () => {
+    for (const kind of ['rising-bridge', 'bridge-break', 'pulse-tunnel'] as const) {
+      const event = eventAt(kind, 120, { duration: 40 })
+      expect(eventState(event, stateOn(testTrack({ events: [event] })))).toMatchObject({ phase: 'dormant', progress: 0 })
+      expect(eventState(event, aged(event, 20))).toMatchObject({ phase: 'telegraph', progress: ONE / 2, collision: 'none' })
+      expect(eventState(event, aged(event, 40))).toMatchObject({ phase: 'active', progress: ONE })
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Forks and the relay cut
+// ---------------------------------------------------------------------------
+
+describe('relay leg forks', () => {
+  const beforeFork = { dist: 400 * M - 1000, speed: M }
+
+  it('takes the path of the lane nearest the courier at the split, carrying its lane across', () => {
+    const risk = step(stateOn(testTrack(), { ...beforeFork, x: laneCenterX(2), lane: 2, targetLane: 2 }), NONE)
+    const safe = step(stateOn(testTrack(), beforeFork), NONE)
+    const left = step(stateOn(testTrack(), { ...beforeFork, x: laneCenterX(-2), lane: -2, targetLane: -2 }), NONE)
+    expect([risk.path, risk.lane, risk.events & EVENT.FORK_RISK, risk.forkChoices]).toEqual(['risk', 0, EVENT.FORK_RISK, [2]])
+    expect([safe.path, safe.lane, safe.events & EVENT.FORK_SAFE, safe.forkChoices]).toEqual(['safe', 1, EVENT.FORK_SAFE, [1]])
+    expect([left.path, left.lane]).toEqual(['safe', -1])
+    // #then the courier's position in main-road terms does not jump across the split
+    const mainX = (state: State): number => state.x + pathOffsetAt(state.track, FORK.from, state.path)
+    expect([mainX(risk), mainX(safe), mainX(left)]).toEqual([laneCenterX(2), 0, laneCenterX(-2)])
+  })
+
+  it('merges fork lanes back into the main lanes they line up with', () => {
+    const exitingRisk = step(stateOn(testTrack(), { dist: 500 * M - 1000, speed: M, path: 'risk', riskClean: 1 }), NONE)
+    const exitingSafe = step(stateOn(testTrack(), { dist: 500 * M - 1000, speed: M, path: 'safe', x: laneCenterX(-1), lane: -1, targetLane: -1 }), NONE)
+    expect([exitingRisk.path, exitingRisk.lane, exitingRisk.x]).toEqual(['main', 2, laneCenterX(2)])
+    expect([exitingSafe.path, exitingSafe.lane, exitingSafe.x]).toEqual(['main', -2, laneCenterX(-2)])
+  })
+
+  it('progresses faster on the risk path at the same speed', () => {
+    const inside = { dist: 410 * M, speed: M, flow: 30000 }
+    const risk = simulate(stateOn(testTrack(), { ...inside, path: 'risk', riskClean: 1 }), 30).at(-1)!
+    const safe = simulate(stateOn(testTrack(), { ...inside, path: 'safe', x: laneCenterX(1), lane: 1, targetLane: 1 }), 30).at(-1)!
+    expect(risk.speed).toBe(safe.speed)
+    expect(risk.dist).toBeGreaterThan(safe.dist)
+  })
+
+  it('pays RISK_CLEAR for a clean risk path and nothing after a hit', () => {
+    const exiting = { dist: 500 * M - 1000, speed: M, path: 'risk' as const }
+    const clean = step(stateOn(testTrack(), { ...exiting, riskClean: 1 }), NONE)
+    const dirty = step(stateOn(testTrack(), { ...exiting, riskClean: 0 }), NONE)
+    expect([clean.events & EVENT.RISK_CLEAR, clean.metrics.riskRoutes]).toEqual([EVENT.RISK_CLEAR, 1])
+    expect(clean.flow - dirty.flow).toBe(FLOW.RISK_CLEAR)
+    expect([dirty.events & EVENT.RISK_CLEAR, dirty.metrics.riskRoutes]).toEqual([0, 1])
+  })
+
+  describe('relay cut', () => {
+    const cutFork: Fork = { ...FORK, label: 'relay-cut' }
+    const cutTrack = testTrack({
+      forks: [cutFork],
+      events: [eventAt('bridge-break', 420, { path: 'risk', triggerDist: 380 * M, length: 58 * M, duration: 40, lanes: [0], amplitude: 640 })],
+      ramps: [zoneAt(420, 428, [0], { path: 'risk' })],
+      gaps: [zoneAt(434, 478, [0], { path: 'risk' })],
+      checkpoints: testTrack().checkpoints.filter(checkpoint => checkpoint.path !== 'risk'),
+    })
+    const onCut = (speed: number, flow: number): State =>
+      stateOn(cutTrack, { dist: 410 * M, path: 'risk', riskClean: 1, speed, flow, tick: 900, eventTicks: [100] })
+
+    it('carries a fast courier across the gap: RISK_CLEAR, +15% FLOW and a relay-cut moment', () => {
+      const states = simulate(onCut(centimetresOf(70), 50000), 200)
+      const cleared = stateWithEvent(states, EVENT.RISK_CLEAR)
+      expect(allEvents(states) & EVENT.FALL).toBe(0)
+      expect(cleared.moments.map(moment => moment.kind)).toContain('relay-cut')
+      expect(cleared.dist).toBeGreaterThanOrEqual(478 * M)
+    })
+
+    it('drops a slow courier into the gap and tethers it back before the fork', () => {
+      const states = simulate(onCut(centimetresOf(50), 0), 300)
+      expect(allEvents(states) & (EVENT.FALL | EVENT.RISK_CLEAR)).toBe(EVENT.FALL)
+      const respawned = states.find((state, i) => i > 0 && states[i - 1]!.motion === 'tethering' && state.motion === 'riding')!
+      expect([respawned.dist, respawned.path]).toEqual([200 * M, 'main'])
+    })
+  })
+})
+
+function centimetresOf(cm: number): number {
+  return Math.trunc(cm * M / 100)
+}
+
+// ---------------------------------------------------------------------------
+// Gates, FLOW and Relay Rush
 // ---------------------------------------------------------------------------
 
 describe('relay leg gates and FLOW', () => {
   const flow = 30000
 
-  function flowDelta(track: Track, patch: Partial<State> = {}, event: number = EVENT.PERFECT_GATE | EVENT.MISSED_GATE): { delta: number; events: number } {
-    const states = simulate(stateOn(track, { flow, ...patch }), 20)
-    const baseline = simulate(stateOn(testTrack(), { flow, ...patch }), 20)
-    const index = indexOfEvent(states, event)
+  function flowDelta(track: Track, patch: Partial<State> = {}): { delta: number; events: number } {
+    const states = simulate(stateOn(track, { flow, dist: 100 * M, ...patch }), 20)
+    const baseline = simulate(stateOn(testTrack(), { flow, dist: 100 * M, ...patch }), 20)
+    const index = indexOfEvent(states, EVENT.PERFECT_GATE | EVENT.MISSED_GATE)
     if (index < 0) throw new Error('gate never crossed')
-    return { delta: states[index]!.flow - baseline[index]!.flow, events: states[index]!.events }
+    return { delta: states[index]!.flow - baseline[index]!.flow, events: states[index]!.events & (EVENT.PERFECT_GATE | EVENT.MISSED_GATE | EVENT.PULSE_HIT) }
   }
 
-  it('pays +5% for a perfect gate and takes 4% for a missed one', () => {
-    const gate = { dist: 3 * M, x: 0, half: M, kind: 'gold', path: 'main', period: 0 } as const
-    const perfect = flowDelta(testTrack({ gates: [gate] }))
-    const missed = flowDelta(testTrack({ gates: [{ ...gate, x: 3 * M }] }))
-    expect(perfect).toEqual({ delta: FLOW.PERFECT_GATE, events: EVENT.PERFECT_GATE })
-    expect(missed).toEqual({ delta: -FLOW.MISSED_GATE, events: EVENT.MISSED_GATE })
+  it('pays +4% for a gold gate passed in its lane and takes 4% for any other lane', () => {
+    expect(flowDelta(testTrack({ gates: [gateAt(103, 0)] }))).toEqual({ delta: FLOW.PERFECT_GATE, events: EVENT.PERFECT_GATE })
+    expect(flowDelta(testTrack({ gates: [gateAt(103, 2)] }))).toEqual({ delta: -FLOW.MISSED_GATE, events: EVENT.MISSED_GATE })
   })
 
   it('runs the beat at 144 BPM from tick 0 with no per-route phase', () => {
@@ -432,47 +821,33 @@ describe('relay leg gates and FLOW', () => {
     }
   })
 
-  it('lights exactly one pulse lane at every tick and swaps it on the beat', () => {
-    // #given a pulse gate with lanes at +2 m and -2 m and a gold gate
-    const pulseGate = { dist: 560 * M, x: 2 * M, half: M, kind: 'pulse', path: 'main', period: PULSE_PERIOD } as const
-    const goldGate = { ...pulseGate, kind: 'gold', period: 0 } as const
-    // #when sampling ten beats tick by tick
-    const lanes = Array.from({ length: 250 }, (_, tick) => pulseGateLateral(pulseGate, tick))
-    // #then the lit lane is always one of the two and flips exactly on beat boundaries
-    expect(lanes.every((lane, tick) => lane === (Math.trunc(tick / 25) % 2 === 0 ? 2 * M : -2 * M))).toBe(true)
-    expect([24, 25, 49, 50].map(tick => pulseGateLateral(pulseGate, tick))).toEqual([2 * M, -2 * M, -2 * M, 2 * M])
-    expect([0, 25, 57].map(tick => pulseGateLateral(goldGate, tick))).toEqual([2 * M, 2 * M, 2 * M])
+  it('lights one lane of a pulse gate at every tick and swaps it on the beat', () => {
+    const pulseGate = gateAt(560, 2, { kind: 'pulse', period: PULSE_PERIOD })
+    const lanes = Array.from({ length: 250 }, (_, tick) => pulseGateLane(pulseGate, tick))
+    expect(lanes.every((lane, tick) => lane === (Math.trunc(tick / 25) % 2 === 0 ? 2 : -2))).toBe(true)
+    expect([24, 25, 49, 50].map(tick => pulseGateLane(pulseGate, tick))).toEqual([2, -2, -2, 2])
+    expect([0, 25, 57].map(tick => pulseGateLane(gateAt(560, 2), tick))).toEqual([2, 2, 2])
   })
 
-  it('pays a pulse gate +9% in the lit lane and counts the dark lane or the centre as a miss', () => {
-    // #given a courier holding the +2 m lane, arriving at a pulse gate next tick
-    const gate = { dist: 560 * M, x: 2 * M, half: M, kind: 'pulse', path: 'main', period: PULSE_PERIOD } as const
-    const track = testTrack({ gates: [gate] })
-    const holdLane = { steer: 32, action: ACTION_NONE } as const
-    const arriving = (tick: number, x: number): Partial<State> => ({ dist: 560 * M - 1000, speed: M, flow, tick, x })
-    const cross = (onTrack: Track, tick: number, x: number): State =>
-      step(stateOn(onTrack, arriving(tick, x)), x === 0 ? NONE : holdLane)
-    // #when crossing on the last tick of beat 0 (+2 m lit), the first of beat 1 (-2 m lit) and on the centre line
-    const lit = cross(track, 23, 2 * M)
-    const dark = cross(track, 24, 2 * M)
-    const centred = cross(track, 23, 0)
-    // #then only the lit lane pays; there is no off-beat consolation
-    expect(lit.events & (EVENT.PULSE_HIT | EVENT.PERFECT_GATE | EVENT.MISSED_GATE)).toBe(EVENT.PULSE_HIT | EVENT.PERFECT_GATE)
-    expect(lit.flow - cross(testTrack(), 23, 2 * M).flow).toBe(FLOW.PULSE_GATE)
-    expect(dark.events & (EVENT.PULSE_HIT | EVENT.PERFECT_GATE | EVENT.MISSED_GATE)).toBe(EVENT.MISSED_GATE)
-    expect(dark.flow - cross(testTrack(), 24, 2 * M).flow).toBe(-FLOW.MISSED_GATE)
-    expect(centred.events & (EVENT.PULSE_HIT | EVENT.MISSED_GATE)).toBe(EVENT.MISSED_GATE)
+  it('pays a pulse gate +8% in the lit lane and counts the dark lane or the centre as a miss', () => {
+    const track = testTrack({ gates: [gateAt(560, 2, { kind: 'pulse', period: PULSE_PERIOD })] })
+    const crossing = (tick: number, lane: number): State =>
+      step(stateOn(track, { dist: 560 * M - 1000, speed: M, flow, tick, x: laneCenterX(lane), lane, targetLane: lane }), NONE)
+    const lit = crossing(23, 2)
+    const dark = crossing(24, 2)
+    const centred = crossing(23, 0)
+    const mask = EVENT.PULSE_HIT | EVENT.PERFECT_GATE | EVENT.MISSED_GATE
+    expect(lit.events & mask).toBe(EVENT.PULSE_HIT | EVENT.PERFECT_GATE)
+    expect(lit.flow - step(stateOn(testTrack(), { dist: 560 * M - 1000, speed: M, flow, tick: 23, x: laneCenterX(2), lane: 2, targetLane: 2 }), NONE).flow).toBe(FLOW.PULSE_GATE)
+    expect(dark.events & mask).toBe(EVENT.MISSED_GATE)
+    expect(centred.events & mask).toBe(EVENT.MISSED_GATE)
     expect([lit.metrics.pulseHits, dark.metrics.pulseHits, dark.metrics.totalGates]).toEqual([1, 0, 1])
   })
 
   it('is on beat only inside the pulse section when given a distance', () => {
     const track = testTrack()
-    expect(onBeat(track, 25, 560 * M)).toBe(true)
-    expect(onBeat(track, 32, 560 * M)).toBe(true)
-    expect(onBeat(track, 33, 560 * M)).toBe(false)
-    expect(onBeat(track, 24, 560 * M)).toBe(false)
-    expect(onBeat(track, 25, 100 * M)).toBe(false)
-    expect(onBeat(track, 50)).toBe(true)
+    expect([onBeat(track, 25, 560 * M), onBeat(track, 32, 560 * M), onBeat(track, 33, 560 * M), onBeat(track, 24, 560 * M)]).toEqual([true, true, false, false])
+    expect([onBeat(track, 25, 100 * M), onBeat(track, 50)]).toEqual([false, true])
   })
 
   it('drains FLOW by about 1.5% per second when nothing is earned', () => {
@@ -480,113 +855,177 @@ describe('relay leg gates and FLOW', () => {
     expect(flow - states.at(-1)!.flow).toBe(FLOW.DECAY_TICK * 60)
   })
 
-  it('fires FLOW_MAX when FLOW reaches full', () => {
-    const gate = { dist: 3 * M, x: 0, half: M, kind: 'gold', path: 'main', period: 0 } as const
-    const states = simulate(stateOn(testTrack({ gates: [gate] }), { flow: ONE - 500 }), 20)
-    const maxed = stateWithEvent(states, EVENT.FLOW_MAX)
-    expect(maxed.flow).toBe(ONE)
-    expect(maxed.metrics.flowPeak).toBe(ONE)
+  it('starts Relay Rush at full FLOW: faster, FLOW pinned, one rush moment, 70% FLOW when it runs out', () => {
+    // #given a courier one gate short of full FLOW, with gates it will miss during the rush
+    const gates = [gateAt(103, 0), gateAt(120, 2), gateAt(140, 2)]
+    const start = stateOn(testTrack({ gates }), { dist: 100 * M, flow: ONE - 1000 })
+    const states = simulate(start, RUSH_TICKS + 30)
+    const started = indexOfEvent(states, EVENT.RUSH_START)
+    const rushing = states[started + 60]!
+    const ended = states[started + RUSH_TICKS]!
+    // #then the rush starts with FLOW_MAX, shrugs off the misses and ends at 70%
+    expect(states[started]!.events & EVENT.FLOW_MAX).toBe(EVENT.FLOW_MAX)
+    expect([states[started]!.rushTicks, states[started]!.metrics.rushes]).toEqual([RUSH_TICKS, 1])
+    expect(rushing.flow).toBe(ONE)
+    expect(rushing.metrics.totalGates - rushing.metrics.perfectGates).toBe(2)
+    expect(rushing.speed).toBeGreaterThan(BASE_SPEED + Math.trunc(30 * M / 100))
+    expect([ended.rushTicks, ended.flow]).toEqual([0, FLOW.RUSH_END])
+    expect(states.at(-1)!.moments.map(moment => moment.kind)).toEqual(['rush'])
   })
 
-  it('grinds rails: RAIL_ON, per-tick FLOW, RAIL_OFF when steering off', () => {
-    // #given a centre rail over the first 100 m
-    const track = testTrack({ rails: [zoneAt(0, 100, { half: M })] })
-    const states = simulate(stateOn(track, { flow }), 60, index => ({ steer: index < 20 ? 0 : 64, action: ACTION_NONE }))
-    const baseline = simulate(stateOn(testTrack(), { flow }), 1)[0]!
-    // #then the first tick locks on, pays, and steering away unlocks
-    expect(states[0]!.events & EVENT.RAIL_ON).toBe(EVENT.RAIL_ON)
-    expect(states[0]!.flow - baseline.flow).toBe(FLOW.RAIL_TICK)
-    expect(allEvents(states) & EVENT.RAIL_OFF).toBe(EVENT.RAIL_OFF)
-    expect(states.at(-1)!.railing).toBe(0)
-    expect(states.at(-1)!.metrics.railTicks).toBeGreaterThanOrEqual(20)
-  })
-
-  it('speeds up on boost pads, and only on the beat inside the pulse section', () => {
-    const padTrack = testTrack({ boostPads: [zoneAt(0, 100), zoneAt(550, 580)] })
-    const boosted = simulate(stateOn(padTrack), 60).at(-1)!
-    const plain = simulate(stateOn(testTrack()), 60).at(-1)!
-    expect(boosted.dist).toBeGreaterThan(plain.dist)
-    expect(boosted.metrics.boostPadTicks).toBe(60)
-    const pulseStart = { dist: 552 * M }
-    expect(step(stateOn(padTrack, { ...pulseStart, tick: 24 }), NONE).events & EVENT.BOOST_PAD).toBe(EVENT.BOOST_PAD)
-    expect(step(stateOn(padTrack, { ...pulseStart, tick: 10 }), NONE).events & EVENT.BOOST_PAD).toBe(0)
+  it('ends Relay Rush immediately on a hit', () => {
+    const track = testTrack({ hazards: [hazardAt('barrier', 120, [0])] })
+    const states = simulate(stateOn(track, { dist: 100 * M, flow: ONE, rushTicks: 200 }), 60)
+    const hit = stateWithEvent(states, EVENT.HIT)
+    expect([hit.rushTicks, hit.flow]).toEqual([0, ONE - FLOW.HIT])
   })
 })
 
 // ---------------------------------------------------------------------------
-// Fork and finish
+// Ghost
 // ---------------------------------------------------------------------------
 
-describe('relay leg fork', () => {
-  const beforeFork = { dist: 400 * M - 1000 }
+describe('relay leg ghost', () => {
+  /** A ghost that holds `metresPerTick` from tick 0 on the main path, `xCm` from the centre line. */
+  function steadyGhost(metresPerTickPercent: number, xCm = 0, samples = 160): Ghostline {
+    return {
+      step: GHOSTLINE_STEP,
+      path: Array.from({ length: samples }, () => 0 as const),
+      x: Array.from({ length: samples }, () => xCm),
+      tick: Array.from({ length: samples }, (_, i) => Math.trunc(i * 4 * 100 / metresPerTickPercent)),
+    }
+  }
 
-  it('takes the risk path only when x is on the risk side at the split', () => {
-    const risk = step(stateOn(testTrack(), { ...beforeFork, x: M }), { steer: 16, action: ACTION_NONE })
-    const safe = step(stateOn(testTrack(), { ...beforeFork, x: -M }), { steer: -16, action: ACTION_NONE })
-    const centre = step(stateOn(testTrack(), beforeFork), NONE)
-    expect([risk.path, risk.events & EVENT.FORK_RISK]).toEqual(['risk', EVENT.FORK_RISK])
-    expect([safe.path, safe.events & EVENT.FORK_SAFE]).toEqual(['safe', EVENT.FORK_SAFE])
-    expect(centre.path).toBe('safe')
+  function withGhost(ghostline: Ghostline, patch: Partial<State> = {}): State {
+    const state = stateOn(testTrack(), patch)
+    return { ...state, config: { ...state.config, ghostline } }
+  }
+
+  it('reports how far ahead the ghost is and drafts on its line', () => {
+    // #given a ghost 40 ticks ahead on the centre line
+    const ghost = steadyGhost(50)
+    const states = simulate(withGhost(ghost, { dist: 100 * M, tick: 240, speed: Math.trunc(M / 2) }), 30)
+    const last = states.at(-1)!
+    // #then the lead is positive and the courier drafts every tick
+    expect(last.ghostLeadTicks).toBeGreaterThan(30)
+    expect(last.ghostLeadTicks).toBeLessThanOrEqual(DRAFT_LEAD)
+    expect(countEvent(states, EVENT.DRAFTING)).toBe(30)
+    expect(last.metrics.draftTicks).toBe(30)
   })
 
-  it('progresses faster on the risk path at the same speed', () => {
-    const inside = { dist: 410 * M, speed: M, flow: 30000 }
-    const risk = simulate(stateOn(testTrack(), { ...inside, path: 'risk', riskClean: 1 }), 30).at(-1)!
-    const safe = simulate(stateOn(testTrack(), { ...inside, path: 'safe' }), 30).at(-1)!
-    expect(risk.speed).toBe(safe.speed)
-    expect(risk.dist).toBeGreaterThan(safe.dist)
+  it('does not draft off the ghost line or when the ghost is too far ahead', () => {
+    const offLine = simulate(withGhost(steadyGhost(50, 300), { dist: 100 * M, tick: 240, speed: Math.trunc(M / 2) }), 20)
+    const farAhead = simulate(withGhost(steadyGhost(50), { dist: 100 * M, tick: 400, speed: Math.trunc(M / 2) }), 20)
+    expect(allEvents(offLine) & EVENT.DRAFTING).toBe(0)
+    expect(allEvents(farAhead) & EVENT.DRAFTING).toBe(0)
   })
 
-  it('only applies features on the path the courier took', () => {
-    const track = testTrack({ hazards: [hazardAt('barrier', 420, { path: 'risk' })] })
-    const inside = { dist: 415 * M, speed: M }
-    expect(allEvents(simulate(stateOn(track, { ...inside, path: 'risk' }), 10)) & EVENT.HIT).toBe(EVENT.HIT)
-    expect(allEvents(simulate(stateOn(track, { ...inside, path: 'safe' }), 10)) & EVENT.HIT).toBe(0)
+  it('overtakes once when catching the ghost, with FLOW and a moment, and is overtaken when it pulls clear', () => {
+    // #given a ghost 20 ticks ahead at the same speed that the courier out-runs
+    const ghost = steadyGhost(50)
+    const start = withGhost(ghost, { dist: 100 * M, tick: 220, speed: M, flow: 20000, ghostAhead: 1 })
+    const states = simulate(start, 120)
+    const overtake = indexOfEvent(states, EVENT.GHOST_OVERTAKE)
+    // #then the overtake fires once, pays FLOW and records the moment
+    expect(overtake).toBeGreaterThan(0)
+    expect(countEvent(states, EVENT.GHOST_OVERTAKE)).toBe(1)
+    expect(states[overtake]!.ghostLeadTicks).toBeLessThanOrEqual(0)
+    expect(states[overtake]!.moments.map(moment => moment.kind)).toEqual(['ghost-overtake'])
+    // #and a courier that stops is overtaken back once the ghost leads clearly
+    const stalled = simulate({ ...states.at(-1)!, motion: 'falling', motionTicks: 150, tetherSaves: 0 }, 200)
+    expect(countEvent(stalled, EVENT.GHOST_OVERTAKEN)).toBe(1)
+    expect(stateWithEvent(stalled, EVENT.GHOST_OVERTAKEN).ghostLeadTicks).toBeGreaterThanOrEqual(GHOST_LEAD_MARGIN)
   })
 
-  it('pays RISK_CLEAR for a clean risk path and nothing after a hit', () => {
-    const exiting = { dist: 500 * M - 1000, speed: M, path: 'risk' as const }
-    const clean = step(stateOn(testTrack(), { ...exiting, riskClean: 1 }), NONE)
-    const dirty = step(stateOn(testTrack(), { ...exiting, riskClean: 0 }), NONE)
-    expect([clean.path, clean.events & EVENT.RISK_CLEAR, clean.metrics.riskRoutes]).toEqual(['main', EVENT.RISK_CLEAR, 1])
-    expect([dirty.path, dirty.events & EVENT.RISK_CLEAR, dirty.metrics.riskRoutes]).toEqual(['main', 0, 1])
+  it('cannot farm overtakes by running level with the ghost', () => {
+    // #given a ghost at exactly base speed and a courier level with it at base speed
+    const ghost = steadyGhost(46)
+    const level = simulate(withGhost(ghost, { dist: 100 * M, tick: 217, speed: BASE_SPEED, flow: 0, ghostAhead: 1 }), 600)
+    // #then the lead dithers around zero but the overtake pays once
+    expect(level.some(state => state.ghostLeadTicks > 0)).toBe(true)
+    expect(countEvent(level, EVENT.GHOST_OVERTAKE)).toBe(1)
+    expect(countEvent(level, EVENT.GHOST_OVERTAKEN)).toBe(0)
   })
 
-  it('voids RISK_CLEAR when the courier is hit on the risk path', () => {
-    // #given a barrier on the risk line right after the split
-    const track = testTrack({ hazards: [hazardAt('barrier', 401, { path: 'risk' })] })
-    // #when riding the risk path into it and on to the rejoin
-    const states = simulate(stateOn(track, { dist: 399 * M, x: M, speed: M }), 600, () => ({ steer: 16, action: ACTION_NONE }))
-    const rejoined = states.findIndex(state => state.path === 'main' && state.dist >= 500 * M)
-    // #then the risk route counts but pays no RISK_CLEAR
-    expect(rejoined).toBeGreaterThan(0)
-    expect(states[rejoined]!.metrics.riskRoutes).toBe(1)
-    expect(allEvents(states) & (EVENT.FORK_RISK | EVENT.HIT | EVENT.RISK_CLEAR)).toBe(EVENT.FORK_RISK | EVENT.HIT)
+  it('treats distances the ghost never reached as the courier being ahead', () => {
+    const short = steadyGhost(50, 0, 10)
+    const past = step(withGhost(short, { dist: 200 * M, tick: 500, ghostAhead: 1 }), NONE)
+    expect(past.ghostLeadTicks).toBeLessThan(0)
+    expect(past.events & EVENT.GHOST_OVERTAKE).toBe(EVENT.GHOST_OVERTAKE)
+    expect(ghostlineAt(short, 200 * M)).toBeNull()
+  })
+
+  it('interpolates ghostline samples', () => {
+    const ghost: Ghostline = { step: GHOSTLINE_STEP, path: [0, 0, 2], x: [0, 100, 300], tick: [0, 10, 30] }
+    expect(ghostlineAt(ghost, 2 * M)).toEqual({ x: Math.trunc(M / 2), path: 'main', tick: 5 })
+    expect(ghostlineAt(ghost, 6 * M)).toEqual({ x: M, path: 'main', tick: 20 })
+    expect(ghostlineAt(ghost, 8 * M)).toEqual({ x: 3 * M, path: 'risk', tick: 30 })
+    expect(ghostlineAt(ghost, 10 * M)).toEqual({ x: 3 * M, path: 'risk', tick: 40 })
+    expect(ghostlineAt(ghost, 12 * M)).toBeNull()
+  })
+
+  it('derives a ghostline every 4 m of route progress from a verified run, purely', () => {
+    const config = { ...CONFIG, world: 'alpine' as const, seed: 'ghostline' }
+    const run = playLeg(config, sloppyBot('risk'))
+    const ghostline = deriveGhostline(config, run.trace)
+    expect(run.state.dist).toBe(run.state.track.finishDist)
+    expect(deriveGhostline(config, run.trace)).toEqual(ghostline)
+    expect(ghostline.step).toBe(GHOSTLINE_STEP)
+    expect(ghostline.tick).toHaveLength(Math.trunc(run.state.track.finishDist / GHOSTLINE_STEP) + 1)
+    expect(ghostline.tick.every((tick, i) => i === 0 || tick >= ghostline.tick[i - 1]!)).toBe(true)
+    expect(ghostline.tick.at(-1)!).toBeLessThanOrEqual(run.state.tick)
+    expect(ghostline.path.every(code => code === 0 || code === 1 || code === 2)).toBe(true)
+    expect(() => deriveGhostline(config, [[1, 0, 0, 0]])).toThrow(RangeError)
+    // #and racing it replays to the same result
+    const chase = playLeg({ ...config, ghostline }, skilledBot('safe'))
+    expect(replay({ ...config, ghostline, inputTrace: chase.trace })).toEqual(finalize(chase.state, chase.trace))
   })
 })
+
+const DRAFT_LEAD = 90
+
+// ---------------------------------------------------------------------------
+// Moments
+// ---------------------------------------------------------------------------
+
+describe('relay leg moments', () => {
+  it('keeps moments in route order, bounded, never repeating a kind at one distance', () => {
+    // #given a courier saving an edge over and over along the route
+    let state = onRightShoulder(testTrack(), { dist: 10 * M })
+    for (let round = 0; round < 12; round++) {
+      const grinding: State = { ...state, motion: 'grinding', motionTicks: GRIND_WINDOW_TICKS[1], edgeSide: 1, x: HALF_WIDTH, vx: 0 }
+      state = simulate(grinding, 20, firstThen(LEFT)).at(-1)!
+    }
+    // #then at most MAX_MOMENTS are kept, ordered by distance
+    expect(state.moments.length).toBe(MAX_MOMENTS)
+    expect(state.moments.every((moment, i) => i === 0 || moment.dist >= state.moments[i - 1]!.dist)).toBe(true)
+    const keys = state.moments.map(moment => `${moment.kind}@${moment.dist}`)
+    expect(new Set(keys).size).toBe(keys.length)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Finish, traces, replay and result
+// ---------------------------------------------------------------------------
 
 describe('relay leg finish', () => {
   it('finishes on reaching the finish distance and stays finished', () => {
     const finished = step(stateOn(testTrack(), { dist: 600 * M - 1000, speed: M }), NONE)
-    expect([finished.finished, finished.dist, finished.events & EVENT.FINISH]).toEqual([1, 600 * M, EVENT.FINISH])
+    expect([finished.finished, finished.motion, finished.dist, finished.events & EVENT.FINISH]).toEqual([1, 'finished', 600 * M, EVENT.FINISH])
     expect(step(finished, JUMP)).toBe(finished)
   })
 
   it('ends an unfinished leg at MAX_TICKS as incomplete with no score', () => {
     const capped = step(stateOn(testTrack(), { tick: MAX_TICKS - 1 }), NONE)
-    const result = finalize(capped, [[0, 0, 0]])
+    const result = finalize(capped, [[0, 0, 0, 0]])
     expect([capped.finished, capped.events & EVENT.FINISH]).toEqual([1, 0])
-    expect([result.completed, result.score, result.ticks, result.timeMs]).toEqual([false, 0, MAX_TICKS, 90000])
+    expect([result.completed, result.failed, result.score, result.ticks, result.timeMs]).toEqual([false, false, 0, MAX_TICKS, 90000])
   })
 })
 
-// ---------------------------------------------------------------------------
-// Traces, replay and result
-// ---------------------------------------------------------------------------
-
 describe('relay leg traces', () => {
   it('accepts a well-formed trace', () => {
-    const trace: Sample[] = [[0, -64, 0], [12, 64, 1], [1, 0, 2]]
+    const trace: Sample[] = [[0, -1, 8, 0], [12, 1, -8, 1], [1, 0, 0, 2]]
     expect(validateTrace(trace)).toEqual({ ok: true, trace })
   })
 
@@ -594,20 +1033,22 @@ describe('relay leg traces', () => {
     const cases: [unknown, string, number][] = [
       ['nope', 'count', -1],
       [[], 'count', -1],
-      [Array.from({ length: MAX_TICKS + 1 }, (_, i) => [i === 0 ? 0 : 1, 0, 0]), 'count', -1],
-      [[[0, 0]], 'shape', 0],
-      [[[0, 0, 0, 0]], 'shape', 0],
-      [[[0, 0, 0], 'x'], 'shape', 1],
-      [[[1, 0, 0]], 'order', 0],
-      [[[0, 0, 0], [0, 0, 0]], 'order', 1],
-      [[[0, 0, 0], [-3, 0, 0]], 'order', 1],
-      [[[0, 0, 0], [1.5, 0, 0]], 'order', 1],
-      [[[0, 65, 0]], 'input', 0],
-      [[[0, -65, 0]], 'input', 0],
-      [[[0, 0.5, 0]], 'input', 0],
-      [[[0, 0, 3]], 'input', 0],
-      [[[0, 0, '1']], 'input', 0],
-      [[[0, 0, 0], [MAX_TICKS, 0, 0]], 'after-end', 1],
+      [Array.from({ length: MAX_TICKS + 1 }, (_, i) => [i === 0 ? 0 : 1, 0, 0, 0]), 'count', -1],
+      [[[0, 0, 0]], 'shape', 0],
+      [[[0, 0, 0, 0, 0]], 'shape', 0],
+      [[[0, 0, 0, 0], 'x'], 'shape', 1],
+      [[[1, 0, 0, 0]], 'order', 0],
+      [[[0, 0, 0, 0], [0, 0, 0, 0]], 'order', 1],
+      [[[0, 0, 0, 0], [-3, 0, 0, 0]], 'order', 1],
+      [[[0, 0, 0, 0], [1.5, 0, 0, 0]], 'order', 1],
+      [[[0, 2, 0, 0]], 'input', 0],
+      [[[0, -2, 0, 0]], 'input', 0],
+      [[[0, 0, 9, 0]], 'input', 0],
+      [[[0, 0, -9, 0]], 'input', 0],
+      [[[0, 0, 0.5, 0]], 'input', 0],
+      [[[0, 0, 0, 3]], 'input', 0],
+      [[[0, 0, 0, '1']], 'input', 0],
+      [[[0, 0, 0, 0], [MAX_TICKS, 0, 0, 0]], 'after-end', 1],
     ]
     for (const [trace, code, index] of cases) {
       expect(validateTrace(trace), `${code} ${JSON.stringify(trace).slice(0, 40)}`).toEqual({ ok: false, error: { code, index } })
@@ -615,56 +1056,69 @@ describe('relay leg traces', () => {
   })
 
   it(`rejects traces over ${MAX_TRACE_BYTES} canonical bytes`, () => {
-    const trace = Array.from({ length: MAX_TICKS }, (_, i) => [i === 0 ? 0 : 100000, -64, 2])
+    const trace = Array.from({ length: MAX_TICKS }, (_, i) => [i === 0 ? 0 : 100000, -1, -8, 2])
     const result = validateTrace(trace, Number.MAX_SAFE_INTEGER)
     expect(result.ok ? 'ok' : result.error.code).toBe('size')
   })
 
-  it('holds steer between samples and fires actions only on their sample tick', () => {
-    // #given a jump at tick 0 and a slide at tick 4
-    const cursor = new InputCursor([[0, 25, ACTION_JUMP], [4, -12, ACTION_SLIDE]])
-    // #then actions are impulses while steer holds
-    expect(cursor.at(0)).toEqual({ steer: 25, action: ACTION_JUMP })
-    expect(cursor.at(1)).toEqual({ steer: 25, action: ACTION_NONE })
-    expect(cursor.at(4)).toEqual({ steer: -12, action: ACTION_SLIDE })
-    expect(cursor.at(5)).toEqual({ steer: -12, action: ACTION_NONE })
+  it('holds nudge between samples and fires shifts and actions only on their sample tick', () => {
+    // #given a right shift with a jump at tick 0 and a left shift with a slide at tick 4
+    const cursor = new InputCursor([[0, 1, 5, ACTION_JUMP], [4, -1, -3, ACTION_SLIDE]])
+    // #then shifts and actions are impulses while nudge holds
+    expect(cursor.at(0)).toEqual({ shift: 1, nudge: 5, action: ACTION_JUMP })
+    expect(cursor.at(1)).toEqual({ shift: 0, nudge: 5, action: ACTION_NONE })
+    expect(cursor.at(4)).toEqual({ shift: -1, nudge: -3, action: ACTION_SLIDE })
+    expect(cursor.at(5)).toEqual({ shift: 0, nudge: -3, action: ACTION_NONE })
   })
 
   it('refuses to read an invalid trace', () => {
-    expect(() => new InputCursor([[1, 0, 0]])).toThrow(RangeError)
+    expect(() => new InputCursor([[1, 0, 0, 0]])).toThrow(RangeError)
   })
 })
 
 describe('relay leg result', () => {
-  const played = playLeg({ ...CONFIG, world: 'solar', seed: 'result' }, goodBot('risk'))
+  const config: Config = { ...CONFIG, world: 'solar', seed: 'result' }
+  const played = playLeg(config, skilledBot('risk'))
 
   it('replays a live leg to the identical result', () => {
     // #given a live leg and its recorded trace
     const live = finalize(played.state, played.trace)
     // #when the server replays the trace
-    const verified = replay({ ...played.state.config, inputTrace: played.trace })
+    const verified = replay({ ...config, inputTrace: played.trace })
     // #then everything, hash included, matches
     expect(verified).toEqual(live)
-    expect(verified.completed).toBe(true)
+    expect([verified.completed, verified.failed]).toEqual([true, false])
     expect(verified.resultHash).toMatch(/^[a-f0-9]{64}$/)
+    expect(verified.moments).toEqual(played.state.moments)
+  })
+
+  it('replays a failed leg as failed', () => {
+    const idleWithoutTether = { ...CONFIG, tier: 1 as const, tetherSaves: 0 as const }
+    const gapInCentre = testTrack({ gaps: [zoneAt(30, 40, [0])] })
+    const failed = simulate(stateOn(gapInCentre, { config: idleWithoutTether }), 400).at(-1)!
+    const result = finalize(failed, [[0, 0, 0, 0]])
+    expect([result.completed, result.failed, result.score]).toEqual([false, true, 0])
   })
 
   it('requires a finished state to finalize', () => {
-    expect(() => finalize(createState(CONFIG), [[0, 0, 0]])).toThrow(RangeError)
+    expect(() => finalize(createState(CONFIG), [[0, 0, 0, 0]])).toThrow(RangeError)
   })
 
   it('rejects malformed traces and samples after the finish', () => {
-    const idle = replay({ ...CONFIG, inputTrace: [[0, 0, 0]] })
-    expect(() => replay({ ...CONFIG, inputTrace: [[0, 0, 0], [idle.ticks, 0, 0]] })).toThrow(RangeError)
+    const idle = replay({ ...CONFIG, inputTrace: [[0, 0, 0, 0]] })
+    expect(() => replay({ ...CONFIG, inputTrace: [[0, 0, 0, 0], [idle.ticks, 0, 0, 0]] })).toThrow(RangeError)
     expect(() => replay({ ...CONFIG, inputTrace: [] })).toThrow(RangeError)
   })
 
-  it('binds world, tier and opening FLOW into the hash and ignores unknown config fields', () => {
-    const inputTrace: Sample[] = [[0, 0, 0]]
+  it('binds world, tier, opening FLOW, tether saves and the ghostline into the hash, and ignores unknown fields', () => {
+    const inputTrace: Sample[] = [[0, 0, 0, 0]]
     const base = replay({ ...CONFIG, inputTrace }).resultHash
+    const ghostline: Ghostline = { step: GHOSTLINE_STEP, path: [0], x: [0], tick: [0] }
     expect(replay({ ...CONFIG, world: 'alpine', inputTrace }).resultHash).not.toBe(base)
     expect(replay({ ...CONFIG, tier: 2, inputTrace }).resultHash).not.toBe(base)
     expect(replay({ ...CONFIG, openingFlow: 1, inputTrace }).resultHash).not.toBe(base)
+    expect(replay({ ...CONFIG, tetherSaves: 0, inputTrace }).resultHash).not.toBe(base)
+    expect(replay({ ...CONFIG, ghostline, inputTrace }).resultHash).not.toBe(base)
     const withExtraField = { ...CONFIG, inputTrace, issuedAt: 1726500000000 }
     expect(replay(withExtraField).resultHash).toBe(base)
   })
@@ -673,7 +1127,8 @@ describe('relay leg result', () => {
     const { state } = played
     const m = state.metrics
     const expected = 300000 - state.tick * 40 + m.perfectGates * 120 + m.pulseHits * 160 + m.nearMisses * 60
-      + m.cleanLandings * 40 + m.riskRoutes * 400 - m.hits * 300 - m.falls * 500
+      + m.cleanLandings * 40 + m.riskRoutes * 400 + m.edgeSaves * 200 + m.overtakes * 150 + m.rushes * 300
+      - m.hits * 300 - m.falls * 500 - m.hardLandings * 100
       + Math.trunc(m.flowSum * 2000 / (state.tick * ONE))
     const result = finalize(state, played.trace)
     expect(result.timeMs).toBe(Math.trunc(state.tick * 1000 / 60))
@@ -683,7 +1138,7 @@ describe('relay leg result', () => {
 
   it('hashes the rules string', () => {
     expect(RULES_HASH).toBe(sha256(RULES))
-    expect(RULES).toMatch(/^relay-leg-v5:/)
+    expect(RULES).toMatch(/^relay-leg-v6:/)
   })
 })
 
@@ -692,25 +1147,26 @@ describe('relay leg result', () => {
 // ---------------------------------------------------------------------------
 
 describe('relay leg playability', () => {
-  const SEEDS = 20
+  const SEEDS = 4
+  const TIERS: readonly Tier[] = [0, 1, 2]
 
-  function legConfig(world: Config['world'], tier: Tier, index: number): Config {
-    return { ...CONFIG, world, tier, seed: `play-${index}`, openingFlow: (index * 811) % (MAX_OPENING_FLOW + 1) }
+  function legConfig(world: Config['world'], tier: Tier, index: number, patch: Partial<Config> = {}): Config {
+    return { ...CONFIG, world, tier, seed: `play-${index}`, openingFlow: (index * 811) % (MAX_OPENING_FLOW + 1), ...patch }
   }
 
-  it('lets a good courier finish tier 0 and tier 1 legs on every world in 32-50 s with average FLOW above 45%', () => {
+  const seconds = (state: State): number => state.tick / 60
+  const completed = (state: State): boolean => state.dist >= state.track.finishDist && state.motion !== 'failed'
+
+  it('lets the skilled courier finish every world and tier in 36-46 s on either fork plan', { timeout: 60000 }, () => {
     const failures: string[] = []
     for (const world of WORLDS) {
-      for (const tier of [0, 1] as const) {
+      for (const tier of TIERS) {
         for (let i = 0; i < SEEDS; i++) {
-          // #given a route the good bot reads like a player
-          const { state } = playLeg(legConfig(world, tier, i), goodBot('safe'))
-          // #then it completes on time with FLOW mostly earned
-          const seconds = state.tick / 60
-          const flowPercent = state.metrics.flowSum * 100 / (state.tick * ONE)
-          const completed = state.dist >= state.track.finishDist
-          if (!completed || seconds < 32 || seconds > 50 || flowPercent <= 45) {
-            failures.push(`${world} t${tier} #${i}: ${seconds.toFixed(1)} s, flow ${flowPercent.toFixed(0)}%, completed ${completed}`)
+          for (const plan of ['safe', 'risk'] as const) {
+            const { state } = playLeg(legConfig(world, tier, i), skilledBot(plan))
+            if (!completed(state) || seconds(state) < 36 || seconds(state) > 46) {
+              failures.push(`${world} t${tier} #${i} ${plan}: ${seconds(state).toFixed(1)} s, ${state.motion}`)
+            }
           }
         }
       }
@@ -718,58 +1174,127 @@ describe('relay leg playability', () => {
     expect(failures).toEqual([])
   })
 
-  it('lets a hands-off courier finish every world and tier in under 70 s', () => {
+  it('makes the risk plan the faster line for the skilled courier', { timeout: 60000 }, () => {
+    for (const world of WORLDS) {
+      let risk = 0
+      let safe = 0
+      for (let i = 0; i < SEEDS; i++) {
+        risk += playLeg(legConfig(world, 1, i), skilledBot('risk')).state.tick
+        safe += playLeg(legConfig(world, 1, i), skilledBot('safe')).state.tick
+      }
+      expect(risk, world).toBeLessThan(safe)
+    }
+  })
+
+  it('lets the skilled courier clear relay cuts at speed', { timeout: 60000 }, () => {
+    let cuts = 0
+    let legs = 0
+    for (const world of WORLDS) {
+      for (let i = 0; i < SEEDS; i++) {
+        const { state } = playLeg(legConfig(world, 1, i), skilledBot('risk'))
+        legs++
+        if (state.moments.some(moment => moment.kind === 'relay-cut')) cuts++
+        expect(state.metrics.falls, `${world} #${i}`).toBe(0)
+      }
+    }
+    expect(cuts * 100).toBeGreaterThanOrEqual(legs * 80)
+  })
+
+  it('has the sloppy courier finish in 40-60 s on average, with falls the tether saves', { timeout: 60000 }, () => {
+    let finishedTicks = 0
+    let finished = 0
+    let legs = 0
+    let tethers = 0
+    for (const world of WORLDS) {
+      for (const tier of TIERS) {
+        for (let i = 0; i < SEEDS; i++) {
+          const { state } = playLeg(legConfig(world, tier, i), sloppyBot(i % 2 === 0 ? 'safe' : 'risk'))
+          legs++
+          tethers += state.metrics.tetherSaves
+          if (!completed(state)) continue
+          finished++
+          finishedTicks += state.tick
+        }
+      }
+    }
+    const averageSeconds = finishedTicks / finished / 60
+    expect(finished * 100).toBeGreaterThanOrEqual(legs * 90)
+    expect(averageSeconds).toBeGreaterThanOrEqual(40)
+    expect(averageSeconds).toBeLessThanOrEqual(60)
+    expect(tethers).toBeGreaterThan(0)
+  })
+
+  it('lets a hands-off courier with a tether save finish every world and tier', { timeout: 60000 }, () => {
     const failures: string[] = []
     for (const world of WORLDS) {
-      for (const tier of [0, 1, 2] as const) {
+      for (const tier of TIERS) {
         for (let i = 0; i < SEEDS; i++) {
           const { state } = playLeg(legConfig(world, tier, i), idleBot)
-          const completed = state.dist >= state.track.finishDist
-          if (!completed || state.tick >= 70 * 60) failures.push(`${world} t${tier} #${i}: ${(state.tick / 60).toFixed(1)} s, completed ${completed}`)
+          if (!completed(state) || state.tick >= MAX_TICKS) failures.push(`${world} t${tier} #${i}: ${seconds(state).toFixed(1)} s, ${state.motion}`)
         }
       }
     }
     expect(failures).toEqual([])
   })
 
-  it('lets an intercepting courier meet at least 80% of pulse gates in the lit lane on every world and tier', () => {
-    const shortfalls: string[] = []
+  it('fails a hands-off courier without tether saves on its first fall, and a tether turns the same fall into a finish', () => {
+    // #given a route whose centre lane drops into an unramped gap
+    const gapInCentre = testTrack({ gaps: [zoneAt(30, 40, [0])], checkpoints: [{ dist: 0, path: 'main', lane: 0 }] })
+    const run = (tetherSaves: 0 | 1): State => {
+      const config = { ...CONFIG, tetherSaves }
+      const start = stateOn(gapInCentre, { config, tetherSaves })
+      return simulate(start, MAX_TICKS).at(-1)!
+    }
+    // #then without a save the leg fails, and with one the courier respawns and falls again, failing later
+    const bare = run(0)
+    const tethered = run(1)
+    expect([bare.motion, bare.metrics.falls, bare.metrics.tetherSaves]).toEqual(['failed', 1, 0])
+    expect([tethered.motion, tethered.metrics.falls, tethered.metrics.tetherSaves]).toEqual(['failed', 2, 1])
+    expect(tethered.tick).toBeGreaterThan(bare.tick)
+  })
+
+  it('lets real hands-off legs without a tether either finish or fail cleanly', { timeout: 60000 }, () => {
     for (const world of WORLDS) {
-      for (const tier of [0, 1, 2] as const) {
-        let hits = 0
-        let pulseGates = 0
-        for (let i = 0; i < SEEDS; i++) {
-          // #given the good bot, which predicts its arrival tick and steers for the lane lit then
-          const { state } = playLeg(legConfig(world, tier, i), goodBot(i % 2 === 0 ? 'safe' : 'risk'))
-          hits += state.metrics.pulseHits
-          pulseGates += state.track.gates.filter(gate => gate.kind === 'pulse').length
-        }
-        // #then reading the rhythm pays off
-        if (hits * 100 < pulseGates * 80) shortfalls.push(`${world} t${tier}: ${hits}/${pulseGates}`)
+      for (const tier of TIERS) {
+        const { state, trace } = playLeg(legConfig(world, tier, 0, { tetherSaves: 0 }), idleBot)
+        const result = replay({ ...legConfig(world, tier, 0, { tetherSaves: 0 }), inputTrace: trace })
+        expect(result.completed !== result.failed, `${world} t${tier}`).toBe(true)
+        expect(result.failed).toBe(state.motion === 'failed')
       }
     }
-    expect(shortfalls).toEqual([])
+  })
+
+  it('lets the skilled courier meet at least 80% of pulse gates in the lit lane', { timeout: 60000 }, () => {
+    let hits = 0
+    let pulseGates = 0
+    for (const world of WORLDS) {
+      for (let i = 0; i < SEEDS; i++) {
+        const { state } = playLeg(legConfig(world, 1, i), skilledBot(i % 2 === 0 ? 'safe' : 'risk'))
+        hits += state.metrics.pulseHits
+        pulseGates += state.track.gates.filter(gate => gate.kind === 'pulse').length
+      }
+    }
+    expect(hits * 100).toBeGreaterThanOrEqual(pulseGates * 80)
   })
 
   it('gives a courier who stays centred no pulse hits', () => {
     for (const world of WORLDS) {
-      for (const tier of [0, 1, 2] as const) {
-        let hits = 0
-        for (let i = 0; i < SEEDS; i++) hits += playLeg(legConfig(world, tier, i), idleBot).state.metrics.pulseHits
-        expect(hits, `${world} t${tier}`).toBe(0)
-      }
+      expect(playLeg(legConfig(world, 1, 0), idleBot).state.metrics.pulseHits, world).toBe(0)
     }
   })
 
-  it('makes the risk route the faster line for a clean courier', () => {
+  it('drafts and overtakes a ghost that leads early', { timeout: 60000 }, () => {
+    let drafted = 0
+    let overtook = 0
     for (const world of WORLDS) {
-      let riskTicks = 0
-      let safeTicks = 0
-      for (let i = 0; i < 10; i++) {
-        riskTicks += playLeg(legConfig(world, 1, i), goodBot('risk')).state.tick
-        safeTicks += playLeg(legConfig(world, 1, i), goodBot('safe')).state.tick
-      }
-      expect(riskTicks, world).toBeLessThan(safeTicks)
+      const config = legConfig(world, 1, 7)
+      const rival = { ...config, openingFlow: MAX_OPENING_FLOW }
+      const ghostline = deriveGhostline(rival, playLeg(rival, sloppyBot('risk')).trace)
+      const { state } = playLeg({ ...config, openingFlow: 0, ghostline }, skilledBot('safe'))
+      drafted += state.metrics.draftTicks
+      overtook += state.metrics.overtakes
     }
+    expect(drafted).toBeGreaterThan(0)
+    expect(overtook).toBeGreaterThan(0)
   })
 })

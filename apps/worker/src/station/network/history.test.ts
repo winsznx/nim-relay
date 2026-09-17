@@ -2,7 +2,7 @@ import { SELF } from 'cloudflare:test'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { paymentAddress } from '@nim-relay/relay-protocol'
 import type { BatonChronicle, IssuedRace, NetworkSnapshot, RunnerProfile, TrackEventResult } from '@nim-relay/shared'
-import { api, call, chainTransfer, confirmWith, createBaton, finishingTrace, IDLE_TRACE, joinNetwork, passBaton, runner, type Pass, type TestRunner } from './testing'
+import { api, call, chainTransfer, confirmWith, createBaton, finishingTrace, joinNetwork, passBaton, runner, type Pass, type TestRunner } from './testing'
 
 async function metrics() {
   return (await call<NetworkSnapshot>('', '/network/public')).metrics
@@ -27,7 +27,7 @@ describe('baton history', () => {
     batonId = journey.baton.id
     batonCode = journey.baton.code
     passes.push(await passBaton(a, b, batonId, issued => finishingTrace(issued.config, 'risk')))
-    passes.push(await passBaton(b, a, batonId, () => IDLE_TRACE))
+    passes.push(await passBaton(b, a, batonId, issued => finishingTrace(issued.config, 'safe')))
     passes.push(await passBaton(a, b, batonId, issued => finishingTrace(issued.config, 'safe')))
   }, 30_000)
 

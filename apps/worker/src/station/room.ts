@@ -2,7 +2,7 @@ import { DurableObject } from 'cloudflare:workers'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
 import { deriveCommitment, encodeTxData, paymentAddress, NimiqRpcClient, verifyHandoffTransaction } from '@nim-relay/relay-protocol'
-import type { CanonicalGhost, HandoffIntent, IssuedRace, LegProgressResult, OpsReport, StationProfile, StationSnapshot, SubmittedRace } from '@nim-relay/shared'
+import { isFailedLeg, type CanonicalGhost, type HandoffIntent, type IssuedRace, type LegProgressResult, type OpsReport, type StationProfile, type StationSnapshot, type SubmittedRace } from '@nim-relay/shared'
 import type { Env } from '../env'
 import type { PlayerRecord } from '../auth/store'
 import { ApiError, type Profile, type Run, type State } from './model'
@@ -146,7 +146,7 @@ export class StationRoom extends DurableObject<Env> {
       if (target) {
         const challenge = state.challenges.find(c => c.id === target && c.to === profile.id); if (challenge) target = challenge.runId
         ghostRun = await this.ctx.storage.get<Run>(`run:${target}`)
-        // Station races are v4; relay network legs recorded on v5 cannot be raced here.
+        // Station races are v4; relay network legs recorded on v5 or v6 cannot be raced here.
         if (!ghostRun || ghostRun.issued.config.engineVersion !== '4') throw new ApiError('challenge_not_found', 404)
         world = ghostRun.issued.config.world; seed = ghostRun.issued.config.seed
       }
@@ -315,7 +315,7 @@ export class StationRoom extends DurableObject<Env> {
     if (pending.size === 20) await this.ctx.storage.setAlarm(Date.now() + 1000)
   }
 
-  private qualified(state: State, profile: Profile, run: Run) { if (run.issued.networkRace) return Boolean(run.issued.batonId && run.result.completed && !run.issued.practice); return run.result.completed && run.issued.mode === 'global' && run.issued.relayLeg === state.global.leg && state.global.holderId === profile.id && run.issued.config.seed === state.global.seed }
+  private qualified(state: State, profile: Profile, run: Run) { if (run.issued.networkRace) return Boolean(run.issued.batonId && run.result.completed && !isFailedLeg(run.result) && !run.issued.practice); return run.result.completed && run.issued.mode === 'global' && run.issued.relayLeg === state.global.leg && state.global.holderId === profile.id && run.issued.config.seed === state.global.seed }
   private recipient(state: State, value: string, profile: Profile): Profile { const other = Object.values(state.players).find(p => p.id === value || p.handle.toLowerCase() === value.trim().replace(/^@/, '').toLowerCase()); if (!other) throw new ApiError('courier_not_found', 404); if (other.id === profile.id) throw new ApiError('choose_another_courier'); return other }
   private progress(profile: Profile) { profile.level = 1 + Math.floor(profile.xp / 500); profile.seasonRank = profile.xp >= 5000 ? 'Legend' : profile.xp >= 2000 ? 'Vanguard' : profile.xp >= 500 ? 'Courier' : 'Cadet'; profile.unlocked = cosmetics.filter(c => c.xp <= profile.xp).map(c => c.id); if (profile.runs >= 10 && !profile.achievements.includes('Ten journeys')) profile.achievements.push('Ten journeys') }
   private daily() { const date = new Date().toISOString().slice(0, 10); return { date, world: worlds[Math.floor(Date.now() / 86400000) % 5]!, seed: `daily-${date}-v4`, best: null } }

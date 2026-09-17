@@ -118,6 +118,7 @@ function pendingPass(network: NetworkSnapshot): NetworkSnapshot['pendingHandoff'
     runId: 'run-1',
     recipientId: KOFI.id,
     recipientName: KOFI.name,
+    note: null,
     sender: ADA.wallet,
     recipient: KOFI.wallet,
     value: 100_000,

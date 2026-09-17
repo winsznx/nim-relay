@@ -3,10 +3,11 @@ import { ghostSurvivals } from './achievements'
 import { presentBaton, transactingWallets } from './batons'
 import { HANDOFF_MILESTONES } from './constants'
 import { findBaton, handoffsOf, isRaced, type RacedHandoff } from './lookups'
+import { publicNoteText } from './notes'
 import { consentedCountry, runnerRef } from './runners'
 import type { BatonRecord, NetworkContext, NetworkState } from './types'
 
-/** Public journey record of a baton. Handles instead of wallets; countries only while their runner consents. */
+/** Public journey record of a baton. Handles instead of wallets; countries only while their runner consents; public notes only. */
 export function batonChronicle(context: NetworkContext, idOrCode: string): BatonChronicle {
   const { state } = context
   const baton = findBaton(state, idOrCode)
@@ -48,6 +49,7 @@ export function batonChronicle(context: NetworkContext, idOrCode: string): Baton
       at: handoff.at,
       runId: handoff.runId,
       resultHash: handoff.resultHash,
+      note: publicNoteText(handoff.note),
     })),
     replays: handoffs.map(handoff => ({ leg: handoff.leg, runId: handoff.runId })),
   }

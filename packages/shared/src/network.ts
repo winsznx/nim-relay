@@ -1,4 +1,4 @@
-import type { CanonicalGhost, HandoffIntent, RaceMode, RelayEcho, RelayLegTier, StationWorld } from './station'
+import type { CanonicalGhost, HandoffIntent, RaceMode, RelayEcho, RelayLegPath, RelayLegTier, StationWorld } from './station'
 
 export type RelayNetwork = 'TestAlbatross' | 'MainAlbatross'
 export type BatonMode = Exclude<RaceMode, 'daily'>
@@ -9,7 +9,7 @@ export interface RunnerRef { id: string; handle: string; name: string }
 
 /** Verified race facts of the canonical run behind a handoff. Null for handoffs recorded before these facts were kept. */
 export interface HandoffRace {
-  engineVersion: '4' | '5'
+  engineVersion: '4' | '5' | '6'
   world: StationWorld
   timeMs: number
   score: number
@@ -19,6 +19,31 @@ export interface HandoffRace {
   /** Whether the run outscored the ghost it raced; null when it raced no ghost. */
   beatGhost: boolean | null
 }
+
+/** A Relay Note reads at most this many Unicode code points once normalized. */
+export const MAX_RELAY_NOTE_CHARS = 48
+
+export type RelayNoteVisibility = 'public' | 'private'
+/**
+ * A short note the sender leaves with a pass. The server normalizes and moderates the text, then binds it into the
+ * handoff commitment; it never travels in transaction data. Private notes reach only the sender and the recipient.
+ */
+export interface RelayNote {
+  text: string
+  visibility: RelayNoteVisibility
+}
+
+/**
+ * POST /network/handoff/prepare. `note` is optional. Preparing the same run for the same recipient again returns the
+ * open intent, unless the note differs: then it is refused with `handoff_already_prepared`.
+ */
+export interface PrepareHandoffInput {
+  runId: string
+  recipient: string
+  throw?: { angle: number; power: number }
+  note?: RelayNote | null
+}
+
 export interface BatonHandoff {
   id: string
   batonId: string
@@ -39,6 +64,8 @@ export interface BatonHandoff {
   race: HandoffRace | null
   /** The handoff moved a stranded baton. */
   rescue: boolean
+  /** The sender's note. A private note is null for everyone but the sender and the recipient. */
+  note: RelayNote | null
 }
 
 /**
@@ -93,9 +120,6 @@ export interface NetworkBaton {
 
 /** A live leg drops out of snapshots and baton pages once its latest progress report is this old. */
 export const LIVE_LEG_WINDOW_MS = 8_000
-
-/** Mirrors `relayLeg.Path`: the main route, or the safe or risk side of the fork. */
-export type RelayLegPath = 'main' | 'safe' | 'risk'
 
 /**
  * POST /network/leg/progress, sent by the holder's client while it races an issued baton leg. `dist` and
@@ -158,6 +182,8 @@ export interface NetworkHandoffIntent extends HandoffIntent {
   state: 'prepared' | 'attempting' | 'submitted' | 'verified' | 'cancelled' | 'expired'
   /** Reason of the latest pending or rejected verification. */
   failure: HandoffReasonCode | null
+  /** Normalized note bound into the commitment when the intent was prepared. Never changes. */
+  note: RelayNote | null
 }
 /**
  * pending: retry later (NOT_INCLUDED, INSUFFICIENT_CONFIRMATIONS, RPC_UNAVAILABLE).
@@ -166,7 +192,18 @@ export interface NetworkHandoffIntent extends HandoffIntent {
  */
 export interface NetworkConfirmation { status: 'pending' | 'rejected' | 'verified'; reason?: HandoffReasonCode; intent?: NetworkHandoffIntent; baton?: NetworkBaton }
 
-export interface NetworkNotification { id: string; type: 'incoming_baton' | 'your_turn' | 'ghost_beaten' | 'rematch' | 'crew_streak_risk' | 'rival_update' | 'daily_active' | 'recipient_timeout'; title: string; body: string; batonId: string | null; runId: string | null; createdAt: number; readAt: number | null }
+export interface NetworkNotification {
+  id: string
+  type: 'incoming_baton' | 'your_turn' | 'ghost_beaten' | 'rematch' | 'crew_streak_risk' | 'rival_update' | 'daily_active' | 'recipient_timeout'
+  title: string
+  body: string
+  batonId: string | null
+  runId: string | null
+  createdAt: number
+  readAt: number | null
+  /** incoming_baton only: the sender's note, public or private, or null without one. */
+  note?: string | null
+}
 export interface NetworkCrew { id: string; code: string | null; name: string; members: NetworkRunner[]; batonIds: string[]; streak: number; bestStreak: number; todayHandoffs: number; contributions: Record<string, number>; deadline: number }
 export interface NetworkRival { id: string; title: string; batonIds: [string, string]; target: number; scores: [number, number]; winnerId: string | null; createdAt: number; endsAt: number }
 export interface NetworkInvite { id: string; token: string; batonId: string; from: NetworkRunner; recipientId: string | null; createdAt: number; expiresAt: number; claimedBy: string | null; url: string }
@@ -255,7 +292,8 @@ export type ChronicleMomentKind = 'fastest-leg' | 'closest-ghost-race' | 'longes
  */
 export interface ChronicleMoment { kind: ChronicleMomentKind; title: string; runner: RunnerRef; leg: number; value: number | string | null }
 export interface ChronicleStop { leg: number; runner: RunnerRef; countryCode: string | null; at: number }
-export interface ChronicleTransaction { leg: number; txHash: string; from: string; to: string; blockNumber: number; confirmations: number; at: number; runId: string; resultHash: string }
+/** `note` is the handoff's public note; private notes never appear in a Chronicle. */
+export interface ChronicleTransaction { leg: number; txHash: string; from: string; to: string; blockNumber: number; confirmations: number; at: number; runId: string; resultHash: string; note: string | null }
 export interface BatonChronicle {
   baton: {
     id: string

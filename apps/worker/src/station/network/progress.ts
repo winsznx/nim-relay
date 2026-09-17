@@ -1,5 +1,5 @@
 import { relayLeg } from '@nim-relay/game-engine'
-import type { IssuedRace, LegProgressInput, LegProgressResult, RelayLegConfig } from '@nim-relay/shared'
+import type { IssuedRace, LegProgressInput, LegProgressResult, RelayLegV6Config } from '@nim-relay/shared'
 import { z } from 'zod'
 import { ApiError, type Profile } from '../model'
 import { assertHolder, findBaton, loadRun } from './lookups'
@@ -10,7 +10,8 @@ export const LEG_PROGRESS_PATH = '/leg/progress'
 
 const ONE = 65_536
 const MS_PER_TICK = 1000 / relayLeg.TICK_RATE
-const TOP_SPEED = relayLeg.BASE_SPEED + relayLeg.FLOW_SPEED + relayLeg.RAIL_SPEED + relayLeg.PAD_SPEED
+/** Full FLOW in Relay Rush on a rail over a boost pad: no courier moves faster along a path. */
+const TOP_SPEED = relayLeg.BASE_SPEED + relayLeg.FLOW_SPEED + relayLeg.RUSH_SPEED + relayLeg.RAIL_SPEED + relayLeg.PAD_SPEED
 /** No leg runs longer than MAX_TICKS, so no ghost can lead or trail by more. */
 const MAX_LEG_MS = Math.ceil(relayLeg.MAX_TICKS * MS_PER_TICK)
 
@@ -25,11 +26,11 @@ const progressBody = z
   })
   .refine(input => input.dist <= input.finishDist)
 
-type BatonLegIssue = IssuedRace & { batonId: string; relayLeg: number; config: RelayLegConfig }
+type BatonLegIssue = IssuedRace & { batonId: string; relayLeg: number; config: RelayLegV6Config }
 
-/** A signed v5 leg of a baton that counts: not practice and not the Daily. */
+/** A signed v6 leg of a baton that counts: not practice and not the Daily. */
 function isBatonLeg(issued: IssuedRace): issued is BatonLegIssue {
-  return issued.networkRace === true && issued.batonId !== undefined && !issued.practice && issued.mode !== 'daily' && issued.relayLeg !== null && issued.config.engineVersion === '5'
+  return issued.networkRace === true && issued.batonId !== undefined && !issued.practice && issued.mode !== 'daily' && issued.relayLeg !== null && issued.config.engineVersion === '6'
 }
 
 /**
@@ -46,7 +47,7 @@ export async function reportLegProgress(context: NetworkContext, profile: Profil
   const baton = findBaton(context.state, issued.batonId)
   assertHolder(baton, profile)
   if (baton.handoffCount !== issued.relayLeg) throw new ApiError('relay_leg_changed', 409)
-  if (!isPlausibleProgress(input, relayLeg.buildTrack(issued.config), issued.ghost !== null)) throw new ApiError('invalid_progress')
+  if (!isPlausibleProgress(input, relayLeg.buildTrack(issued.config), issued.config.ghostline !== null)) throw new ApiError('invalid_progress')
   if (context.live.tooSoon(issued.runId, now)) return { accepted: false }
   await context.live.record({
     batonId: baton.id,
@@ -67,13 +68,15 @@ export async function reportLegProgress(context: NetworkContext, profile: Profil
 
 /**
  * Whether a report could come from a real run of `track`: its finish line, a distance reachable in `tick` ticks at
- * top speed, a fork path exactly while inside the fork, and a ghost gap no wider than the ticks raced allow.
+ * top speed on the quickest path, a fork path exactly while inside a fork, and a ghost gap no wider than the ticks
+ * raced allow. `hasGhost` is whether the leg carries a ghostline.
  */
 export function isPlausibleProgress(input: LegProgressInput, track: relayLeg.Track, hasGhost: boolean): boolean {
   if (input.finishDist !== track.finishDist) return false
-  const fastestPerTick = Math.trunc((TOP_SPEED * Math.max(ONE, track.fork.riskProgress)) / ONE)
+  const quickestPath = track.forks.reduce((quickest, fork) => Math.max(quickest, fork.riskProgress), ONE)
+  const fastestPerTick = Math.trunc((TOP_SPEED * quickestPath) / ONE)
   if (input.dist > input.tick * fastestPerTick) return false
-  const onFork = input.dist >= track.fork.from && input.dist < track.fork.to
+  const onFork = relayLeg.forkAt(track, input.dist) !== null
   if ((input.path !== 'main') !== onFork) return false
   if (input.ghostDeltaMs === null) return true
   return hasGhost && input.ghostDeltaMs <= Math.ceil(input.tick * MS_PER_TICK) && input.ghostDeltaMs >= Math.floor((input.tick - relayLeg.MAX_TICKS) * MS_PER_TICK)

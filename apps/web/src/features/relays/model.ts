@@ -23,6 +23,10 @@ export function echoText(echo: Pick<RelayEcho, 'kind' | 'leg' | 'runner'>): stri
       return `${echo.runner.name} rescued a stranded baton on leg ${echo.leg}`
     case 'milestone':
       return `Handoff ${echo.leg} confirmed with ${echo.runner.name}`
+    case 'edge-save':
+      return `${echo.runner.name} saved a fall at the edge on leg ${echo.leg}`
+    case 'relay-cut':
+      return `${echo.runner.name} was first to clear the relay cut on leg ${echo.leg}`
   }
 }
 

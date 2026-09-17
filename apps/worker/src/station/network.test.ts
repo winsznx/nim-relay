@@ -5,6 +5,7 @@ import { createSessionToken } from '../auth/session'
 import { NimiqRpcClient } from '@nim-relay/relay-protocol'
 import type { Env } from '../env'
 import type { IssuedRace, StationSnapshot, SubmittedRace, BatonDetail, NetworkSnapshot, NetworkHandoffIntent } from '@nim-relay/shared'
+import { finishingTrace, IDLE_TRACE } from './network/testing'
 async function player() {
   const store = getAuthStore(undefined)
   const p = await store.createPlayer({ walletAddress: `NQ${crypto.randomUUID().replaceAll('-', '')}`, walletPublicKey: '00'.repeat(32) })
@@ -28,13 +29,14 @@ describe('relay network custody', () => {
     const a = await player()
     const before = await (await api(a.cookie)).json() as StationSnapshot
     const practice = await (await api(a.cookie, '/network/issue', { daily: true, practice: true })).json() as IssuedRace
-    const result = await (await api(a.cookie, '/submit', { issued: practice, inputTrace: [[0, 0, 0]] })).json() as SubmittedRace
+    const result = await (await api(a.cookie, '/submit', { issued: practice, inputTrace: IDLE_TRACE })).json() as SubmittedRace
     expect(result.profile.xp).toBe(before.profile.xp)
     expect(result.profile.runs).toBe(before.profile.runs)
     const official = await (await api(a.cookie, '/network/issue', { daily: true })).json() as IssuedRace
-    expect(official.config).toEqual(practice.config)
+    // v6: the official attempt races the practice course without the tether save and the ghostline practice rides get.
+    expect(official.config).toEqual({ ...practice.config, tetherSaves: 0, ghostline: null })
     expect((await api(a.cookie, '/network/issue', { daily: true })).status).toBe(409)
-    expect((await api(a.cookie, '/submit', { issued: {...practice, practice: false}, inputTrace: [[0, 0, 0]] })).status).toBe(401)
+    expect((await api(a.cookie, '/submit', { issued: {...practice, practice: false}, inputTrace: IDLE_TRACE })).status).toBe(401)
   })
   it('moves custody once, binds the next ghost, and protects attempted transfers', async () => {
     const a = await player(), b = await player()
@@ -43,7 +45,7 @@ describe('relay network custody', () => {
     expect(journey.baton.holder.id).toBe(a.p.id)
     expect((await api(b.cookie, '/network/issue', {batonId:journey.baton.id})).status).toBe(403)
     const issued = await (await api(a.cookie, '/network/issue', {batonId:journey.baton.id})).json() as IssuedRace
-    expect((await api(a.cookie, '/submit', {issued,inputTrace:[[0,0,0]]})).status).toBe(200)
+    expect((await api(a.cookie, '/submit', {issued,inputTrace:finishingTrace(issued.config)})).status).toBe(200)
     const intent = await (await api(a.cookie, '/network/handoff/prepare', {runId:issued.runId,recipient:b.p.id})).json() as NetworkHandoffIntent
     expect(intent.data).toContain(journey.baton.code)
     expect((await api(b.cookie, '/network/handoff/attempt', {id:intent.id})).status).toBe(404)
@@ -68,9 +70,10 @@ describe('relay network custody', () => {
       expect(after.handoffs).toHaveLength(1)
       expect(after.ghost?.runId).toBe(issued.runId)
       const next = await (await api(b.cookie, '/network/issue', {batonId:journey.baton.id})).json() as IssuedRace
-      // v5 legs share the sector course; opening FLOW is inherited from the previous run, so only it may differ.
-      expect({...next.config, openingFlow: 0}).toEqual({...issued.config, openingFlow: 0})
+      // v6 legs share the sector course; opening FLOW is inherited from the previous run and the ghostline derived from it.
+      expect({...next.config, openingFlow: 0, ghostline: null}).toEqual({...issued.config, openingFlow: 0})
       expect(next.ghost?.runId).toBe(issued.runId)
+      expect(next.config.engineVersion === '6' && next.config.ghostline !== null).toBe(true)
       const inbox = await (await api(b.cookie, '/network')).json() as NetworkSnapshot
       expect(inbox.inbox.some(n=>n.type==='incoming_baton'&&n.batonId===journey.baton.id)).toBe(true)
       expect((await api(a.cookie, '/network/issue', {batonId:journey.baton.id})).status).toBe(403)
@@ -88,7 +91,7 @@ describe('relay network custody', () => {
     expect((await api(b.cookie,'/network/invite/claim',{token:invite.token})).status).toBe(200)
     expect((await api(c.cookie,'/network/invite/claim',{token:invite.token})).status).toBe(409)
   })
-  // v5 legs inherit opening FLOW from the previous run, so identical traces no longer guarantee tied rounds.
+  // Relay legs inherit opening FLOW from the previous run, so identical traces no longer guarantee tied rounds.
   // Round outcomes come from the server-replayed scores; the tie rule itself is covered in network/rules.test.ts.
   it('settles a best-of-three from verified round scores and returns the baton to its origin', async () => {
     const a=await player(),b=await player();await api(b.cookie,'/network')
@@ -100,7 +103,7 @@ describe('relay network custody', () => {
       while(rounds<3&&wins[a.p.id]!<2&&wins[b.p.id]!<2){
         const from=leg%2===0?a:b,to=leg%2===0?b:a
         const issued=await (await api(from.cookie,'/network/issue',{batonId:journey.baton.id})).json() as IssuedRace
-        const submitted=await api(from.cookie,'/submit',{issued,inputTrace:[[0,0,0]]})
+        const submitted=await api(from.cookie,'/submit',{issued,inputTrace:finishingTrace(issued.config)})
         expect(submitted.status).toBe(200)
         const {result}=await submitted.json() as SubmittedRace
         const intent=await (await api(from.cookie,'/network/handoff/prepare',{runId:issued.runId,recipient:to.p.id})).json() as NetworkHandoffIntent
@@ -134,7 +137,7 @@ describe('relay network custody', () => {
     let number=80
     async function pass(batonId:string,from:Awaited<ReturnType<typeof player>>,to:Awaited<ReturnType<typeof player>>) {
       const issued=await (await api(from.cookie,'/network/issue',{batonId})).json() as IssuedRace
-      await api(from.cookie,'/submit',{issued,inputTrace:[[0,0,0]]})
+      await api(from.cookie,'/submit',{issued,inputTrace:finishingTrace(issued.config)})
       if(batonId===journey.baton.id)expect((await api(from.cookie,'/network/handoff/prepare',{runId:issued.runId,recipient:outsider.p.id})).status).toBe(400)
       const intent=await (await api(from.cookie,'/network/handoff/prepare',{runId:issued.runId,recipient:to.p.id})).json() as NetworkHandoffIntent
       await api(from.cookie,'/network/handoff/attempt',{id:intent.id})

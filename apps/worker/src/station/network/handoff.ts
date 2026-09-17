@@ -1,5 +1,5 @@
 import { deriveCommitment, encodeTxData, NimiqRpcClient, paymentAddress, TransactionNotFoundError, verifyHandoffTransaction, type NimiqTransaction } from '@nim-relay/relay-protocol'
-import type { HandoffReasonCode, HandoffRejectionReason, NetworkConfirmation, NetworkHandoffIntent } from '@nim-relay/shared'
+import { isFailedLeg, type HandoffReasonCode, type HandoffRejectionReason, type NetworkConfirmation, type NetworkHandoffIntent, type RelayNote } from '@nim-relay/shared'
 import { z } from 'zod'
 import type { Env } from '../../env'
 import { ApiError, type Profile } from '../model'
@@ -8,6 +8,7 @@ import { presentBaton } from './batons'
 import { INTENT_PREPARED_TTL_MS, MIN_CONFIRMATIONS, RECONCILE_RETRY_MS, RESERVATION_ACCEPT_MS } from './constants'
 import { applyVerifiedHandoff } from './custody'
 import { assertHolder, findBaton, handoffsOf, loadRun, notify, openIntentFor } from './lookups'
+import { moderateNote, relayNoteInput, sameNote } from './notes'
 import { countHashSubmission, countRejection, noteRpcUnavailable } from './ops-ledger'
 import { isPendingReason, verifierReason } from './reasons'
 import { findCourier, sameWallet } from './runners'
@@ -18,8 +19,21 @@ const prepareBody = z.object({
   runId: z.string(),
   recipient: z.string(),
   throw: z.object({ angle: z.number().int().min(15).max(75), power: z.number().int().min(30).max(100) }).default({ angle: 45, power: 75 }),
+  note: relayNoteInput.nullable().optional(),
 })
 const confirmBody = z.object({ id: z.string().uuid(), txHash: z.string().regex(/^[a-f0-9]{64}$/i) })
+
+/** Everything a handoff commitment binds. */
+export interface HandoffTerms {
+  id: string
+  batonId: string
+  leg: number
+  runId: string
+  from: string
+  to: string
+  throw: { angle: number; power: number }
+  note: RelayNote | null
+}
 
 /** Durably writes network and product state; confirmation binds the transaction hash through it before any lookup. */
 export type Persist = () => Promise<void>
@@ -28,11 +42,17 @@ export type TransactionLookup = { found: true; transaction: NimiqTransaction } |
 /** Where confirmation reads the chain: live RPC for requests, lookups made ahead of the critical section for reconciliation. */
 export type TransactionSource = (txHash: string) => Promise<TransactionLookup>
 
+/**
+ * Locks the pass of the holder's qualified leg to one recipient and note. The moderated note is bound into the
+ * commitment but never into transaction data. Preparing again returns the open intent only for the same run,
+ * recipient and note.
+ */
 export async function prepareHandoff(context: NetworkContext, profile: Profile, body: unknown): Promise<NetworkHandoffIntent> {
   const input = prepareBody.parse(body)
+  const note = moderateNote(input.note)
   const run = await loadRun(context.storage, input.runId)
-  const ownCompletedLeg = run && run.issued.playerId === profile.id && !run.issued.practice && run.result.completed
-  const batonId = ownCompletedLeg ? run.issued.batonId : undefined
+  const ownQualifiedLeg = run && run.issued.playerId === profile.id && !run.issued.practice && run.result.completed && !isFailedLeg(run.result)
+  const batonId = ownQualifiedLeg ? run.issued.batonId : undefined
   if (!run || !batonId) throw new ApiError('finish_your_relay_leg_first', 409)
   const baton = findBaton(context.state, batonId)
   assertHolder(baton, profile)
@@ -41,13 +61,13 @@ export async function prepareHandoff(context: NetworkContext, profile: Profile, 
 
   const open = openIntentFor(context.state, baton.id)
   if (open) {
-    if (open.runId !== input.runId || open.recipientId !== recipient.id) throw new ApiError('handoff_already_prepared', 409)
+    if (open.runId !== input.runId || open.recipientId !== recipient.id || !sameNote(open.note, note)) throw new ApiError('handoff_already_prepared', 409)
     return open
   }
 
   const id = crypto.randomUUID()
   const leg = baton.handoffCount + 1
-  const commitment = await deriveCommitment(await mac(context.env.RUN_CHALLENGE_SECRET, { id, batonId: baton.id, leg, runId: input.runId, from: profile.id, to: recipient.id, throw: input.throw }))
+  const commitment = await handoffCommitment(context.env.RUN_CHALLENGE_SECRET, { id, batonId: baton.id, leg, runId: input.runId, from: profile.id, to: recipient.id, throw: input.throw, note })
   const now = Date.now()
   const intent: NetworkHandoffIntent = {
     id,
@@ -69,10 +89,20 @@ export async function prepareHandoff(context: NetworkContext, profile: Profile, 
     expiresAt: now + INTENT_PREPARED_TTL_MS,
     attemptedAt: null,
     failure: null,
+    note,
   }
   context.state.intents[id] = intent
   await context.storage.setAlarm(now + RECONCILE_RETRY_MS)
   return intent
+}
+
+/**
+ * The 128-bit commitment carried in transfer data: a MAC over every term of the intent, so the chain transfer commits
+ * to the recipient, run and note without revealing any of them.
+ */
+export async function handoffCommitment(secret: string, terms: HandoffTerms): Promise<string> {
+  const { id, batonId, leg, runId, from, to, throw: launch, note } = terms
+  return deriveCommitment(await mac(secret, { id, batonId, leg, runId, from, to, throw: launch, note }))
 }
 
 function chooseRecipient(context: NetworkContext, baton: BatonRecord, sender: Profile, idOrHandle: string): Profile {

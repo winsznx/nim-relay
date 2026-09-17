@@ -6,7 +6,7 @@ import { LIVE_BROADCAST_INTERVAL_MS, LIVE_REPORT_INTERVAL_MS } from './constants
 import { LiveUpdates } from './live-updates'
 import { isPlausibleProgress } from './progress'
 import { readNetworkState } from './state'
-import { api, botTrace, call, createBaton, IDLE_TRACE, joinNetwork, passBaton, relayLegConfig, runner, stationRoom, type TestRunner } from './testing'
+import { api, call, createBaton, finishingTrace, IDLE_TRACE, joinNetwork, passBaton, runner, stationRoom, v6Config, type TestRunner } from './testing'
 
 const NETWORK_KEY = 'network:TestAlbatross'
 const LIVE_PATH = '/network/leg/progress'
@@ -24,10 +24,12 @@ async function holdLeg(title: string): Promise<HeldLeg> {
   return { courier, batonId: journey.baton.id, issued }
 }
 
-/** What the holder's client reports after `ticks` ticks of the hands-off courier on the issued course. */
+/** What the holder's client reports after `ticks` ticks of the finishing bot on the issued course. */
 function reportAfter(issued: IssuedRace, ticks: number, ghostDeltaMs: number | null = null): LegProgressInput {
-  let state = relayLeg.createState(relayLegConfig(issued.config))
-  while (state.tick < ticks) state = relayLeg.step(state, { steer: 0, action: 0 })
+  const config = v6Config(issued.config)
+  const cursor = new relayLeg.InputCursor(finishingTrace(config))
+  let state = relayLeg.createState(config)
+  while (state.tick < ticks && !state.finished) state = relayLeg.step(state, cursor.at(state.tick))
   return { runId: issued.runId, tick: state.tick, dist: state.dist, finishDist: state.track.finishDist, ghostDeltaMs, path: state.path }
 }
 
@@ -48,7 +50,7 @@ function expectedLive(leg: HeldLeg, input: LegProgressInput, updatedAt: number, 
     runnerHandle: leg.courier.p.handle,
     progress: Math.round((input.dist / input.finishDist) * 10_000) / 10_000,
     ghostDeltaMs: input.ghostDeltaMs,
-    world: relayLegConfig(leg.issued.config).world,
+    world: v6Config(leg.issued.config).world,
     sector: 0,
     updatedAt,
     ageMs: now - updatedAt,
@@ -249,21 +251,23 @@ describe('live leg progress', () => {
 describe('live progress plausibility', () => {
   it('accepts every tick of real runs on both fork paths', () => {
     // #given the safe and risk bot runs of a course with a ghost
-    const config = relayLeg.createState({ engineVersion: '5', challenge: 'relay-leg', challengeVersion: '5', seed: 'live-bounds', world: 'metro', tier: 1, openingFlow: 0 }).config
+    const config: relayLeg.Config = { engineVersion: '6', challenge: 'relay-leg', challengeVersion: '6', seed: 'live-bounds', world: 'metro', tier: 1, openingFlow: 0, tetherSaves: 1, ghostline: null }
     const failures: string[] = []
+    const paths = new Set<string>()
     for (const plan of ['safe', 'risk'] as const) {
-      const cursor = new relayLeg.InputCursor(botTrace(config, plan))
+      const cursor = new relayLeg.InputCursor(finishingTrace(config, plan))
       let state = relayLeg.createState(config)
       // #when every state is reported with the widest ghost gaps its tick allows
       while (!state.finished) {
         state = relayLeg.step(state, cursor.at(state.tick))
+        paths.add(state.path)
         const input: LegProgressInput = { runId: 'run', tick: state.tick, dist: state.dist, finishDist: state.track.finishDist, ghostDeltaMs: null, path: state.path }
         const gaps = [null, Math.round((state.tick * 1000) / relayLeg.TICK_RATE), Math.round(((state.tick - relayLeg.MAX_TICKS) * 1000) / relayLeg.TICK_RATE)]
         for (const ghostDeltaMs of gaps) if (!isPlausibleProgress({ ...input, ghostDeltaMs }, state.track, true)) failures.push(`${plan}@${state.tick}:${ghostDeltaMs}`)
       }
     }
-    // #then none is refused
-    expect(failures).toEqual([])
+    // #then none is refused, with reports from the main road and both sides of a fork among them
+    expect({ failures, paths: [...paths].sort() }).toEqual({ failures: [], paths: ['main', 'risk', 'safe'] })
   })
 })
 

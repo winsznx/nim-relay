@@ -25,10 +25,15 @@ export const SECTOR_HANDOFFS = 10
 export const HANDOFF_MILESTONES: readonly number[] = [10, 25, 50, 100, 250]
 export const NEAR_MISS_LEGEND = 6
 export const MAX_BATON_ECHOES = 12
+/** Echoes issued with one leg for its renderer. */
+export const MAX_LEG_ECHOES = 4
 
 export const NEW_COURIER_COMPLETED_RUNS = 3
 export const VETERAN_QUALIFIED_HANDOFFS = 40
 export const DAILY_TIER = 1
+/** Baton tether saves: every leg and practice ride gets one, the official Daily attempt none. */
+export const LEG_TETHER_SAVES = 1
+export const OFFICIAL_DAILY_TETHER_SAVES = 0
 
 export const MAX_ACTIVE_ORIGIN_BATONS = 10
 export const MAX_ACTIVE_INVITES = 20

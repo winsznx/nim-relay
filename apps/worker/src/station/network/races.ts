@@ -1,13 +1,13 @@
-import type { CanonicalGhost, IssuedRace, RaceConfig, RaceSector, RelayEcho } from '@nim-relay/shared'
+import type { CanonicalGhost, IssuedRace, RaceSector, RelayEcho, RelayLegV6Config } from '@nim-relay/shared'
 import { z } from 'zod'
 import { ApiError, type Profile, type Run } from '../model'
 import { mac, signedFields } from '../signing'
-import { RACE_ISSUE_TTL_MS } from './constants'
-import { dailyCourse, dailyKey, recordDailyBest, recordOfficialDaily, selectDailyGhost, type DailyCourse } from './daily'
-import { sectorEchoes } from './echoes'
-import { loadGhost, sectorGhost } from './ghosts'
+import { LEG_TETHER_SAVES, OFFICIAL_DAILY_TETHER_SAVES, RACE_ISSUE_TTL_MS } from './constants'
+import { dailyCourse, dailyKey, recordDailyBest, recordOfficialDaily, selectDailyGhostRun, type DailyCourse } from './daily'
+import { legEchoes } from './echoes'
+import { draftedGhost, ghostOfRun, raceableGhost } from './ghosts'
 import { assertHolder, findBaton, loadRun } from './lookups'
-import { inheritedOpeningFlow, isFirstLegOfSector, legConfig, tierFor } from './route'
+import { inheritedOpeningFlow, isFirstLegOfSector, legConfig, nextLegRoute, sectorGhostRun, tierFor, type LegTerms } from './route'
 import { memberFor } from './runners'
 import type { BatonRecord, NetworkContext } from './types'
 
@@ -18,14 +18,17 @@ const issueBody = z.object({
   ghostRunId: z.string().optional(),
 })
 
+/** The official Daily attempt: no inherited FLOW, no tether save and no ghostline to draft. */
+const OFFICIAL_DAILY_TERMS: LegTerms = { openingFlow: 0, tetherSaves: OFFICIAL_DAILY_TETHER_SAVES, ghostline: null }
+
 interface RacePlan {
-  config: RaceConfig
+  config: RelayLegV6Config
   ghost: CanonicalGhost | null
   sector: RaceSector | null
   echoes: RelayEcho[]
 }
 
-/** Issues a signed v5 race: a baton leg on its route sector, the Daily course, or practice. */
+/** Issues a signed v6 race: a baton leg on its route sector, the Daily course, or practice. */
 export async function issueRace(context: NetworkContext, profile: Profile, body: unknown): Promise<IssuedRace> {
   const input = issueBody.parse(body)
   const practice = input.practice ?? false
@@ -38,7 +41,7 @@ export async function issueRace(context: NetworkContext, profile: Profile, body:
   if (daily && !practice && context.state.dailyIssues[officialKey]) throw new ApiError('official_daily_already_started', 409)
   if (input.ghostRunId && !practice) throw new ApiError('selected_ghost_is_practice_only')
 
-  const plan = await planRace(context, profile, { baton, daily, course, ghostRunId: input.ghostRunId ?? null })
+  const plan = await planRace(context, profile, { baton, daily, practice, course, ghostRunId: input.ghostRunId ?? null })
   const issued: IssuedRace = {
     networkRace: true,
     practice,
@@ -62,32 +65,57 @@ export async function issueRace(context: NetworkContext, profile: Profile, body:
 interface RaceRequest {
   baton: BatonRecord | null
   daily: boolean
+  practice: boolean
   course: DailyCourse
   ghostRunId: string | null
 }
 
 async function planRace(context: NetworkContext, profile: Profile, request: RaceRequest): Promise<RacePlan> {
   if (request.ghostRunId) return practiceAgainst(context, request.ghostRunId)
-  if (request.daily) return { config: request.course.config, ghost: await selectDailyGhost(context, profile.id, request.course), sector: null, echoes: [] }
-  if (request.baton) return batonLeg(context, request.baton)
-  const config = legConfig({ seed: crypto.randomUUID(), world: 'coast', tier: tierFor(context.state, profile.id) }, 0)
+  if (request.daily) return dailyRace(context, profile, request.course, request.practice)
+  if (request.baton) return batonLeg(context, request.baton, request.practice)
+  const config = legConfig({ seed: crypto.randomUUID(), world: 'coast', tier: tierFor(context.state, profile.id) }, { openingFlow: 0, tetherSaves: LEG_TETHER_SAVES, ghostline: null })
   return { config, ghost: null, sector: null, echoes: [] }
 }
 
-/** A selected historic ghost is raced on exactly its own course, whichever engine version recorded it. */
+/** A selected v6 ghost is raced on its own course with the FLOW it opened with; earlier ghosts are watch-only. */
 async function practiceAgainst(context: NetworkContext, ghostRunId: string): Promise<RacePlan> {
-  const ghost = await loadGhost(context, ghostRunId)
-  if (!ghost) throw new ApiError('verified_replay_not_found', 404)
-  return { config: ghost.config, ghost, sector: null, echoes: [] }
+  const run = await loadRun(context.storage, ghostRunId)
+  if (!ghostOfRun(context, run)) throw new ApiError('verified_replay_not_found', 404)
+  const drafted = await draftedGhost(context, run)
+  if (!drafted) throw new ApiError('ghost_is_watch_only', 409)
+  const { config } = drafted.ghost
+  return { config: legConfig(config, { openingFlow: config.openingFlow, tetherSaves: LEG_TETHER_SAVES, ghostline: drafted.ghostline }), ghost: drafted.ghost, sector: null, echoes: [] }
 }
 
-async function batonLeg(context: NetworkContext, baton: BatonRecord): Promise<RacePlan> {
+/**
+ * Both rides show the skill-matched ghost. Practice drafts it; the official attempt races it without its ghostline and
+ * without a tether save, so no ranked result depends on which ghost a runner drew.
+ */
+async function dailyRace(context: NetworkContext, profile: Profile, course: DailyCourse, practice: boolean): Promise<RacePlan> {
+  const ghostRun = await selectDailyGhostRun(context, profile.id, course)
+  if (!practice) return { config: legConfig(course, OFFICIAL_DAILY_TERMS), ghost: raceableGhost(context, ghostRun), sector: null, echoes: [] }
+  const drafted = await draftedGhost(context, ghostRun)
+  return { config: legConfig(course, { openingFlow: 0, tetherSaves: LEG_TETHER_SAVES, ghostline: drafted?.ghostline ?? null }), ghost: drafted?.ghost ?? null, sector: null, echoes: [] }
+}
+
+/**
+ * The holder's own leg moves the baton onto the route it races, a new sector when the previous canonical run cannot be
+ * raced on the current one, before the ticket is signed. Practice rides that course without moving the baton.
+ */
+async function batonLeg(context: NetworkContext, baton: BatonRecord, practice: boolean): Promise<RacePlan> {
   const previousRun = await loadRun(context.storage, baton.previousRunId)
+  const route = nextLegRoute(baton, previousRun, tierFor(context.state, baton.holder.id))
+  if (!practice) {
+    baton.route = route
+    baton.world = route.world
+  }
+  const drafted = await draftedGhost(context, sectorGhostRun(baton, route, previousRun))
   return {
-    config: legConfig(baton.route, inheritedOpeningFlow(previousRun)),
-    ghost: sectorGhost(context, baton, previousRun),
-    sector: { index: baton.route.sector, startedLeg: baton.route.sectorStartedLeg, firstLeg: isFirstLegOfSector(baton) },
-    echoes: sectorEchoes(context.state, baton.id, baton.route.sector),
+    config: legConfig(route, { openingFlow: inheritedOpeningFlow(previousRun), tetherSaves: LEG_TETHER_SAVES, ghostline: drafted?.ghostline ?? null }),
+    ghost: drafted?.ghost ?? null,
+    sector: { index: route.sector, startedLeg: route.sectorStartedLeg, firstLeg: isFirstLegOfSector(baton, route) },
+    echoes: legEchoes(context.state, baton.id, route.sector),
   }
 }
 

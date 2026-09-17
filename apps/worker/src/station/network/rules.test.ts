@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { relayLeg } from '@nim-relay/game-engine'
-import type { BatonHandoff, HandoffRace, NetworkRunner, RelayLegConfig, RelayLegMetrics, RelayLegResult } from '@nim-relay/shared'
+import { relayLeg, relayLegV5 } from '@nim-relay/game-engine'
+import type { BatonHandoff, HandoffRace, NetworkRunner, RelayEcho, RelayEchoKind, RelayLegMoment, RelayLegV5Config, RelayLegV5Metrics, RelayLegV5Result, RelayLegV6Config, RelayLegV6Metrics, RelayLegV6Result } from '@nim-relay/shared'
 import type { Run } from '../model'
 import { ghostSurvivals, runnerArtifacts, unlockAchievement } from './achievements'
 import { scoreQuickRound } from './custody'
 import { pickDailyGhostEntry } from './daily'
-import { recordLegEchoes } from './echoes'
+import { batonEchoes, legEchoes, recordLegEchoes } from './echoes'
 import { isRaced } from './lookups'
 import { storedReason, verifierReason } from './reasons'
-import { advanceRoute, inheritedOpeningFlow, openingRoute, sectorSeed, tierFor } from './route'
+import { advanceRoute, inheritedOpeningFlow, nextLegRoute, openingRoute, sectorSeed, tierFor } from './route'
 import { freshNetworkState, normalizeNetworkState, type StoredNetworkState } from './state'
 import { countInviteOpen, countShare } from './traffic'
 import type { BatonRecord, DailyEntry, Member, TrafficState } from './types'
@@ -44,21 +44,41 @@ function handoff(leg: number, fromId: string, overrides: Partial<BatonHandoff> =
   return {
     id: `handoff-${leg}`, batonId: 'baton-1', leg, from: courier(fromId), to: courier(`${fromId}-next`), value: 100_000, txHash: 'a'.repeat(64),
     network: 'TestAlbatross', at: NOW + leg, runId: `run-${leg}`, resultHash: 'hash', qualified: true, confirmations: 2, blockNumber: 100 + leg,
-    sector: 0, race: race(), rescue: false,
+    sector: 0, race: race(), rescue: false, note: null,
     ...overrides,
   }
 }
 
-const NO_METRICS: RelayLegMetrics = { perfectGates: 0, totalGates: 0, pulseHits: 0, nearMisses: 0, hits: 0, falls: 0, jumps: 0, cleanLandings: 0, slides: 0, railTicks: 0, boostPadTicks: 0, riskRoutes: 0, flowSum: 0, flowPeak: 0 }
+const NO_V5_METRICS: RelayLegV5Metrics = { perfectGates: 0, totalGates: 0, pulseHits: 0, nearMisses: 0, hits: 0, falls: 0, jumps: 0, cleanLandings: 0, slides: 0, railTicks: 0, boostPadTicks: 0, riskRoutes: 0, flowSum: 0, flowPeak: 0 }
+const NO_V6_METRICS: RelayLegV6Metrics = {
+  perfectGates: 0, totalGates: 0, pulseHits: 0, nearMisses: 0, hits: 0, falls: 0, jumps: 0, cleanLandings: 0, hardLandings: 0, slides: 0, railTicks: 0, boostPadTicks: 0, riskRoutes: 0,
+  laneChanges: 0, cleanLaneChanges: 0, edgeGrinds: 0, edgeSaves: 0, tetherSaves: 0, draftTicks: 0, overtakes: 0, rushes: 0, rushTicks: 0, flowSum: 0, flowPeak: 0,
+}
+const METRE = 65_536
 
-function relayRun(metrics: Partial<RelayLegMetrics>, result: Partial<Omit<RelayLegResult, 'metrics'>> = {}): Run {
-  const config: RelayLegConfig = { engineVersion: '5', challenge: 'relay-leg', challengeVersion: '5', seed: 'rules-seed', world: 'coast', tier: 1, openingFlow: 0 }
+function v5Run(metrics: Partial<RelayLegV5Metrics>, result: Partial<Omit<RelayLegV5Result, 'metrics'>> = {}, course: Partial<RelayLegV5Config> = {}): Run {
+  const config: RelayLegV5Config = { engineVersion: '5', challenge: 'relay-leg', challengeVersion: '5', seed: 'rules-seed', world: 'coast', tier: 1, openingFlow: 0, ...course }
   return {
     issued: { networkRace: true, relayLeg: 0, runId: 'run-1', playerId: 'origin', mode: 'global', config, expiresAt: NOW, target: null, mac: '', ghost: null },
-    result: { resultHash: 'hash', ticks: 3_000, timeMs: 50_000, completed: true, score: 180_000, ...result, metrics: { ...NO_METRICS, ...metrics } },
+    result: { resultHash: 'hash', ticks: 3_000, timeMs: 50_000, completed: true, score: 180_000, ...result, metrics: { ...NO_V5_METRICS, ...metrics } },
     inputTrace: [[0, 0, 0]],
     at: NOW,
   }
+}
+
+const V6_CONFIG: RelayLegV6Config = { engineVersion: '6', challenge: 'relay-leg', challengeVersion: '6', seed: 'rules-seed', world: 'coast', tier: 1, openingFlow: 0, tetherSaves: 1, ghostline: null }
+
+function v6Run(moments: readonly RelayLegMoment[], result: Partial<Omit<RelayLegV6Result, 'metrics' | 'moments'>> = {}, course: Partial<RelayLegV6Config> = {}): Run {
+  return {
+    issued: { networkRace: true, relayLeg: 0, runId: 'run-1', playerId: 'origin', mode: 'global', config: { ...V6_CONFIG, ...course }, expiresAt: NOW, target: null, mac: '', ghost: null },
+    result: { resultHash: 'hash', ticks: 3_000, timeMs: 50_000, completed: true, failed: false, score: 180_000, ...result, metrics: NO_V6_METRICS, moments },
+    inputTrace: [[0, 0, 0, 0]],
+    at: NOW,
+  }
+}
+
+function moment(kind: RelayLegMoment['kind'], metres: number, path: RelayLegMoment['path'] = 'main'): RelayLegMoment {
+  return { kind, dist: metres * METRE, tick: metres * 2, path }
 }
 
 describe('leg tiers', () => {
@@ -90,7 +110,7 @@ describe('leg tiers', () => {
 describe('inherited opening FLOW', () => {
   it('is a quarter of the previous canonical run average FLOW', () => {
     // #given a run averaging 20000 FLOW per tick
-    const previous = relayRun({ flowSum: 3_000 * 20_000 }, { ticks: 3_000 })
+    const previous = v5Run({ flowSum: 3_000 * 20_000 }, { ticks: 3_000 })
     // #when the next leg inherits from it
     // #then it opens with a quarter of that average
     expect(inheritedOpeningFlow(previous)).toBe(5_000)
@@ -98,14 +118,14 @@ describe('inherited opening FLOW', () => {
 
   it('never exceeds the engine bound', () => {
     // #given a previous run whose quarter average would exceed the bound
-    const previous = relayRun({ flowSum: 3_000 * 100_000 }, { ticks: 3_000 })
+    const previous = v5Run({ flowSum: 3_000 * 100_000 }, { ticks: 3_000 })
     // #then the inherited FLOW is capped
     expect(inheritedOpeningFlow(previous)).toBe(relayLeg.MAX_OPENING_FLOW)
   })
 
   it('is zero without a previous relay leg run', () => {
     // #given no previous run, and a station v4 run
-    const stationRun: Run = { ...relayRun({}), result: { resultHash: 'hash', ticks: 3_000, timeMs: 50_000, completed: true, score: 1, metrics: { hazardsHit: 0, nearMisses: 0, gates: 0, missedGates: 0, beatHits: 0, boostTicks: 0, overheats: 0, jumps: 0, landings: 0, grindTicks: 0, shortcutTicks: 0 } } }
+    const stationRun: Run = { ...v5Run({}), result: { resultHash: 'hash', ticks: 3_000, timeMs: 50_000, completed: true, score: 1, metrics: { hazardsHit: 0, nearMisses: 0, gates: 0, missedGates: 0, beatHits: 0, boostTicks: 0, overheats: 0, jumps: 0, landings: 0, grindTicks: 0, shortcutTicks: 0 } } }
     // #then neither passes FLOW on
     expect([inheritedOpeningFlow(undefined), inheritedOpeningFlow(stationRun)]).toEqual([0, 0])
   })
@@ -142,6 +162,35 @@ describe('route sectors', () => {
     advanceRoute(baton, 0)
     // #then the match keeps its opening course
     expect(baton.route).toEqual(before)
+  })
+})
+
+describe('sector rollover to v6', () => {
+  const course = { seed: sectorSeed('CODE000001', 0), world: 'coast', tier: 1 } as const
+  const previous = (run: Run): Run => ({ ...run, issued: { ...run.issued, runId: 'previous' } })
+
+  it('continues the sector after a v6 leg on its course', () => {
+    // #given a baton three legs into sector 0 whose previous canonical run is v6
+    const baton = batonRecord({ handoffCount: 3, previousRunId: 'previous' })
+    // #then the next leg races the same route
+    expect(nextLegRoute(baton, previous(v6Run([], {}, course)), 2)).toBe(baton.route)
+  })
+
+  it('keeps the route for the first leg of a sector whatever raced before it', () => {
+    // #given a sector that started at the current leg after a v5 leg
+    const baton = batonRecord({ handoffCount: 3, previousRunId: 'previous', route: { ...openingRoute('CODE000001', 'coast', 1), sectorStartedLeg: 3 } })
+    // #then no new sector opens
+    expect(nextLegRoute(baton, previous(v5Run({}, {}, course)), 2)).toBe(baton.route)
+  })
+
+  it('starts a new sector on the same world after a v5 leg, or without the previous run', () => {
+    // #given a baton three legs into sector 0
+    const baton = batonRecord({ handoffCount: 3, previousRunId: 'previous' })
+    // #when the previous canonical run is v5, or cannot be loaded
+    const routes = [nextLegRoute(baton, previous(v5Run({}, {}, course)), 2), nextLegRoute(baton, undefined, 2)]
+    // #then the next leg opens sector 1 at this leg, at the opener's tier, with its own seed
+    const rolled = { seed: sectorSeed('CODE000001', 1), world: 'coast', tier: 2, sector: 1, sectorStartedLeg: 3 }
+    expect(routes).toEqual([rolled, rolled])
   })
 })
 
@@ -213,16 +262,16 @@ describe('achievements', () => {
   })
 })
 
-describe('relay echoes', () => {
+describe('relay echoes on v5 sectors', () => {
   it('mark the fastest canonical leg on a sector as its ghost record', () => {
     // #given a slower earlier leg and a faster latest leg on sector 0
     const state = freshNetworkState()
     const latest = handoff(2, 'b', { race: race({ timeMs: 41_000 }) })
     state.handoffs = [handoff(1, 'a', { race: race({ timeMs: 45_000 }) }), latest]
     // #when the latest leg leaves its echoes
-    recordLegEchoes(state, latest, relayRun({}))
-    // #then it holds the sector's ghost record, with the record time
-    expect(state.echoes['baton-1']?.map(echo => [echo.kind, echo.leg, echo.sector, echo.timeMs])).toEqual([['ghost-record', 2, 0, 41_000]])
+    recordLegEchoes(state, latest, v5Run({}))
+    // #then it holds the sector's ghost record, spanning the leg, with the record time
+    expect(state.echoes['baton-1']?.map(echo => [echo.kind, echo.leg, echo.sector, echo.dist, echo.timeMs])).toEqual([['ghost-record', 2, 0, null, 41_000]])
   })
 
   it('place the first risk-route finisher at the fork once per sector', () => {
@@ -231,13 +280,13 @@ describe('relay echoes', () => {
     const first = handoff(1, 'a', { race: race({ timeMs: 60_000 }) })
     const second = handoff(2, 'b', { race: race({ timeMs: 61_000 }) })
     state.handoffs = [handoff(0, 'fast', { race: race({ timeMs: 30_000 }) }), first, second]
-    const riskRun = relayRun({ riskRoutes: 1 })
+    const riskRun = v5Run({ riskRoutes: 1 })
     // #when both leave echoes
     recordLegEchoes(state, first, riskRun)
     recordLegEchoes(state, second, riskRun)
-    // #then only the first is the pioneer, standing where the fork opens
+    // #then only the first is the pioneer, standing where the v5 fork opens
     const config = riskRun.issued.config.engineVersion === '5' ? riskRun.issued.config : null
-    const forkFrom = config ? relayLeg.buildTrack(config).fork.from : null
+    const forkFrom = config ? relayLegV5.buildTrack(config).fork.from : null
     expect(state.echoes['baton-1']?.map(echo => [echo.kind, echo.leg, echo.dist])).toEqual([['risk-pioneer', 1, forkFrom]])
   })
 
@@ -247,9 +296,80 @@ describe('relay echoes', () => {
     const tenth = handoff(10, 'b', { rescue: true, race: race({ timeMs: 70_000 }) })
     state.handoffs = [handoff(9, 'a', { race: race({ timeMs: 40_000 }) }), tenth]
     // #when it leaves echoes
-    recordLegEchoes(state, tenth, relayRun({ nearMisses: 6 }))
+    recordLegEchoes(state, tenth, v5Run({ nearMisses: 6 }))
     // #then each earned kind is recorded once
     expect(state.echoes['baton-1']?.map(echo => echo.kind).sort()).toEqual(['milestone', 'near-miss-legend', 'rescue'])
+  })
+})
+
+describe('relay echoes on v6 sectors', () => {
+  const v6Race = (timeMs: number): HandoffRace => race({ engineVersion: '6', timeMs })
+
+  it('leave an edge save where it happened, replaced by the latest leg that saves one', () => {
+    // #given two legs on sector 0, each with edge saves, behind a faster leg
+    const state = freshNetworkState()
+    const first = handoff(1, 'a', { race: v6Race(60_000) })
+    const second = handoff(2, 'b', { race: v6Race(61_000) })
+    state.handoffs = [handoff(0, 'fast', { race: v6Race(30_000) }), first, second]
+    // #when both leave echoes
+    recordLegEchoes(state, first, v6Run([moment('edge-save', 300), moment('edge-save', 900, 'safe')]))
+    recordLegEchoes(state, second, v6Run([moment('rush', 200), moment('edge-save', 700, 'risk')]))
+    // #then the sector keeps the second leg's first save, on its path
+    expect(state.echoes['baton-1']?.map(echo => [echo.kind, echo.leg, echo.dist, echo.path])).toEqual([['edge-save', 2, 700 * METRE, 'risk']])
+  })
+
+  it('leave the relay cut only for the first leg to finish through it on the sector', () => {
+    // #given two slower legs that both took the relay cut
+    const state = freshNetworkState()
+    const first = handoff(1, 'a', { race: v6Race(60_000) })
+    const second = handoff(2, 'b', { race: v6Race(61_000) })
+    state.handoffs = [handoff(0, 'fast', { race: v6Race(30_000) }), first, second]
+    // #when both leave echoes
+    recordLegEchoes(state, first, v6Run([moment('relay-cut', 1_200, 'risk')]))
+    recordLegEchoes(state, second, v6Run([moment('relay-cut', 1_250, 'risk')]))
+    // #then the cut belongs to the first leg
+    expect(state.echoes['baton-1']?.map(echo => [echo.kind, echo.leg, echo.dist, echo.path])).toEqual([['relay-cut', 1, 1_200 * METRE, 'risk']])
+  })
+
+  it('stand a ghost record at its relay cut, or on the finish approach when it took none', () => {
+    // #given a record leg through the relay cut, then a faster record leg without it
+    const state = freshNetworkState()
+    const cutter = handoff(1, 'a', { race: v6Race(50_000) })
+    const safe = handoff(2, 'b', { race: v6Race(40_000) })
+    state.handoffs = [cutter]
+    recordLegEchoes(state, cutter, v6Run([moment('relay-cut', 1_200, 'risk')]))
+    const atCut = state.echoes['baton-1']?.find(echo => echo.kind === 'ghost-record')?.dist
+    state.handoffs = [cutter, safe]
+    // #when the faster leg leaves its echoes
+    recordLegEchoes(state, safe, v6Run([]))
+    // #then each record stood where its own leg earned it
+    const finish = relayLeg.buildTrack(V6_CONFIG).segments.find(segment => segment.kind === 'finish')?.from
+    expect({ atCut, onApproach: state.echoes['baton-1']?.find(echo => echo.kind === 'ghost-record')?.dist, finishFound: finish !== undefined }).toEqual({ atCut: 1_200 * METRE, onApproach: finish, finishFound: true })
+  })
+
+  it('issue at most four echoes with a leg, most meaningful first', () => {
+    // #given sector 0 holding one echo of each v6 kind, placed in the reverse order
+    const state = freshNetworkState()
+    const kinds: RelayEchoKind[] = ['milestone', 'rescue', 'edge-save', 'relay-cut', 'ghost-record']
+    state.echoes['baton-1'] = kinds.map((kind, index): RelayEcho => ({ id: kind, batonId: 'baton-1', kind, runner: { id: 'a', name: 'A' }, leg: index + 1, runId: `run-${index}`, sector: 0, dist: null, at: NOW - index }))
+    // #then the leg gets the four that matter most
+    expect(legEchoes(state, 'baton-1', 0).map(echo => echo.kind)).toEqual(['ghost-record', 'relay-cut', 'edge-save', 'rescue'])
+  })
+
+  it('keep at most twelve echoes on a baton, every echo of the newest sector first', () => {
+    // #given five sectors whose legs each leave a record, a cut, a save and a milestone
+    const state = freshNetworkState()
+    for (let sector = 0; sector < 5; sector++) {
+      const leg = handoff(10 * (sector + 1), 'a', { sector, race: v6Race(50_000) })
+      state.handoffs = [leg]
+      recordLegEchoes(state, leg, v6Run([moment('edge-save', 300), moment('relay-cut', 1_200, 'risk')]))
+    }
+    // #then twelve remain and the newest sector keeps all of its echoes
+    const echoes = batonEchoes(state, 'baton-1')
+    expect({ stored: state.echoes['baton-1']?.length, newest: echoes.filter(echo => echo.sector === 4).map(echo => echo.kind).sort() }).toEqual({
+      stored: 12,
+      newest: ['edge-save', 'ghost-record', 'milestone', 'relay-cut'],
+    })
   })
 })
 
@@ -322,15 +442,15 @@ describe('stored network state', () => {
   it('keeps earlier records readable with explicit gaps for facts never recorded', () => {
     // #when legacy state loads
     const state = normalizeNetworkState(legacy)
-    // #then missing race facts are null, old failure text becomes a reason code, and counters start at zero
+    // #then missing race facts and notes are null, old failure text becomes a reason code, and counters start at zero
     expect({
-      handoff: [state.handoffs[0]?.sector, state.handoffs[0]?.race, state.handoffs[0]?.rescue],
-      failure: state.intents.i1?.failure,
+      handoff: [state.handoffs[0]?.sector, state.handoffs[0]?.race, state.handoffs[0]?.rescue, state.handoffs[0]?.note],
+      intent: [state.intents.i1?.failure, state.intents.i1?.note],
       daily: state.daily['2026-09-15']?.origin,
       member: [state.members.origin?.completedRuns, state.members.origin?.legs],
     }).toEqual({
-      handoff: [null, null, false],
-      failure: 'RPC_UNAVAILABLE',
+      handoff: [null, null, false, null],
+      intent: ['RPC_UNAVAILABLE', null],
       daily: { runId: 'daily-run', score: 95_000, timeMs: 50_000, seed: 'daily-2026-09-15-v4', completed: true },
       member: [0, 0],
     })

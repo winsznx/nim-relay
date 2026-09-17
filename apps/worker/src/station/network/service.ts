@@ -82,12 +82,15 @@ export class RelayNetworkService {
     return new RelayNetworkService({ storage, env, product, state, traffic, ops, live }, key)
   }
 
-  /** Signed-out routes never rewrite network state; only their traffic counters are stored, on their own key. */
+  /**
+   * Signed-out routes never rewrite network state; only their traffic counters are stored, on their own key.
+   * `actorId` is the signed-in runner behind a share or a baton page read, when there is one.
+   */
   async handlePublic(path: string, body: unknown, actorId: string | null): Promise<unknown> {
     const now = Date.now()
     if (path === '/public') return networkSnapshot(this.context, null)
     const batonCode = segmentAfter(path, '/batons/')
-    if (batonCode !== null) return batonDetail(this.context, findBaton(this.state, batonCode), null)
+    if (batonCode !== null) return batonDetail(this.context, findBaton(this.state, batonCode), null, actorId)
     const runId = segmentAfter(path, '/replays/')
     if (runId !== null) {
       const ghost = await loadGhost(this.context, runId)

@@ -1,11 +1,14 @@
-import { env, SELF } from 'cloudflare:test'
+import { env, runInDurableObject, SELF } from 'cloudflare:test'
 import { vi } from 'vitest'
-import { relayLeg } from '@nim-relay/game-engine'
 import { NimiqRpcClient, type NimiqTransaction } from '@nim-relay/relay-protocol'
-import type { BatonDetail, IssuedRace, NetworkConfirmation, NetworkHandoffIntent, RaceConfig, RelayLegConfig, RelayLegSample, RelayLegTrace, SubmittedRace } from '@nim-relay/shared'
+import type { BatonDetail, IssuedRace, NetworkBaton, NetworkConfirmation, NetworkHandoffIntent, RelayLegV5Trace, RelayLegV6Trace, SubmittedRace } from '@nim-relay/shared'
 import { createSessionToken } from '../../auth/session'
 import { getAuthStore, type PlayerRecord } from '../../auth/store'
 import type { Env } from '../../env'
+import { mac, signedFields } from '../signing'
+import { finishingTrace } from './test-courier'
+
+export { failingTrace, finishingTrace, v6Config } from './test-courier'
 
 /** Test helpers for the relay network. Chain lookups go through controlled RPC fixtures, never a real node. */
 
@@ -20,6 +23,8 @@ export function runner(sessionMs = 7 * 86_400_000): Promise<TestRunner> {
 
 /** The handle OPS_PLAYERS lists in vitest.config.ts. No random hex wallet can end in these characters. */
 export const TEST_OPERATOR_HANDLE = 'runner-0ps0ps'
+/** RUN_CHALLENGE_SECRET in vitest.config.ts. */
+export const TEST_RUN_CHALLENGE_SECRET = 'test-run-challenge-secret'
 
 /** The operator: the in-memory store names a runner after the last six characters of their wallet. */
 export function operator(): Promise<TestRunner> {
@@ -52,72 +57,19 @@ export async function joinNetwork(...runners: TestRunner[]): Promise<void> {
   for (const courier of runners) await call(courier.cookie, '/network')
 }
 
-export function relayLegConfig(config: RaceConfig): RelayLegConfig {
-  if (config.engineVersion !== '5') throw new Error(`Expected a v5 relay leg, got engine ${config.engineVersion}`)
-  return config
-}
-
-/** Hands-off courier. The engine guarantees it finishes every world and tier. */
-export const IDLE_TRACE: RelayLegTrace = [[0, 0, 0]]
-
-const METRE = 65_536
-const HAZARD_LOOKAHEAD = 40 * METRE
-const FORK_APPROACH = 60 * METRE
+/** Hands-off v6 courier: a valid trace that proves nothing about finishing. */
+export const IDLE_TRACE: RelayLegV6Trace = [[0, 0, 0, 0]]
+/** Hands-off v5 courier. The frozen v5 engine guarantees it finishes every world and tier. */
+export const V5_IDLE_TRACE: RelayLegV5Trace = [[0, 0, 0]]
 
 /**
- * Small deterministic courier that reads the track like a player: picks a fork side, takes the open side of doors
- * and trains, jumps low hazards and gaps, slides under beams and drones. Its results are always taken from replay.
+ * `trace` with one more idle sample 30 ticks after `endTick`, the tick its race ended on. The trace still validates on
+ * its own, since every sample starts inside MAX_TICKS, but no replay reaches that sample.
  */
-export function botTrace(raceConfig: RaceConfig, plan: 'safe' | 'risk'): RelayLegTrace {
-  const config = relayLegConfig(raceConfig)
-  let state = relayLeg.createState(config)
-  const trace: RelayLegSample[] = []
-  let sampleTick = 0
-  while (!state.finished) {
-    const input = botInput(state, plan)
-    const previous = trace.at(-1)
-    if (!previous || previous[1] !== input.steer || input.action !== 0) {
-      trace.push([state.tick - sampleTick, input.steer, input.action])
-      sampleTick = state.tick
-    }
-    state = relayLeg.step(state, input)
-  }
-  return trace
-}
-
-/** The bot's trace when it finishes the leg, otherwise the hands-off trace the engine guarantees to finish. */
-export function finishingTrace(config: RaceConfig, plan: 'safe' | 'risk'): RelayLegTrace {
-  const trace = botTrace(config, plan)
-  return relayLeg.replay({ ...relayLegConfig(config), inputTrace: trace }).completed ? trace : IDLE_TRACE
-}
-
-function botInput(state: relayLeg.State, plan: 'safe' | 'risk'): relayLeg.Input {
-  const { track } = state
-  const halfWidth = relayLeg.halfWidthAt(track, state.dist, state.path)
-  const speed = Math.max(state.speed, 1)
-  let target = 0
-  let action: 0 | 1 | 2 = 0
-  const { fork } = track
-  if (state.path === 'main' && state.dist < fork.from && fork.from - state.dist < FORK_APPROACH) {
-    target = (plan === 'risk' ? fork.riskSide : -fork.riskSide) * Math.trunc(halfWidth / 2)
-  }
-  for (let index = state.hazardIdx; index < track.hazards.length; index++) {
-    const hazard = track.hazards[index]!
-    if (hazard.dist - state.dist > HAZARD_LOOKAHEAD) break
-    const plannedPath = state.path === 'main' ? plan : state.path
-    if (hazard.kind === 'gust' || hazard.path !== relayLeg.activePathAt(track, hazard.dist, plannedPath)) continue
-    const ticks = Math.trunc((hazard.dist - state.dist) / speed)
-    const arrival = state.tick + ticks
-    if (hazard.kind === 'door') target = hazard.x + relayLeg.doorOpenSide(hazard, arrival) * Math.trunc(halfWidth / 2)
-    else if (hazard.kind === 'train') target = hazard.x - relayLeg.trainBlockedSide(hazard, arrival) * Math.trunc(halfWidth / 2)
-    else if ((hazard.kind === 'beam' || hazard.kind === 'drone') && ticks <= 20) action = 2
-    else if ((hazard.kind === 'barrier' || hazard.kind === 'sweeper') && ticks <= 18 && ticks >= 8) action = 1
-    break
-  }
-  const nextGap = track.gaps.find(gap => gap.from > state.dist)
-  if (nextGap && Math.trunc((nextGap.from - state.dist) / speed) <= 3) action = 1
-  const grounded = state.y === 0 && state.vy === 0
-  return { steer: Math.max(-64, Math.min(64, Math.trunc(target * 64 / halfWidth))), action: grounded ? action : 0 }
+export function withLateSample(trace: readonly (readonly number[])[], endTick: number): number[][] {
+  const lastSampleTick = trace.reduce((tick, [ticks = 0]) => tick + ticks, 0)
+  const idle = new Array<number>(Math.max(0, (trace[0]?.length ?? 1) - 1)).fill(0)
+  return [...trace.map(sample => [...sample]), [endTick + 30 - lastSampleTick, ...idle]]
 }
 
 export function randomTxHash(): string {
@@ -143,10 +95,11 @@ export async function confirmWith(courier: TestRunner, intent: NetworkHandoffInt
 export interface RacedLeg {
   issued: IssuedRace
   submitted: SubmittedRace
-  trace: RelayLegTrace
+  trace: RelayLegV6Trace
 }
 
-export async function raceLeg(courier: TestRunner, batonId: string, chooseTrace: (issued: IssuedRace) => RelayLegTrace = () => IDLE_TRACE): Promise<RacedLeg> {
+/** Issues and submits the holder's leg, by default with the finishing bot. */
+export async function raceLeg(courier: TestRunner, batonId: string, chooseTrace: (issued: IssuedRace) => RelayLegV6Trace = issued => finishingTrace(issued.config)): Promise<RacedLeg> {
   const issued = await call<IssuedRace>(courier.cookie, '/network/issue', { batonId })
   const trace = chooseTrace(issued)
   const submitted = await call<SubmittedRace>(courier.cookie, '/submit', { issued, inputTrace: trace })
@@ -165,7 +118,7 @@ export interface Pass extends RacedLeg {
 }
 
 /** Races the holder's leg and moves the baton to `to` through a verified controlled transfer. */
-export async function passBaton(from: TestRunner, to: TestRunner, batonId: string, chooseTrace?: (issued: IssuedRace) => RelayLegTrace): Promise<Pass> {
+export async function passBaton(from: TestRunner, to: TestRunner, batonId: string, chooseTrace?: (issued: IssuedRace) => RelayLegV6Trace): Promise<Pass> {
   const leg = await raceLeg(from, batonId, chooseTrace)
   const intent = await prepareAndAttempt(from, to, leg.issued.runId)
   const txHash = randomTxHash()
@@ -176,6 +129,31 @@ export async function passBaton(from: TestRunner, to: TestRunner, batonId: strin
 
 export function createBaton(courier: TestRunner, body: Record<string, unknown>): Promise<BatonDetail> {
   return call<BatonDetail>(courier.cookie, '/network/create', body)
+}
+
+/**
+ * The holder's leg ticket for `baton` as the network signed v5 legs before v6, stored where issuance keeps tickets.
+ * The network only issues v6 now, so a historic ticket can only be planted.
+ */
+export async function plantV5Leg(courier: TestRunner, baton: Pick<NetworkBaton, 'id' | 'mode' | 'route' | 'handoffCount'>): Promise<IssuedRace> {
+  const { seed, world, tier } = baton.route
+  const issued: IssuedRace = {
+    networkRace: true,
+    practice: false,
+    batonId: baton.id,
+    relayLeg: baton.handoffCount,
+    runId: crypto.randomUUID(),
+    playerId: courier.p.id,
+    mode: baton.mode,
+    config: { engineVersion: '5', challenge: 'relay-leg', challengeVersion: '5', seed, world, tier, openingFlow: 0 },
+    expiresAt: Date.now() + 10 * 60_000,
+    target: null,
+    mac: '',
+    ghost: null,
+  }
+  issued.mac = await mac(TEST_RUN_CHALLENGE_SECRET, signedFields(issued))
+  await runInDurableObject(stationRoom(), (_instance, state) => state.storage.put(`issue:${issued.runId}`, issued))
+  return issued
 }
 
 export function stationRoom(): DurableObjectStub {

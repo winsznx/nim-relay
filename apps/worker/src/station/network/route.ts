@@ -1,9 +1,18 @@
 import { relayLeg } from '@nim-relay/game-engine'
-import { isRelayLegResult, type BatonRoute, type RaceConfig, type RelayLegConfig, type RelayLegTier, type StationWorld } from '@nim-relay/shared'
+import { isRelayLegResult, type BatonRoute, type RaceConfig, type RelayLegGhostline, type RelayLegTier, type RelayLegV6Config, type StationWorld } from '@nim-relay/shared'
 import type { Run } from '../model'
 import { NEW_COURIER_COMPLETED_RUNS, SECTOR_HANDOFFS, VETERAN_QUALIFIED_HANDOFFS } from './constants'
 import { handoffsSentBy } from './lookups'
 import type { BatonRecord, NetworkState } from './types'
+
+export type Course = Pick<BatonRoute, 'seed' | 'world' | 'tier'>
+
+/** What a v6 leg is issued with besides its course. All of it is signed with the config. */
+export interface LegTerms {
+  openingFlow: number
+  tetherSaves: 0 | 1
+  ghostline: RelayLegGhostline | null
+}
 
 export function sectorSeed(code: string, sector: number): string {
   return `relay-${code}-s${sector}`
@@ -31,17 +40,50 @@ export function advanceRoute(baton: BatonRecord, openerTier: RelayLegTier): void
   baton.world = world
 }
 
-export function isFirstLegOfSector(baton: BatonRecord): boolean {
-  return baton.handoffCount <= baton.route.sectorStartedLeg
+export function isFirstLegOfSector(baton: Pick<BatonRecord, 'handoffCount'>, route: BatonRoute): boolean {
+  return baton.handoffCount <= route.sectorStartedLeg
 }
 
-export function legConfig(course: Pick<BatonRoute, 'seed' | 'world' | 'tier'>, openingFlow: number): RelayLegConfig {
-  return { engineVersion: '5', challenge: 'relay-leg', challengeVersion: '5', seed: course.seed, world: course.world, tier: course.tier, openingFlow }
+/**
+ * The route the baton's next leg races. A sector that already has legs continues only while the previous canonical
+ * run can be raced on it; after a v5 leg, or without the run, a new sector starts at this leg on the same world,
+ * opened at `openerTier`, with no ghost. Every mode rolls over, Quick matches included.
+ */
+export function nextLegRoute(baton: BatonRecord, previousRun: Run | undefined, openerTier: RelayLegTier): BatonRoute {
+  if (isFirstLegOfSector(baton, baton.route) || sectorGhostRun(baton, baton.route, previousRun)) return baton.route
+  const sector = baton.route.sector + 1
+  return { seed: sectorSeed(baton.code, sector), world: baton.route.world, tier: openerTier, sector, sectorStartedLeg: baton.handoffCount }
 }
 
-/** A ghost is raceable on a sector only on the identical course; inherited opening FLOW may differ. */
+/** The previous runner's canonical run when the next leg on `route` races it as a ghost. */
+export function sectorGhostRun(baton: BatonRecord, route: BatonRoute, previousRun: Run | undefined): Run | undefined {
+  if (isFirstLegOfSector(baton, route)) return undefined
+  if (!previousRun || previousRun.issued.runId !== baton.previousRunId) return undefined
+  return raceableOn(previousRun.issued.config, route) ? previousRun : undefined
+}
+
+export function legConfig(course: Course, terms: LegTerms): RelayLegV6Config {
+  return {
+    engineVersion: '6',
+    challenge: 'relay-leg',
+    challengeVersion: '6',
+    seed: course.seed,
+    world: course.world,
+    tier: course.tier,
+    openingFlow: terms.openingFlow,
+    tetherSaves: terms.tetherSaves,
+    ghostline: terms.ghostline,
+  }
+}
+
+/** A relay leg raced on the route's course, by either relay engine. Inherited opening FLOW may differ. */
 export function racesRoute(config: RaceConfig, route: BatonRoute): boolean {
-  return config.engineVersion === '5' && config.seed === route.seed && config.world === route.world && config.tier === route.tier
+  return config.engineVersion !== '4' && config.seed === route.seed && config.world === route.world && config.tier === route.tier
+}
+
+/** Only a v6 leg on the identical course can be raced as a ghost: v5 ghosts are watch-only. */
+export function raceableOn(config: RaceConfig, route: BatonRoute): boolean {
+  return config.engineVersion === '6' && racesRoute(config, route)
 }
 
 /** FLOW inherited from the previous canonical run: a quarter of its average, capped at MAX_OPENING_FLOW. */

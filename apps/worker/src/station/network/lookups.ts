@@ -52,6 +52,7 @@ interface NotificationInput {
   body: string
   batonId: string | null
   runId?: string | null
+  note?: string | null
 }
 
 export function notify(state: NetworkState, playerId: string, input: NotificationInput): void {
@@ -64,6 +65,7 @@ export function notify(state: NetworkState, playerId: string, input: Notificatio
     runId: input.runId ?? null,
     createdAt: Date.now(),
     readAt: null,
+    ...(input.note !== undefined ? { note: input.note } : {}),
   }
   const inbox = state.notifications[playerId] ?? []
   state.notifications[playerId] = [notification, ...inbox].slice(0, MAX_NOTIFICATIONS)
