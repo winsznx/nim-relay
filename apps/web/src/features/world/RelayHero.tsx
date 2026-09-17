@@ -79,10 +79,11 @@ export function RelayHero({ relay, playerId, latestReplay, moments, now, live }:
         </p>
         <span className="nr-hero__value nr-num">{formatNim(relay.valueLuna)}</span>
       </div>
+      {/* A runner-chosen name leads; the route between people or places supports it. */}
       <a className="nr-hero__route" id="hero-route" {...linkProps(journey)}>
-        {journeyHeadline(relay)}
+        {relay.name !== relay.identity ? relay.name : journeyHeadline(relay)}
       </a>
-      {relay.name !== relay.identity && <p className="nr-hero__name">{relay.name}</p>}
+      {relay.name !== relay.identity && <p className="nr-hero__name">{journeyHeadline(relay)}</p>}
       {live && (
         <a className="nr-hero__live" {...linkProps(journey)} aria-label={`${carryingLine(live)}, ${liveNumbers(live)}`}>
           <span className="nr-hero__live-dot" aria-hidden="true" />
