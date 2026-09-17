@@ -4,6 +4,8 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-08-04",
   "compatibility_flags": ["nodejs_compat"],
+  // Keep the original workers.dev addresses serving alongside the custom domains, so earlier links still open.
+  "workers_dev": true,
   "assets": {
     "directory": "../web/dist",
     "binding": "ASSETS",
@@ -51,6 +53,7 @@
   "env": {
     "testnet": {
       "name": "nim-relay-testnet",
+      "workers_dev": true,
       "routes": [{ "pattern": "testnet.nimrelay.xyz", "custom_domain": true }],
       "vars": {
         "NIMIQ_NETWORK": "TestAlbatross",
