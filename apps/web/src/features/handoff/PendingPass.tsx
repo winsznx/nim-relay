@@ -3,6 +3,7 @@ import type { NetworkHandoffIntent } from '@nim-relay/shared'
 import { failureCopy, formatNim, verificationCopy } from './copy'
 import { handoffDeps } from './deps'
 import { HandoffOrchestrator, type HandoffStage } from './machine'
+import { RelayNoteQuote } from './RelayNoteQuote'
 import './handoff.css'
 
 interface PendingPassProps {
@@ -43,8 +44,9 @@ export function PendingPass({ intent, onConfirmed, onCancelled }: PendingPassPro
   const amount = formatNim(intent.value)
 
   return (
-    <section className="nr-panel nr-panel--gold" aria-labelledby={`pending-${intent.id}`} aria-live="polite">
+    <section className="nr-panel nr-panel--gold handoff-pending" aria-labelledby={`pending-${intent.id}`} aria-live="polite">
       <h3 id={`pending-${intent.id}`}>{title}</h3>
+      {intent.note && <RelayNoteQuote text={intent.note.text} visibility={intent.note.visibility} />}
       {(() => {
         switch (stage.stage) {
           case 'armed':
@@ -57,7 +59,7 @@ export function PendingPass({ intent, onConfirmed, onCancelled }: PendingPassPro
                   <button type="button" className="handoff-primary" onClick={() => void machine.launch()}>
                     Approve in Nimiq Pay
                   </button>
-                  <button type="button" className="handoff-link" onClick={() => void machine.cancelUnattempted()}>
+                  <button type="button" className="handoff-quiet" onClick={() => void machine.cancelUnattempted()}>
                     Choose a different runner
                   </button>
                 </div>
@@ -109,7 +111,7 @@ export function PendingPass({ intent, onConfirmed, onCancelled }: PendingPassPro
                     </button>
                   </div>
                 ) : (
-                  <button type="button" className="handoff-link" onClick={() => setConfirmingNothingSent(true)}>
+                  <button type="button" className="handoff-quiet" onClick={() => setConfirmingNothingSent(true)}>
                     My wallet shows no transfer
                   </button>
                 )}

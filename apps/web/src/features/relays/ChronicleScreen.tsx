@@ -8,6 +8,7 @@ import { EmptyState, Loading, SectionHeader, Stat, StatRow } from '../shell/ui/p
 import { Screen } from '../shell/ui/Screen'
 import { BatonEmblem } from '../baton/BatonEmblem'
 import { batonAppearance } from '../baton/baton-appearance'
+import { RelayNoteQuote } from '../handoff/RelayNoteQuote'
 import { ShareCardButton } from '../social/cards/ShareCardButton'
 import * as api from './api'
 import { trackShare, useChronicle } from './data'
@@ -59,6 +60,8 @@ function ChronicleBody({ chronicle }: { chronicle: BatonChronicle }) {
   const last = consented.at(-1) ?? null
   const cardRoute = first === null ? null : first === last ? countryName(first) : `${countryName(first)} → ${countryName(last)}`
   const appearance = batonAppearance({ handoffCount: chronicle.qualifiedHandoffs, ageMs: chronicle.aliveMs, countries: chronicle.countries, ghostWins: 0, milestones: chronicle.moments.filter(moment => moment.kind === 'rescue').map(() => 'rescue') })
+  // A Chronicle carries public notes only, on the transaction of the leg they were passed with.
+  const notes = new Map(chronicle.transactions.flatMap(transaction => (transaction.note ? [[transaction.leg, transaction.note] as const] : [])))
   return (
     <>
       <header className="nr-chronicle-cover">
@@ -80,28 +83,32 @@ function ChronicleBody({ chronicle }: { chronicle: BatonChronicle }) {
       <section className="nr-section" aria-labelledby="chronicle-route">
         <SectionHeader id="chronicle-route" title="Route" detail={route} />
         <ol className="nr-stops">
-          {chronicle.stops.map((stop, index) => (
-            <li key={`${stop.leg}-${stop.runner.id}`} className="nr-stops__stop">
-              {index > 0 && (
-                <span className="nr-stops__arrow" aria-hidden="true">
-                  ↓
-                </span>
-              )}
-              <div className="nr-stops__row">
-                <span className="nr-stops__flag" aria-hidden="true">
-                  {flagFor(stop.countryCode) ?? '○'}
-                </span>
-                <div>
-                  <p className="nr-stops__place">{countryName(stop.countryCode)}</p>
-                  <p className="nr-stops__who">
-                    {stop.leg === 0 ? 'Started by ' : `Leg ${stop.leg}, received by `}
-                    <a {...linkProps(pathFor('runner', { handle: stop.runner.handle }))}>{stop.runner.name}</a>
-                    <span className="nr-route__time">{formatDateTime(stop.at)}</span>
-                  </p>
+          {chronicle.stops.map((stop, index) => {
+            const note = notes.get(stop.leg)
+            return (
+              <li key={`${stop.leg}-${stop.runner.id}`} className="nr-stops__stop">
+                {index > 0 && (
+                  <span className="nr-stops__arrow" aria-hidden="true">
+                    ↓
+                  </span>
+                )}
+                <div className="nr-stops__row">
+                  <span className="nr-stops__flag" aria-hidden="true">
+                    {flagFor(stop.countryCode) ?? '○'}
+                  </span>
+                  <div>
+                    <p className="nr-stops__place">{countryName(stop.countryCode)}</p>
+                    <p className="nr-stops__who">
+                      {stop.leg === 0 ? 'Started by ' : `Leg ${stop.leg}, received by `}
+                      <a {...linkProps(pathFor('runner', { handle: stop.runner.handle }))}>{stop.runner.name}</a>
+                      <span className="nr-route__time">{formatDateTime(stop.at)}</span>
+                    </p>
+                    {note && <RelayNoteQuote text={note} from={chronicle.stops[index - 1]?.runner.name ?? null} />}
+                  </div>
                 </div>
-              </div>
-            </li>
-          ))}
+              </li>
+            )
+          })}
         </ol>
       </section>
 

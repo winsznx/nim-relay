@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { BatonDetail } from '@nim-relay/shared'
+import { RelayNoteQuote } from '../handoff/RelayNoteQuote'
 import { linkProps, pathFor } from '../shell/router'
 import { LegShare } from '../social/cards/LegShare'
 import { SectionHeader } from '../shell/ui/primitives'
@@ -44,6 +45,7 @@ export function JourneyRoute({ relay, detail, playerId }: { relay: RelayView; de
               <p className="nr-route__title">
                 {handoff.from.name} passed to {handoff.to.name}
               </p>
+              {handoff.note && <RelayNoteQuote text={handoff.note.text} visibility={handoff.note.visibility} />}
               <p className="nr-route__meta">
                 {countryName(handoff.from.country)} → {countryName(handoff.to.country)}
                 <span className="nr-route__time">{formatDateTime(handoff.at)}</span>

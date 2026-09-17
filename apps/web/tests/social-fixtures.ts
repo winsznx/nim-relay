@@ -37,6 +37,7 @@ function handoffsAlong(record: NetworkBaton, path: readonly NetworkRunner[], leg
       sector: 0,
       race: leg.race === null ? null : { engineVersion: '5', world: record.world, timeMs: 60_000, score: 18_000, completed: true, ghostRunId: null, ghostTimeMs: null, beatGhost: null, ...leg.race },
       rescue: false,
+      note: null,
     }
   })
 }

@@ -5,7 +5,7 @@ import './leg.css'
 
 const BANNER_MS = 6500
 
-/** "HANDOFF #48 COMPLETE / MARIANA HAS THE BATON", over the globe while the baton crosses it. */
+/** "MARIANA HAS THE BATON / Handoff #48 complete", over the globe while the baton crosses it. */
 export function DepartureBanner() {
   const current = useDeparture(state => state.current)
   const clear = useDeparture(state => state.clear)
@@ -32,10 +32,10 @@ export function DepartureBanner() {
           onClick={() => clear(current.key)}
         >
           <p className="nr-departure__kicker">{current.batonName}</p>
-          <p className="nr-departure__title">Handoff #{current.leg} complete</p>
           <p className="nr-departure__holder">
-            <span>{current.recipientName}</span> has the baton
+            <span className="nr-departure__name">{current.recipientName}</span> has the baton
           </p>
+          <p className="nr-departure__handoff">Handoff #{current.leg} complete</p>
         </motion.div>
       )}
     </AnimatePresence>

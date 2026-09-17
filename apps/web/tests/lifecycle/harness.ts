@@ -25,8 +25,8 @@ const MILESTONE_SELECTORS = [
   '.leg-arrival__title',
   '.leg-arrival__ghost-name',
   '.leg-delta__name',
-  '.nr-departure__title',
   '.nr-departure__holder',
+  '.nr-departure__handoff',
 ]
 const MILESTONES_KEY = '__nimRelayMilestones'
 

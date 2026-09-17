@@ -69,21 +69,31 @@ export async function openLeg(runner: Runner, code: string): Promise<void> {
   await expect(page.locator('main.leg')).toHaveAttribute('data-phase', /arrival|catch|racing/, { timeout: LEG_LOAD_MS })
 }
 
-/** Lets the dev autopilot ride to the gate, then waits for the server's verdict to open the handoff zone. */
+/**
+ * Lets the dev autopilot ride to the gate, waits for the server's verdict, then presses the pass on the results.
+ * Returns the handoff card of the runner waiting for the baton; a Quick relay always has one.
+ */
 export async function finishLeg(runner: Runner): Promise<Locator> {
   const { page } = runner
   await expect(page.locator('main.leg')).toHaveAttribute('data-phase', 'finished', { timeout: RACE_MS })
   await expect(page.getByRole('region', { name: 'Arrival results' })).toBeVisible()
-  const picker = page.getByRole('region', { name: 'Choose the next runner' })
-  await expect(picker).toBeVisible({ timeout: 30_000 })
-  return picker
+  const pass = page.getByRole('button', { name: /^PASS / })
+  await expect(pass).toBeVisible({ timeout: 30_000 })
+  await pass.click()
+  const handoff = page.getByRole('dialog', { name: /^Handoff to / })
+  await expect(handoff).toBeVisible()
+  return handoff
 }
 
-/** Picks the next runner in the handoff zone, then holds the launch pad, drags up to raise the arc and releases. */
+/** Prepares the handoff to the waiting runner without a note, then holds the launch pad, drags up to raise the arc and releases. */
 export async function throwBaton(runner: Runner, recipient: string, shotPrefix?: string): Promise<void> {
   const { page } = runner
   if (shotPrefix) await shot(page, `${shotPrefix}-choose`)
-  await page.getByRole('region', { name: 'Choose the next runner' }).getByRole('button', { name: new RegExp(`^${recipient}\\b`) }).click()
+  await page.getByRole('dialog', { name: `Handoff to ${recipient}` }).getByRole('button', { name: 'Prepare handoff' }).click()
+  const note = page.getByRole('dialog', { name: 'Relay note' })
+  await expect(note).toBeVisible()
+  if (shotPrefix) await shot(page, `${shotPrefix}-note`)
+  await note.getByRole('button', { name: 'Pass without a note' }).click()
   await expect(ceremonyHeading(page, new RegExp(`Passing 1 NIM\\s*to ${recipient}`, 'i'))).toBeVisible()
   const pad = page.getByRole('button', { name: 'Hold to charge the throw, release to pass the baton' })
   await pad.scrollIntoViewIfNeeded()
@@ -101,7 +111,7 @@ export async function throwBaton(runner: Runner, recipient: string, shotPrefix?:
   await page.mouse.up()
 }
 
-/** The departure banner that follows a verified handoff: "HANDOFF #n COMPLETE / <recipient> HAS THE BATON". */
+/** The departure banner that follows a verified handoff: "<recipient> HAS THE BATON / HANDOFF #n COMPLETE". */
 export async function expectDeparture(page: Page, handoff: number, recipient: string, options: { shot?: string; withinMs?: number } = {}): Promise<void> {
   const banner = page.getByRole('status').filter({ hasText: new RegExp(`Handoff #${handoff} complete`, 'i') })
   await expect(banner).toBeVisible({ timeout: options.withinMs ?? 20_000 })

@@ -1,4 +1,5 @@
-import type { ChooseNotice, HandoffStage, VerificationFailure } from './machine'
+import { messageForCode } from '../shell/errors'
+import type { ChooseNotice, HandoffStage, NoteRefusal, VerificationFailure } from './machine'
 
 export type CeremonySceneState = 'approach' | 'armed' | 'frozen' | 'launch'
 
@@ -6,6 +7,7 @@ export type CeremonySceneState = 'approach' | 'armed' | 'frozen' | 'launch'
 export function sceneStateFor(stage: HandoffStage['stage']): CeremonySceneState {
   switch (stage) {
     case 'choose':
+    case 'note':
       return 'approach'
     case 'aiming':
     case 'armed':
@@ -35,6 +37,10 @@ export function chooseNoticeCopy(notice: ChooseNotice): string {
     case 'recipient-reserved':
       return 'This baton is reserved for the runner who accepted the invite.'
   }
+}
+
+export function noteRefusalCopy(refusal: NoteRefusal): string {
+  return messageForCode(refusal)
 }
 
 export function verificationCopy(reason: VerificationFailure): string {
@@ -74,7 +80,7 @@ export function failureCopy(code: string): string {
     case 'relay_leg_changed':
       return 'This baton already moved to another leg.'
     case 'handoff_already_prepared':
-      return 'A pass to another runner is already locked for this baton.'
+      return 'A different pass is already locked for this baton. Open the journey to finish it.'
     case 'journey_completed':
       return 'This journey is complete.'
     case 'sign_in_to_join':

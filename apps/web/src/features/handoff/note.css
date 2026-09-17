@@ -1,0 +1,72 @@
+/* A relay note, quoted wherever a pass is told: journey, Chronicle, world banner, inbox and the handoff itself. */
+
+.nr-relay-note {
+  position: relative;
+  margin: 6px 0 0;
+  padding: 2px 0 2px 14px;
+  min-width: 0;
+}
+
+.nr-relay-note::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #ffd98a, rgba(245, 166, 35, 0.25));
+}
+
+.nr-relay-note--inline {
+  display: block;
+  margin-top: 4px;
+}
+
+.nr-relay-note--inline .nr-relay-note__text {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 14px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.nr-relay-note__text {
+  display: block;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 15px;
+  font-weight: 600;
+  font-style: italic;
+  line-height: 1.35;
+  color: #f3ead8;
+}
+
+.nr-relay-note__text::before {
+  content: '“';
+  color: #f5a623;
+}
+
+.nr-relay-note__text::after {
+  content: '”';
+  color: #f5a623;
+}
+
+.nr-relay-note__by {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--nr-mist, #9aa3b8);
+}
+
+.nr-relay-note__private {
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 217, 138, 0.28);
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffd98a;
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { NetworkConfirmation, NetworkHandoffIntent } from '@nim-relay/shared'
-import { classifyWalletError, HandoffOrchestrator, type HandoffDeps, type TransferRecord } from './machine'
+import type { NetworkConfirmation, NetworkHandoffIntent, RelayNote } from '@nim-relay/shared'
+import { classifyWalletError, HandoffOrchestrator, noteLength, type HandoffDeps, type TransferRecord } from './machine'
 
 const HASH = 'a'.repeat(64)
 const runner = { id: 'runner-b', name: 'Mariana', handle: 'mariana' }
@@ -26,6 +26,7 @@ function intent(overrides: Partial<NetworkHandoffIntent> = {}): NetworkHandoffIn
     expiresAt: Number.MAX_SAFE_INTEGER,
     attemptedAt: null,
     failure: null,
+    note: null,
     ...overrides,
   }
 }
@@ -55,13 +56,21 @@ function harness(overrides: Partial<HandoffDeps> = {}) {
   return { deps, machine, records }
 }
 
+/** Chooses Mariana and moves past the note step, with or without a note. */
+function aim(machine: HandoffOrchestrator, note: RelayNote | null = null): void {
+  machine.select(runner)
+  machine.attachNote(note)
+}
+
 describe('handoff ceremony', () => {
   it('locks the recipient, opens Nimiq Pay once, and confirms only after server verification', async () => {
     const { deps, machine, records } = harness()
     machine.select(runner)
-    expect(machine.getSnapshot().stage).toBe('aiming')
+    expect(machine.getSnapshot()).toEqual({ stage: 'note', recipient: runner, draft: null, refusal: null })
+    machine.attachNote(null)
+    expect(machine.getSnapshot()).toEqual({ stage: 'aiming', recipient: runner, note: null })
     await machine.throwBaton(launch)
-    expect(deps.prepare).toHaveBeenCalledWith('run-1', runner.id, launch)
+    expect(deps.prepare).toHaveBeenCalledWith('run-1', runner.id, launch, null)
     expect(deps.send).toHaveBeenCalledTimes(1)
     expect(machine.getSnapshot()).toMatchObject({ stage: 'confirmed', hash: HASH })
     expect(records.get('intent-1')).toEqual({ id: 'intent-1', hash: HASH, state: 'verified' })
@@ -76,7 +85,7 @@ describe('handoff ceremony', () => {
         return HASH
       }),
     })
-    machine.select(runner)
+    aim(machine)
     await machine.throwBaton(launch)
     expect(machine.getSnapshot().stage).toBe('paused')
     await machine.launch()
@@ -86,14 +95,14 @@ describe('handoff ceremony', () => {
 
   it('reports insufficient balance distinctly from a decline', async () => {
     const { machine } = harness({ send: vi.fn(async () => Promise.reject(Object.assign(new Error('Insufficient balance'), { type: 'InvalidTransactionError' }))) })
-    machine.select(runner)
+    aim(machine)
     await machine.throwBaton(launch)
     expect(machine.getSnapshot().stage).toBe('insufficient')
   })
 
   it('never reopens Nimiq Pay after an ambiguous wallet outcome', async () => {
     const { deps, machine } = harness({ send: vi.fn(async () => Promise.reject(new Error('Request timed out'))) })
-    machine.select(runner)
+    aim(machine)
     await machine.throwBaton(launch)
     expect(machine.getSnapshot().stage).toBe('recovery')
     await machine.launch()
@@ -113,7 +122,7 @@ describe('handoff ceremony', () => {
         return HASH
       }),
     })
-    machine.select(runner)
+    aim(machine)
     await machine.throwBaton(launch)
     expect(machine.getSnapshot().stage).toBe('recovery')
     await machine.confirmNothingSent()
@@ -128,7 +137,7 @@ describe('handoff ceremony', () => {
     const { machine } = harness({
       confirm: vi.fn(async (): Promise<NetworkConfirmation> => (++checks < 3 ? { status: 'pending', reason: 'INSUFFICIENT_CONFIRMATIONS' } : { status: 'verified' })),
     })
-    machine.select(runner)
+    aim(machine)
     await machine.throwBaton(launch)
     expect(checks).toBe(3)
     expect(machine.getSnapshot().stage).toBe('confirmed')
@@ -136,21 +145,21 @@ describe('handoff ceremony', () => {
 
   it('keeps the baton with the holder when verification rejects the transaction', async () => {
     const { machine } = harness({ confirm: vi.fn(async (): Promise<NetworkConfirmation> => ({ status: 'rejected', reason: 'RECIPIENT_MISMATCH' })) })
-    machine.select(runner)
+    aim(machine)
     await machine.throwBaton(launch)
     expect(machine.getSnapshot()).toMatchObject({ stage: 'not-verified', reason: 'RECIPIENT_MISMATCH' })
   })
 
   it('flags a transaction that was already used for another handoff', async () => {
     const { machine } = harness({ confirm: vi.fn(async () => Promise.reject(new ApiError('transaction_already_used'))) })
-    machine.select(runner)
+    aim(machine)
     await machine.throwBaton(launch)
     expect(machine.getSnapshot()).toMatchObject({ stage: 'not-verified', reason: 'DUPLICATE_TRANSACTION' })
   })
 
   it('returns to runner selection when the chosen runner is unavailable', async () => {
     const { machine } = harness({ prepare: vi.fn(async () => Promise.reject(new ApiError('recipient_unavailable'))) })
-    machine.select(runner)
+    aim(machine)
     await machine.throwBaton(launch)
     expect(machine.getSnapshot()).toEqual({ stage: 'choose', notice: 'recipient-unavailable' })
   })
@@ -183,5 +192,115 @@ describe('handoff ceremony', () => {
     expect(classifyWalletError(Object.assign(new Error('User rejected'), { type: 'PermissionDeniedError' }))).toBe('declined')
     expect(classifyWalletError(new Error('Insufficient funds'))).toBe('insufficient')
     expect(classifyWalletError(new Error('Network error while broadcasting'))).toBe('ambiguous')
+  })
+})
+
+describe('relay note', () => {
+  it('travels with the throw, trimmed, with the visibility the holder chose', async () => {
+    // #given a holder who writes a private note for Mariana
+    const { deps, machine } = harness()
+    machine.select(runner)
+    machine.attachNote({ text: '  Don’t drop the baton.  ', visibility: 'private' })
+    expect(machine.getSnapshot()).toEqual({ stage: 'aiming', recipient: runner, note: { text: 'Don’t drop the baton.', visibility: 'private' } })
+
+    // #when they throw
+    await machine.throwBaton(launch)
+
+    // #then the prepared intent carries exactly that note
+    expect(deps.prepare).toHaveBeenCalledWith('run-1', runner.id, launch, { text: 'Don’t drop the baton.', visibility: 'private' })
+    expect(machine.getSnapshot().stage).toBe('confirmed')
+  })
+
+  it('treats a blank note as no note', async () => {
+    const { deps, machine } = harness()
+    aim(machine, { text: '   ', visibility: 'public' })
+    expect(machine.getSnapshot()).toEqual({ stage: 'aiming', recipient: runner, note: null })
+    await machine.throwBaton(launch)
+    expect(deps.prepare).toHaveBeenCalledWith('run-1', runner.id, launch, null)
+  })
+
+  it('holds a note over the limit on the note step before anything is sent', () => {
+    // #given 49 code points, where emoji count once each
+    const text = `${'🏃'.repeat(9)}${'a'.repeat(40)}`
+    expect(noteLength(text)).toBe(49)
+    const { deps, machine } = harness()
+
+    // #when the holder tries to attach it
+    machine.select(runner)
+    machine.attachNote({ text, visibility: 'public' })
+
+    // #then the draft stays with the refusal and nothing reached the relay
+    expect(machine.getSnapshot()).toEqual({ stage: 'note', recipient: runner, draft: { text, visibility: 'public' }, refusal: 'note_too_long' })
+    expect(deps.prepare).not.toHaveBeenCalled()
+  })
+
+  it('counts a 48-emoji note as within the limit', () => {
+    const { machine } = harness()
+    aim(machine, { text: '🏃'.repeat(48), visibility: 'public' })
+    expect(machine.getSnapshot().stage).toBe('aiming')
+  })
+
+  it('returns to the note step with the draft when moderation refuses it, then passes with a new note', async () => {
+    // #given the relay refuses the first note
+    let calls = 0
+    const { deps, machine } = harness({
+      prepare: vi.fn(async () => {
+        calls++
+        if (calls === 1) throw new ApiError('note_not_allowed')
+        return intent({ note: { text: 'Go fast', visibility: 'public' } })
+      }),
+    })
+    const refused: RelayNote = { text: 'something rude', visibility: 'public' }
+    aim(machine, refused)
+
+    // #when the holder throws
+    await machine.throwBaton(launch)
+
+    // #then the ceremony is back on the note step with the refused draft, and no wallet opened
+    expect(machine.getSnapshot()).toEqual({ stage: 'note', recipient: runner, draft: refused, refusal: 'note_not_allowed' })
+    expect(deps.send).not.toHaveBeenCalled()
+
+    // #when they rewrite it and throw again
+    machine.attachNote({ text: 'Go fast', visibility: 'public' })
+    await machine.throwBaton(launch)
+
+    // #then the new note is prepared and the pass goes through once
+    expect(deps.prepare).toHaveBeenLastCalledWith('run-1', runner.id, launch, { text: 'Go fast', visibility: 'public' })
+    expect(deps.send).toHaveBeenCalledTimes(1)
+    expect(machine.getSnapshot().stage).toBe('confirmed')
+  })
+
+  it('keeps a server length refusal on the note step too', async () => {
+    const { machine } = harness({ prepare: vi.fn(async () => Promise.reject(new ApiError('note_too_long'))) })
+    aim(machine, { text: 'Café au lait, extra long', visibility: 'public' })
+    await machine.throwBaton(launch)
+    expect(machine.getSnapshot()).toMatchObject({ stage: 'note', refusal: 'note_too_long', draft: { text: 'Café au lait, extra long' } })
+  })
+
+  it('lets the holder reopen the note from the launch pad without losing it', () => {
+    const { machine } = harness()
+    const note: RelayNote = { text: 'Keep it gold', visibility: 'public' }
+    aim(machine, note)
+    machine.editNote()
+    expect(machine.getSnapshot()).toEqual({ stage: 'note', recipient: runner, draft: note, refusal: null })
+  })
+
+  it('drops the note when the holder goes back to choose another runner', () => {
+    const { machine } = harness()
+    aim(machine, { text: 'For you', visibility: 'private' })
+    machine.changeRunner()
+    expect(machine.getSnapshot()).toEqual({ stage: 'choose', notice: null })
+    machine.select({ id: 'runner-c', name: 'Yasmine', handle: 'yasmine' })
+    expect(machine.getSnapshot()).toMatchObject({ stage: 'note', draft: null })
+  })
+
+  it('ignores note actions outside the note step', async () => {
+    const { deps, machine } = harness()
+    machine.attachNote({ text: 'Too early', visibility: 'public' })
+    expect(machine.getSnapshot()).toEqual({ stage: 'choose', notice: null })
+    machine.select(runner)
+    await machine.throwBaton(launch)
+    expect(deps.prepare).not.toHaveBeenCalled()
+    expect(machine.getSnapshot().stage).toBe('note')
   })
 })

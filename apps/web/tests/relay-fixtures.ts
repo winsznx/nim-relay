@@ -139,6 +139,7 @@ export function populatedNetwork(now = Date.now()): { snapshot: NetworkSnapshot;
       sector: 0,
       race: { engineVersion: '4', world: 'coast', timeMs: 61_200 - index * 830, score: 18_400 + index * 950, completed: true, ghostRunId: index ? `run-${global.code}-${index}` : null, ghostTimeMs: null, beatGhost: index > 0 ? index % 2 === 1 : null },
       rescue: false,
+      note: null,
     }
   })
   const snapshot: NetworkSnapshot = {
@@ -228,7 +229,8 @@ export function chronicleOf(detail: BatonDetail): BatonChronicle {
       { kind: 'closest-ghost-race', title: 'Closest ghost race', runner: ref(RUNNERS.arjun), leg: 3, value: 240 },
     ],
     runners: [ref(baton.origin), ...handoffs.map(item => ref(item.to))],
-    transactions: handoffs.map(item => ({ leg: item.leg, txHash: item.txHash, from: item.from.wallet, to: item.to.wallet, blockNumber: item.blockNumber, confirmations: item.confirmations, at: item.at, runId: item.runId, resultHash: item.resultHash })),
+    // A Chronicle carries public notes only.
+    transactions: handoffs.map(item => ({ leg: item.leg, txHash: item.txHash, from: item.from.wallet, to: item.to.wallet, blockNumber: item.blockNumber, confirmations: item.confirmations, at: item.at, runId: item.runId, resultHash: item.resultHash, note: item.note?.visibility === 'public' ? item.note.text : null })),
     replays: handoffs.map(item => ({ leg: item.leg, runId: item.runId })),
   }
 }

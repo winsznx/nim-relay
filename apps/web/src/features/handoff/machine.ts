@@ -1,4 +1,4 @@
-import type { NetworkBaton, NetworkConfirmation, NetworkHandoffIntent } from '@nim-relay/shared'
+import { MAX_RELAY_NOTE_CHARS, type NetworkBaton, type NetworkConfirmation, type NetworkHandoffIntent, type RelayNote } from '@nim-relay/shared'
 
 /**
  * The handoff ceremony as an explicit state machine. The baton only leaves the
@@ -19,6 +19,9 @@ export interface LaunchParameters {
 
 export type ChooseNotice = 'recipient-unavailable' | 'match-opponent-only' | 'crew-member-only' | 'recipient-reserved'
 
+/** Why the relay turned a note down. Both keep the pass on the note step with the draft intact. */
+export type NoteRefusal = 'note_too_long' | 'note_not_allowed'
+
 export type VerificationFailure =
   | 'SENDER_MISMATCH'
   | 'RECIPIENT_MISMATCH'
@@ -36,8 +39,9 @@ export type VerificationFailure =
 
 export type HandoffStage =
   | { stage: 'choose'; notice: ChooseNotice | null }
-  | { stage: 'aiming'; recipient: RunnerChoice }
-  | { stage: 'preparing'; recipient: RunnerChoice }
+  | { stage: 'note'; recipient: RunnerChoice; draft: RelayNote | null; refusal: NoteRefusal | null }
+  | { stage: 'aiming'; recipient: RunnerChoice; note: RelayNote | null }
+  | { stage: 'preparing'; recipient: RunnerChoice; note: RelayNote | null }
   | { stage: 'armed'; intent: NetworkHandoffIntent }
   | { stage: 'wallet'; intent: NetworkHandoffIntent }
   | { stage: 'paused'; intent: NetworkHandoffIntent }
@@ -55,7 +59,8 @@ export interface TransferRecord {
 }
 
 export interface HandoffDeps {
-  prepare(runId: string, recipientId: string, launch: LaunchParameters): Promise<NetworkHandoffIntent>
+  /** Locks the pass on the server. `note` is already trimmed and within the length limit, or null for none. */
+  prepare(runId: string, recipientId: string, launch: LaunchParameters, note: RelayNote | null): Promise<NetworkHandoffIntent>
   attempt(intentId: string): Promise<NetworkHandoffIntent>
   cancel(intentId: string): Promise<NetworkHandoffIntent>
   confirm(intentId: string, hash: string): Promise<NetworkConfirmation>
@@ -78,6 +83,21 @@ export function classifyWalletError(error: unknown): WalletOutcome {
   if (/insufficient|balance|not enough|funds/i.test(text)) return 'insufficient'
   if (/permission ?denied|reject|cancel|denied|declin|abort by user/i.test(text)) return 'declined'
   return 'ambiguous'
+}
+
+/** Length of a note the way the relay counts it: Unicode code points of the trimmed text. */
+export function noteLength(text: string): number {
+  return Array.from(text.trim()).length
+}
+
+/** The note as it will be sent: trimmed, or null when nothing is left to say. */
+export function relayNote(draft: RelayNote | null): RelayNote | null {
+  const text = draft?.text.trim() ?? ''
+  return draft && text ? { text, visibility: draft.visibility } : null
+}
+
+export function noteRefusalForError(code: string): NoteRefusal | null {
+  return code === 'note_too_long' || code === 'note_not_allowed' ? code : null
 }
 
 export function chooseNoticeForError(code: string): ChooseNotice | null {
@@ -180,28 +200,52 @@ export class HandoffOrchestrator {
     this.set({ stage: 'recovery', intent, invalidHash: false })
   }
 
-  /** Locks the next runner locally; nothing is sent to the server until the throw. */
+  /** Locks the next runner locally and opens the relay note; nothing is sent to the server until the throw. */
   select(recipient: RunnerChoice): void {
-    if (this.state.stage !== 'choose' && this.state.stage !== 'aiming') return
-    this.set({ stage: 'aiming', recipient })
+    const { stage } = this.state
+    if (stage !== 'choose' && stage !== 'note' && stage !== 'aiming') return
+    this.set({ stage: 'note', recipient, draft: null, refusal: null })
+  }
+
+  /** Attaches the note, or passes without one when the draft is null or blank, and moves on to the throw. */
+  attachNote(draft: RelayNote | null): void {
+    if (this.state.stage !== 'note') return
+    const recipient = this.state.recipient
+    const note = relayNote(draft)
+    if (note && noteLength(note.text) > MAX_RELAY_NOTE_CHARS) {
+      this.set({ stage: 'note', recipient, draft: note, refusal: 'note_too_long' })
+      return
+    }
+    this.set({ stage: 'aiming', recipient, note })
+  }
+
+  editNote(): void {
+    if (this.state.stage !== 'aiming') return
+    this.set({ stage: 'note', recipient: this.state.recipient, draft: this.state.note, refusal: null })
   }
 
   changeRunner(): void {
-    if (this.state.stage !== 'aiming') return
+    if (this.state.stage !== 'note' && this.state.stage !== 'aiming') return
     this.set({ stage: 'choose', notice: null })
   }
 
-  /** The throw commits the launch parameters into an immutable intent, then opens Nimiq Pay. */
+  /** The throw commits the launch parameters and the note into an immutable intent, then opens Nimiq Pay. */
   async throwBaton(launch: LaunchParameters): Promise<void> {
     if (this.state.stage !== 'aiming') return
-    const recipient = this.state.recipient
-    this.set({ stage: 'preparing', recipient })
+    const { recipient, note } = this.state
+    this.set({ stage: 'preparing', recipient, note })
     let intent: NetworkHandoffIntent
     try {
-      intent = await this.deps.prepare(this.runId, recipient.id, launch)
+      intent = await this.deps.prepare(this.runId, recipient.id, launch, note)
     } catch (error) {
-      const notice = chooseNoticeForError(errorCode(error))
-      this.set(notice ? { stage: 'choose', notice } : { stage: 'failed', message: errorCode(error) || 'prepare_failed' })
+      const code = errorCode(error)
+      const refusal = noteRefusalForError(code)
+      if (refusal) {
+        this.set({ stage: 'note', recipient, draft: note, refusal })
+        return
+      }
+      const notice = chooseNoticeForError(code)
+      this.set(notice ? { stage: 'choose', notice } : { stage: 'failed', message: code || 'prepare_failed' })
       return
     }
     if (intent.state !== 'prepared' || intent.txHash) {

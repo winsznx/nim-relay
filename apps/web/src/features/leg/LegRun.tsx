@@ -6,18 +6,18 @@ import { HandoffCeremony } from '../handoff/HandoffCeremony'
 import type { CeremonySceneState } from '../handoff/copy'
 import { handoffDeps } from '../handoff/deps'
 import { HandoffOrchestrator, type HandoffStage } from '../handoff/machine'
-import { RaceScreen, type CeremonyState, type RaceCue, type RaceFrame, type RaceMode } from '../race/RaceScreen'
+import { RaceScreen, type CeremonyState, type PassAction, type RaceCue, type RaceFrame, type RaceMode } from '../race/RaceScreen'
 import * as api from '../relays/api'
-import { trackShare } from '../relays/data'
+import { useNow, useRunnerProfile } from '../relays/data'
 import { playArrival } from '../world/globe-bridge'
 import { playerMessage } from '../shell/errors'
 import { navigate, pathFor } from '../shell/router'
-import { shareLink } from '../shell/share'
 import { showToast } from '../shell/toast'
 import { useDeparture } from './departure'
+import { legMission } from './mission'
 import type { LegSetup } from './prepare'
 import { LegProgressReporter } from './progress-reporter'
-import { runnerGroups } from './runner-groups'
+import { handoffRoster } from './runner-groups'
 import './leg.css'
 
 declare global {
@@ -49,8 +49,12 @@ type Verification =
   | { status: 'verified'; receipt: SubmittedRace }
   | { status: 'failed'; message: string; expired: boolean }
 
+/** Pauses between the verified launch and the world taking over, so the baton visibly leaves first. */
+const WORLD_HANDOVER_MS = 900
+
 function beatGhost(result: relayLeg.Result, ghostTimeMs: number | null): boolean {
-  return ghostTimeMs === null ? result.completed : result.completed && result.timeMs < ghostTimeMs
+  const arrived = result.completed && !result.failed
+  return ghostTimeMs === null ? arrived : arrived && result.timeMs < ghostTimeMs
 }
 
 /** One playable leg in the product: the race, the server's verdict on the run, and for real batons the handoff. */
@@ -58,17 +62,30 @@ export function LegRun({ setup, snapshot, playerId, onExit, onReissue, onRefresh
   const [verification, setVerification] = useState<Verification>({ status: 'idle' })
   const [lastTrace, setLastTrace] = useState<relayLeg.InputTrace | null>(null)
   const [ceremonyState, setCeremonyState] = useState<CeremonyState>('none')
+  const [passing, setPassing] = useState(false)
   const showDeparture = useDeparture(state => state.show)
   const director = getAudioDirector()
   const baton = setup.baton
+  const now = useNow()
   // Spectators follow a real baton leg live; practice, the Daily and replays are never reported.
   const [progress] = useState(() => (setup.mode === 'relay' && setup.issued?.batonId ? new LegProgressReporter(setup.issued.runId, api.reportLegProgress) : null))
+
+  // The player's recent handoff partners are the "Friends" a pass offers first.
+  const selfHandle = snapshot?.runners.find(runner => runner.id === playerId)?.handle ?? null
+  const profile = useRunnerProfile(setup.mode === 'relay' ? selfHandle : null)
+  const partners = profile.data?.recentRunners
 
   useEffect(() => {
     director.scene('race')
     director.startRace({ world: setup.config.world })
     return () => director.scene('world')
   }, [director, setup.config.world])
+
+  const roster = useMemo(
+    () => (snapshot && baton && setup.mode === 'relay' ? handoffRoster({ snapshot, baton, selfId: playerId, handoffs: setup.handoffs, partners: partners ?? [], now }) : null),
+    [snapshot, baton, setup.mode, setup.handoffs, playerId, partners, now],
+  )
+  const mission = useMemo(() => legMission(setup, roster), [setup, roster])
 
   const receipt = verification.status === 'verified' ? verification.receipt : null
   const machine = useMemo(() => (receipt?.qualifiedHandoff && setup.mode === 'relay' ? new HandoffOrchestrator(handoffDeps, receipt.runId) : null), [receipt, setup.mode])
@@ -94,8 +111,8 @@ export function LegRun({ setup, snapshot, playerId, onExit, onReissue, onRefresh
 
   const onFinished = (result: relayLeg.Result, trace: relayLeg.InputTrace) => {
     director.cueNamed(beatGhost(result, setup.ghost?.timeMs ?? null) ? 'finish-win' : 'finish-lose')
-    // A baton leg only counts once it reaches the gate; an unfinished run can be raced again on the same issue.
-    if (setup.mode === 'relay' && !result.completed) return
+    // A baton leg only counts once it reaches the gate; a failed or unfinished run can be raced again on the same issue.
+    if (setup.mode === 'relay' && (!result.completed || result.failed)) return
     setLastTrace(trace)
     void submit(trace)
   }
@@ -151,36 +168,21 @@ export function LegRun({ setup, snapshot, playerId, onExit, onReissue, onRefresh
           playArrival(stage.intent.id, { relayId: baton.id, fromCountry: baton.holder.country, toCountry: recipient?.country ?? null })
           showDeparture({ key: stage.intent.id, batonName: baton.displayName, leg: stage.intent.leg, recipientName: stage.intent.recipientName })
         }
-      }, 900)
+      }, WORLD_HANDOVER_MS)
     },
     [baton, director, onRefresh, showDeparture, snapshot?.runners],
   )
 
-  const onInvite = useCallback(() => {
-    if (!baton) return
-    void (async () => {
-      try {
-        const invite = await api.createNetworkInvite(baton.id)
-        await shareLink(`Carry ${baton.displayName} next`, invite.url)
-        trackShare('handoff')
-      } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') return
-        showToast(playerMessage(error) ?? 'The invite link could not be created. Try again.', 'error')
-      }
-    })()
+  const createInvite = useCallback(async () => {
+    if (!baton) throw new Error('Only a baton leg can invite the next runner.')
+    const invite = await api.createNetworkInvite(baton.id)
+    return invite.url
   }, [baton])
 
+  const passAction: PassAction | null = machine && baton && !passing ? { label: `PASS ${baton.displayName.toUpperCase()}`, onPress: () => setPassing(true) } : null
+
   const ceremony = (() => {
-    if (setup.mode !== 'relay' || verification.status === 'idle') return null
-    if (verification.status === 'verifying') {
-      return (
-        <div className="nr-leg-verify">
-          <p className="nr-leg-verify__status" role="status">
-            Verifying your run…
-          </p>
-        </div>
-      )
-    }
+    if (setup.mode !== 'relay') return null
     if (verification.status === 'failed') {
       return (
         <div className="nr-leg-verify">
@@ -197,6 +199,7 @@ export function LegRun({ setup, snapshot, playerId, onExit, onReissue, onRefresh
         </div>
       )
     }
+    if (verification.status !== 'verified') return null
     if (!machine) {
       return (
         <div className="nr-leg-verify">
@@ -207,13 +210,15 @@ export function LegRun({ setup, snapshot, playerId, onExit, onReissue, onRefresh
         </div>
       )
     }
+    if (!passing) return null
     return (
       <HandoffCeremony
         machine={machine}
-        groups={runnerGroups(snapshot, baton, playerId)}
+        roster={roster}
+        batonName={baton?.displayName ?? 'this baton'}
         value={baton?.value ?? 100000}
+        createInvite={createInvite}
         onSceneState={onSceneState}
-        onInvite={onInvite}
         onDeparted={onDeparted}
         onKeepBaton={onExit}
       />
@@ -228,6 +233,8 @@ export function LegRun({ setup, snapshot, playerId, onExit, onReissue, onRefresh
       sender={setup.sender}
       {...(setup.appearance ? { baton: setup.appearance } : {})}
       echoes={setup.echoes}
+      mission={mission}
+      passAction={passAction}
       onFinished={onFinished}
       onExit={onExit}
       ceremony={ceremony}

@@ -1,3 +1,5 @@
+import type { NetworkNotification } from '@nim-relay/shared'
+import { RelayNoteQuote } from '../handoff/RelayNoteQuote'
 import * as api from '../relays/api'
 import { useNetwork, useNow, useRefreshNetwork } from '../relays/data'
 import { formatAgo } from '../relays/format'
@@ -21,7 +23,12 @@ function markRead(ids: readonly string[], refresh: () => void): void {
     .catch((error: unknown) => console.warn('Notification stays unread', error))
 }
 
-function Item({ item, urgent, now }: { item: InboxItem; urgent: boolean; now: number }) {
+/** The sender's note on the incoming baton an item stands for, if the pass carried one. */
+function noteOf(item: InboxItem, inbox: readonly NetworkNotification[]): string | null {
+  return inbox.find(notice => notice.type === 'incoming_baton' && notice.note && (notice.id === item.key || item.unreadIds.includes(notice.id)))?.note ?? null
+}
+
+function Item({ item, urgent, now, note }: { item: InboxItem; urgent: boolean; now: number; note: string | null }) {
   const action = useAction()
   const refresh = useRefreshNetwork()
   const open = () => {
@@ -47,6 +54,7 @@ function Item({ item, urgent, now }: { item: InboxItem; urgent: boolean; now: nu
             {item.unreadIds.length > 0 && <span className="nr-visually-hidden">, unread</span>}
           </span>
           <span className="nr-inbox-item__text">{item.body}</span>
+          {note && <RelayNoteQuote text={note} inline />}
           {item.deadline ? (
             <span className="nr-inbox-item__deadline">
               {item.deadline.label} <Countdown to={item.deadline.at} onElapsed={refresh} />
@@ -109,7 +117,7 @@ export function InboxScreen({ entryKey }: { entryKey: string }) {
           <SectionHeader id="inbox-now" title="Needs you now" detail={needsYou.length === 1 ? 'One thing only you can move' : `${needsYou.length} things only you can move`} />
           <ul className="nr-inbox-list">
             {needsYou.map(item => (
-              <Item key={item.key} item={item} urgent now={now} />
+              <Item key={item.key} item={item} urgent now={now} note={noteOf(item, snapshot.inbox)} />
             ))}
           </ul>
         </section>
@@ -119,7 +127,7 @@ export function InboxScreen({ entryKey }: { entryKey: string }) {
           <SectionHeader id="inbox-updates" title="Updates" />
           <ul className="nr-inbox-list nr-inbox-list--updates" aria-label="Notifications">
             {updates.map(item => (
-              <Item key={item.key} item={item} urgent={false} now={now} />
+              <Item key={item.key} item={item} urgent={false} now={now} note={noteOf(item, snapshot.inbox)} />
             ))}
           </ul>
         </section>

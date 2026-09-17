@@ -19,6 +19,7 @@
     "@nimiq/mini-app-sdk": "0.1.0",
     "@tanstack/react-query": "5.102.8",
     "motion": "13.1.1",
+    "qrcode": "1.5.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "three": "0.171.0",
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0",
+    "@types/qrcode": "1.5.6",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@types/three": "0.171.0",

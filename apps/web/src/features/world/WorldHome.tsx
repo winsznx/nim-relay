@@ -3,6 +3,7 @@ import { motion, useReducedMotion } from 'motion/react'
 import { paymentAddress } from '@nim-relay/relay-protocol'
 import type { NetworkNotification, NetworkSnapshot } from '@nim-relay/shared'
 import type { Player } from '../../lib/auth-api'
+import { RelayNoteQuote } from '../handoff/RelayNoteQuote'
 import { acceptReservation, markNotificationRead } from '../relays/api'
 import { useAction } from '../shell/use-action'
 import { useBatonDetail, useLiveStatus, useNow, useRefreshNetwork, useStationProfile, type NetworkState } from '../relays/data'
@@ -81,6 +82,7 @@ function PersonalBanner({ player, relays, snapshot }: { player: Player; relays: 
         <div className="nr-banner__text">
           <p className="nr-banner__eyebrow">Incoming baton</p>
           <p className="nr-banner__title">{incoming.title}</p>
+          {incoming.note && <RelayNoteQuote text={incoming.note} inline />}
         </div>
         <Button variant="primary" size="sm" onClick={open}>
           Open

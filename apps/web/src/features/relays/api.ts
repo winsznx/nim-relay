@@ -10,8 +10,10 @@ import type {
   NetworkInvite,
   NetworkSnapshot,
   OpsReport,
+  PrepareHandoffInput,
   RaceMode,
   RaceTrace,
+  RelayNote,
   RunnerProfile,
   SubmittedRace,
   TrackEventInput,
@@ -57,9 +59,20 @@ export const loadRunnerProfile = (handle: string) => request<RunnerProfile>(`/ru
 export const createBaton = (input: { mode: Exclude<RaceMode, 'daily'>; title: string; recipient?: string; bestOf?: 3 | 5; crewId?: string }) =>
   request<BatonDetail>('/create', input)
 export const issueNetworkRace = (input: { batonId?: string; daily?: boolean; practice?: boolean; ghostRunId?: string }) => request<IssuedRace>('/issue', input)
-export const submitNetworkRace = (issued: IssuedRace, inputTrace: RaceTrace) => send<SubmittedRace>('/api/station/submit', { issued, inputTrace })
-export const prepareNetworkHandoff = (runId: string, recipient: string, launch?: { angle: number; power: number }) =>
-  request<NetworkHandoffIntent>('/handoff/prepare', { runId, recipient, throw: launch })
+/**
+ * The server checks the signed fields against its stored issuance and never reads the ghost, sector or echoes,
+ * which are presentation data: a ghost trace alone can push the request past the 100 KB limit.
+ */
+export const submitNetworkRace = (issued: IssuedRace, inputTrace: RaceTrace) => {
+  const signed: Partial<IssuedRace> = { ...issued }
+  delete signed.ghost
+  delete signed.sector
+  delete signed.echoes
+  return send<SubmittedRace>('/api/station/submit', { issued: signed, inputTrace })
+}
+/** Locks a pass to one runner. The note, when there is one, is moderated and bound into the handoff by the server. */
+export const prepareNetworkHandoff = (runId: string, recipient: string, launch?: { angle: number; power: number }, note?: RelayNote | null) =>
+  request<NetworkHandoffIntent>('/handoff/prepare', { runId, recipient, ...(launch ? { throw: launch } : {}), ...(note ? { note } : {}) } satisfies PrepareHandoffInput)
 export const attemptNetworkHandoff = (id: string) => request<NetworkHandoffIntent>('/handoff/attempt', { id })
 export const cancelNetworkHandoff = (id: string) => request<NetworkHandoffIntent>('/handoff/cancel', { id })
 export const confirmNetworkHandoff = (id: string, txHash: string) => request<NetworkConfirmation>('/handoff/confirm', { id, txHash })
