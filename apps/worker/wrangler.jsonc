@@ -40,12 +40,18 @@
     "NIMIQ_NETWORK": "MainAlbatross",
     "NIMIQ_RPC_URL": "https://rpc.nimiqwatch.com/"
   },
+  // Custom domains need the nimrelay.xyz zone active on this account; Cloudflare creates the DNS records.
+  "routes": [
+    { "pattern": "nimrelay.xyz", "custom_domain": true },
+    { "pattern": "www.nimrelay.xyz", "custom_domain": true }
+  ],
   "triggers": {
     "crons": ["0 0 * * *", "*/10 * * * *"]
   },
   "env": {
     "testnet": {
       "name": "nim-relay-testnet",
+      "routes": [{ "pattern": "testnet.nimrelay.xyz", "custom_domain": true }],
       "vars": {
         "NIMIQ_NETWORK": "TestAlbatross",
         "NIMIQ_RPC_URL": "https://rpc.testnet.nimiqwatch.com/"

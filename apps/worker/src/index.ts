@@ -11,6 +11,14 @@ export { RelayRoom }
 
 const app = new Hono<{ Bindings: Env }>()
 
+// One canonical host: www links redirect to the apex so sessions and link previews share an origin.
+app.use('*', async (c, next) => {
+  const url = new URL(c.req.url)
+  if (!url.hostname.startsWith('www.')) return next()
+  url.hostname = url.hostname.slice('www.'.length)
+  return c.redirect(url.href, 301)
+})
+
 app.get('/api/health', (c) =>
   c.json({ ok: true, service: 'nim-relay-worker', network: c.env.NIMIQ_NETWORK ?? null }),
 )
