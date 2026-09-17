@@ -41,8 +41,8 @@
   "vars": {
     "NIMIQ_NETWORK": "MainAlbatross",
     "NIMIQ_RPC_URL": "https://rpc.nimiqwatch.com/",
-    // Relay Grants stay off until an operator provisions TREASURY_PRIVATE_KEY and flips this (docs/grants.md).
-    "TREASURY_ENABLED": "false"
+    // Mainnet treasury NQ33MBJ5GG0P8N0DB0Q5NRGSUSS5LLDCA9YS, funded by the operator (docs/grants.md).
+    "TREASURY_ENABLED": "true"
   },
   // Custom domains need the nimrelay.xyz zone active on this account; Cloudflare creates the DNS records.
   "routes": [
