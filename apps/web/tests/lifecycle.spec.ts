@@ -298,27 +298,33 @@ test('a transfer short of confirmations stays in flight until the chain confirms
   expect(relay.problems()).toEqual([])
 })
 
-test('a transfer to the wrong wallet is not verified and the baton stays with the sender', async ({ relay }) => {
-  // #given Tim in the handoff zone, and a wallet that pays someone else
+test('a transfer to the wrong wallet is not verified, the baton stays with the sender, and the same pass can be sent again', async ({ relay }) => {
+  // #given Tim in the handoff zone, and a wallet that pays someone else once, then pays correctly
   const { tim, code } = await timInHandoffZone(relay)
-  tim.wallet.answerTransfers({ kind: 'wrong-recipient' })
+  tim.wallet.answerTransfers({ kind: 'wrong-recipient' }, { kind: 'approve' })
 
   // #when he throws the baton
   await throwBaton(tim, 'Mariana')
 
-  // #then the server rejects the transfer and says why
+  // #then the server rejects the transfer, says why, and offers to send the same pass again
   await expect(ceremonyHeading(tim.page, 'Handoff not verified')).toBeVisible({ timeout: 30_000 })
   await expect(tim.page.getByText('The transfer went to a different wallet than the runner you chose.')).toBeVisible()
-  await expect(tim.page.getByText('The baton stays with you until a matching transfer is verified.')).toBeVisible()
+  const sendAgain = tim.page.getByRole('button', { name: 'Send again' })
+  await expect(sendAgain).toBeVisible()
   await shot(tim.page, 'wrong-recipient-01-not-verified')
 
-  // #then custody never moved, in his journey or in the public record
-  await tim.page.getByRole('button', { name: 'Back to the journey' }).click()
-  await expectTimStillHolds(tim.page, code)
+  // #then custody never moved in the public record
   const visitor = await relay.visitor()
   await visitor.goto(`/proof/relay/${code}`)
   await expect(visitor.getByText('No handoff has been verified for this relay yet.')).toBeVisible()
   await expect(visitor.locator(`[id="tx-${broadcastHash(tim)}"]`)).toHaveCount(0)
+
+  // #when he sends the same pass again from his wallet
+  await sendAgain.click()
+
+  // #then that transfer verifies and the baton departs to Mariana
+  await expect(ceremonyHeading(tim.page, 'Handoff confirmed')).toBeVisible({ timeout: 30_000 })
+  await expectDeparture(tim.page, 1, 'Mariana', { withinMs: 8_000 })
   expect(relay.problems()).toEqual([])
 })
 
