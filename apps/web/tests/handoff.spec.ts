@@ -467,7 +467,7 @@ test('the real leg: the note arrives with the baton, a verified finish passes it
   await issueAndAcceptTheLeg(page, account)
   await page.addInitScript(() => Reflect.set(window, '__NIM_RELAY_E2E_AUTOPILOT__', true))
   // Nimiq Pay approves the transfer and answers with its hash.
-  await page.addInitScript(() => Reflect.set(window, 'nimiq', { sendBasicTransactionWithData: async () => 'be'.repeat(32) }))
+  await page.addInitScript(() => Reflect.set(window, 'nimiq', { listAccounts: async () => [], sendBasicTransactionWithData: async () => 'be'.repeat(32) }))
   await page.routeWebSocket(url => url.searchParams.has('token'), () => undefined)
 
   // #when Tim opens the leg

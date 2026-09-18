@@ -14,6 +14,7 @@ export function sceneStateFor(stage: HandoffStage['stage']): CeremonySceneState 
     case 'armed':
     case 'paused':
     case 'insufficient':
+    case 'wrong-account':
     case 'not-verified':
     case 'failed':
       return 'armed'
@@ -108,4 +109,10 @@ export function failureCopy(code: string): string {
 export function formatNim(luna: number): string {
   const nim = luna / 100000
   return Number.isInteger(nim) ? `${nim} NIM` : `${nim.toFixed(2)} NIM`
+}
+
+/** "NQ62 PSRV … BLSN": enough of an address to match it against Nimiq Pay's account list. */
+export function shortAddress(address: string): string {
+  const compact = address.replace(/\s/g, '').toUpperCase()
+  return compact.length > 12 ? `${compact.slice(0, 4)} ${compact.slice(4, 8)} … ${compact.slice(-4)}` : compact
 }

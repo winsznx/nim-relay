@@ -1,4 +1,5 @@
 import { MAX_RELAY_NOTE_CHARS, type AtlasNextRoute, type NetworkBaton, type NetworkConfirmation, type NetworkHandoffIntent, type RelayNote } from '@nim-relay/shared'
+import { paymentAddress } from '@nim-relay/relay-protocol'
 
 /**
  * The handoff ceremony as an explicit state machine. The baton only leaves the
@@ -51,10 +52,13 @@ export type HandoffStage =
   | { stage: 'wallet'; intent: NetworkHandoffIntent }
   | { stage: 'paused'; intent: NetworkHandoffIntent }
   | { stage: 'insufficient'; intent: NetworkHandoffIntent }
+  /** Nimiq Pay's active account isn't the holder's: a transfer from it could never verify, so the wallet stays closed. */
+  | { stage: 'wrong-account'; intent: NetworkHandoffIntent; active: string }
   | { stage: 'checking'; intent: NetworkHandoffIntent }
   | { stage: 'recovery'; intent: NetworkHandoffIntent; invalidHash: boolean }
   | { stage: 'in-flight'; intent: NetworkHandoffIntent; hash: string; slow: boolean }
-  | { stage: 'not-verified'; intent: NetworkHandoffIntent; hash: string; reason: VerificationFailure }
+  /** `resendable`: the relay released the rejected transfer and the same locked pass can be sent again. */
+  | { stage: 'not-verified'; intent: NetworkHandoffIntent; hash: string; reason: VerificationFailure; resendable: boolean }
   | { stage: 'confirmed'; intent: NetworkHandoffIntent; hash: string; baton: NetworkBaton | null }
   | { stage: 'failed'; message: string }
 
@@ -77,6 +81,8 @@ export interface HandoffDeps {
   check(intentId: string): Promise<NetworkHandoffIntent>
   /** Opens native Nimiq Pay approval and resolves with the transaction hash. */
   send(intent: NetworkHandoffIntent): Promise<string>
+  /** The account Nimiq Pay would send from, or null when the wallet doesn't say. */
+  activeAccount(): Promise<string | null>
   readTransfer(id: string): Promise<TransferRecord | undefined>
   saveTransfer(record: TransferRecord): Promise<void>
   wait(ms: number): Promise<void>
@@ -334,9 +340,9 @@ export class HandoffOrchestrator {
   }
 
   /** Opens Nimiq Pay for a locked intent: after a throw, or when retrying a paused or resumed pass. */
-  async launch(): Promise<void> {
+  async launch(options: { skipAccountCheck?: boolean } = {}): Promise<void> {
     const current = this.state
-    if (current.stage !== 'armed' && current.stage !== 'paused' && current.stage !== 'insufficient') return
+    if (current.stage !== 'armed' && current.stage !== 'paused' && current.stage !== 'insufficient' && current.stage !== 'wrong-account') return
     const intent = current.intent
     const record = await this.deps.readTransfer(intent.id)
     if (record?.hash) {
@@ -348,6 +354,14 @@ export class HandoffOrchestrator {
       return
     }
 
+    if (!options.skipAccountCheck) {
+      const active = await this.deps.activeAccount().catch(() => null)
+      if (active && paymentAddress(active) !== paymentAddress(intent.sender)) {
+        this.set({ stage: 'wrong-account', intent, active: paymentAddress(active) })
+        return
+      }
+    }
+
     await this.deps.saveTransfer({ id: intent.id, hash: null, state: 'attempting' })
     this.set({ stage: 'wallet', intent })
     try {
@@ -355,7 +369,7 @@ export class HandoffOrchestrator {
     } catch (error) {
       await this.deps.saveTransfer({ id: intent.id, hash: null, state: 'ready' })
       const code = errorCode(error)
-      this.set(code === 'handoff_expired' ? { stage: 'not-verified', intent, hash: '', reason: 'INTENT_EXPIRED' } : { stage: 'failed', message: code || 'attempt_failed' })
+      this.set(code === 'handoff_expired' ? { stage: 'not-verified', intent, hash: '', reason: 'INTENT_EXPIRED', resendable: false } : { stage: 'failed', message: code || 'attempt_failed' })
       return
     }
 
@@ -405,6 +419,14 @@ export class HandoffOrchestrator {
     this.set({ stage: 'armed', intent })
   }
 
+  /** After a transfer that could never verify, e.g. one sent from another account: sends the same locked pass again. */
+  async sendAgain(): Promise<void> {
+    const current = this.state
+    if (current.stage !== 'not-verified' || !current.resendable) return
+    this.set({ stage: 'armed', intent: current.intent })
+    await this.launch()
+  }
+
   async checkAgain(): Promise<void> {
     if (this.state.stage !== 'in-flight') return
     await this.confirmLoop(this.state.intent, this.state.hash)
@@ -433,11 +455,11 @@ export class HandoffOrchestrator {
       } catch (error) {
         const code = errorCode(error)
         if (code === 'transaction_already_used' || code === 'different_transaction') {
-          this.set({ stage: 'not-verified', intent, hash, reason: 'DUPLICATE_TRANSACTION' })
+          this.set({ stage: 'not-verified', intent, hash, reason: 'DUPLICATE_TRANSACTION', resendable: false })
           return
         }
         if (code === 'custody_changed') {
-          this.set({ stage: 'not-verified', intent, hash, reason: 'CUSTODY_CHANGED' })
+          this.set({ stage: 'not-verified', intent, hash, reason: 'CUSTODY_CHANGED', resendable: false })
           return
         }
       }
@@ -448,7 +470,12 @@ export class HandoffOrchestrator {
         return
       }
       if (confirmation?.status === 'rejected') {
-        this.set({ stage: 'not-verified', intent, hash, reason: verificationFailure(confirmation.reason) })
+        const current = confirmation.intent ?? intent
+        // The relay unbinds a transfer that can never verify and keeps the pass open for the right one; forget it here too.
+        const resendable = current.state === 'attempting' && current.txHash === null
+        if (resendable) await this.deps.saveTransfer({ id: intent.id, hash: null, state: 'ready' })
+        if (generation !== this.generation) return
+        this.set({ stage: 'not-verified', intent: current, hash, reason: verificationFailure(confirmation.reason), resendable })
         return
       }
       const delay = CONFIRM_BACKOFF[attempt]

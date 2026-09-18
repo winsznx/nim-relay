@@ -55,6 +55,7 @@ function harness(overrides: Partial<HandoffDeps> = {}, routes: AtlasNextRoute | 
     confirm: vi.fn(async (): Promise<NetworkConfirmation> => ({ status: 'verified', intent: intent({ state: 'verified', txHash: HASH }) })),
     check: vi.fn(async () => intent({ state: 'attempting', attemptedAt: 1 })),
     send: vi.fn(async () => HASH),
+    activeAccount: vi.fn(async (): Promise<string | null> => null),
     readTransfer: async id => records.get(id),
     saveTransfer: async record => {
       records.set(record.id, record)
@@ -440,5 +441,71 @@ describe('relay note', () => {
     await machine.throwBaton(launch)
     expect(deps.prepare).not.toHaveBeenCalled()
     expect(machine.getSnapshot().stage).toBe('note')
+  })
+})
+
+describe('handoff sender account', () => {
+  it('keeps Nimiq Pay closed while it is set to another account, then sends once the holder switches', async () => {
+    // #given Nimiq Pay set to an account other than the baton holder's
+    const active = vi.fn(async (): Promise<string | null> => 'NQ11 OTHER')
+    const { deps, machine } = harness({ activeAccount: active })
+    aim(machine)
+    // #when the holder throws
+    await machine.throwBaton(launch)
+    // #then nothing is attempted or sent, and the holder is told which account to use
+    expect(machine.getSnapshot()).toMatchObject({ stage: 'wrong-account', active: 'NQ11OTHER' })
+    expect(deps.attempt).not.toHaveBeenCalled()
+    expect(deps.send).not.toHaveBeenCalled()
+    // #when they switch to the holder's account and try again
+    active.mockResolvedValue('nq00 sender')
+    await machine.launch()
+    // #then the pass goes out and verifies
+    expect(deps.send).toHaveBeenCalledTimes(1)
+    expect(machine.getSnapshot().stage).toBe('confirmed')
+  })
+
+  it('opens Nimiq Pay anyway when the holder overrides the account check', async () => {
+    const { deps, machine } = harness({ activeAccount: vi.fn(async () => 'NQ11 OTHER') })
+    aim(machine)
+    await machine.throwBaton(launch)
+    await machine.launch({ skipAccountCheck: true })
+    expect(deps.send).toHaveBeenCalledTimes(1)
+  })
+
+  it('sends normally when the wallet does not report its account', async () => {
+    const { deps, machine } = harness({ activeAccount: vi.fn(async () => { throw new Error('unsupported') }) })
+    aim(machine)
+    await machine.throwBaton(launch)
+    expect(deps.send).toHaveBeenCalledTimes(1)
+  })
+
+  it('forgets a transfer from the wrong account and sends the same pass again', async () => {
+    // #given the relay rejects the first transfer and releases it, keeping the pass open
+    const released = intent({ state: 'attempting', txHash: null, failure: 'SENDER_MISMATCH' })
+    const confirm = vi
+      .fn<HandoffDeps['confirm']>()
+      .mockResolvedValueOnce({ status: 'rejected', reason: 'SENDER_MISMATCH', intent: released })
+      .mockResolvedValue({ status: 'verified', intent: intent({ state: 'verified', txHash: HASH }) })
+    const { deps, machine, records } = harness({ confirm })
+    aim(machine)
+    await machine.throwBaton(launch)
+    // #then the holder sees why, the wrong hash is dropped, and a resend is offered
+    expect(machine.getSnapshot()).toMatchObject({ stage: 'not-verified', reason: 'SENDER_MISMATCH', resendable: true })
+    expect(records.get('intent-1')).toEqual({ id: 'intent-1', hash: null, state: 'ready' })
+    // #when they send again
+    await machine.sendAgain()
+    // #then the same locked pass opens Nimiq Pay once more and verifies
+    expect(deps.send).toHaveBeenCalledTimes(2)
+    expect(machine.getSnapshot().stage).toBe('confirmed')
+  })
+
+  it('offers no resend when the relay closed the pass', async () => {
+    const confirm = vi.fn<HandoffDeps['confirm']>().mockResolvedValue({ status: 'rejected', reason: 'CUSTODY_CHANGED', intent: intent({ state: 'expired', failure: 'CUSTODY_CHANGED', txHash: HASH }) })
+    const { deps, machine } = harness({ confirm })
+    aim(machine)
+    await machine.throwBaton(launch)
+    expect(machine.getSnapshot()).toMatchObject({ stage: 'not-verified', resendable: false })
+    await machine.sendAgain()
+    expect(deps.send).toHaveBeenCalledTimes(1)
   })
 })

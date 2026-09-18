@@ -1,4 +1,4 @@
-import { sendRelayHandoff } from '../../lib/nimiq'
+import { activeAccount, sendRelayHandoff } from '../../lib/nimiq'
 import { readTransfer, saveTransfer } from './transfer-store'
 import * as api from '../relays/api'
 import type { HandoffDeps } from './machine'
@@ -13,6 +13,7 @@ export const handoffDeps: HandoffDeps = {
   confirm: (id, hash) => api.confirmNetworkHandoff(id, hash),
   check: id => api.checkNetworkHandoff(id),
   send: intent => sendRelayHandoff(intent),
+  activeAccount,
   readTransfer,
   saveTransfer,
   wait,
