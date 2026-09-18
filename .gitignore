@@ -16,3 +16,11 @@ supabase/.temp/
 .vercel/
 *.log
 !evidence/**/*.log
+
+# Demo film: raw recordings, renders, build caches and the voiceover stay local; the pipeline and its inputs are tracked.
+/RPReplay_*.MP4
+/final/*.mp4
+/final/*.m4a
+/final/build/
+/final/build_*/
+__pycache__/

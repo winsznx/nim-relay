@@ -1,0 +1,484 @@
+{
+  "sourceA": "RPReplay_Final1789751069.MP4",
+  "sourceB": "RPReplay_Final1789751069 2.MP4",
+  "note": "A is the 1320x2868 recording (runner-95d356), B the 1180x2556 one (runner-204816). Sync: A time = B time + 3.0 s, from the 18:00->18:01 clocks and both handoff confirmations. Times below are source seconds. For layouts with two phones, B plays at a_in - offset unless b_in is given.",
+  "offset": 3.0,
+  "crossfade": 0.3,
+  "labels": {
+    "A": "runner-95d356",
+    "B": "runner-204816"
+  },
+  "segments": [
+    {
+      "scene": "open",
+      "layout": "title",
+      "src": "A",
+      "in": 13.9,
+      "out": 20.4,
+      "music": "world"
+    },
+    {
+      "scene": "world",
+      "layout": "A",
+      "in": 9.6,
+      "out": 11.9,
+      "music": "world",
+      "caption": {
+        "kicker": "The relay world",
+        "head": "The world is the game board.",
+        "sub": "One real NIM baton, traced across the globe."
+      }
+    },
+    {
+      "scene": "atlas",
+      "layout": "A",
+      "in": 36.0,
+      "out": 38.9,
+      "music": "world",
+      "caption": {
+        "kicker": "Relay Atlas",
+        "head": "Every route is a real relay leg.",
+        "sub": "Stations are game-world destinations."
+      }
+    },
+    {
+      "scene": "incoming",
+      "layout": "A",
+      "in": 40.0,
+      "out": 44.9,
+      "music": "world",
+      "holder": "A",
+      "caption": {
+        "kicker": "Chapter 1",
+        "head": "The baton reaches you.",
+        "sub": "runner-204816 passed it to runner-95d356."
+      }
+    },
+    {
+      "scene": "leg-intro",
+      "layout": "A",
+      "in": 48.0,
+      "out": 53.0,
+      "music": "race",
+      "holder": "A",
+      "caption": {
+        "head": "Now carry it forward."
+      }
+    },
+    {
+      "scene": "race-1",
+      "layout": "A",
+      "in": 55.0,
+      "out": 61.0,
+      "music": "race",
+      "holder": "A",
+      "live": "B",
+      "caption": {
+        "kicker": "The relay leg",
+        "head": "Race your leg.",
+        "sub": "The next runner watches it live."
+      }
+    },
+    {
+      "scene": "race-2",
+      "layout": "A",
+      "in": 67.0,
+      "out": 72.5,
+      "music": "race",
+      "holder": "A",
+      "live": "B"
+    },
+    {
+      "scene": "race-3",
+      "layout": "A",
+      "in": 83.5,
+      "out": 88.5,
+      "music": "race",
+      "holder": "A",
+      "live": "B",
+      "caption": {
+        "head": "Forks, gates and FLOW.",
+        "sub": "A real skill run, not a button press."
+      }
+    },
+    {
+      "scene": "race-4",
+      "layout": "A",
+      "in": 95.0,
+      "out": 100.0,
+      "music": "race",
+      "holder": "A",
+      "live": "B"
+    },
+    {
+      "scene": "finish",
+      "layout": "A",
+      "in": 112.6,
+      "out": 117.0,
+      "music": "race",
+      "holder": "A",
+      "caption": {
+        "kicker": "Verified finish",
+        "head": "The server replays every move.",
+        "sub": "58.32 s, checked before the pass opens."
+      }
+    },
+    {
+      "scene": "route",
+      "layout": "A",
+      "in": 117.2,
+      "out": 120.9,
+      "music": "ceremony",
+      "holder": "A",
+      "caption": {
+        "head": "You choose where it goes next.",
+        "sub": "Same route again? The next runner chases your ghost."
+      }
+    },
+    {
+      "scene": "runner",
+      "layout": "A",
+      "in": 121.2,
+      "out": 122.8,
+      "music": "ceremony",
+      "holder": "A",
+      "caption": {
+        "head": "And who carries it."
+      }
+    },
+    {
+      "scene": "launch",
+      "layout": "A",
+      "in": 124.0,
+      "out": 126.9,
+      "music": "ceremony",
+      "holder": "A",
+      "caption": {
+        "head": "And who carries it.",
+        "sub": "Passing 1 NIM to runner-204816."
+      }
+    },
+    {
+      "scene": "nimiq-pay",
+      "layout": "zoom",
+      "in": 128.6,
+      "out": 129.5,
+      "hold": 3.0,
+      "music": "ceremony",
+      "holder": "A",
+      "zoom": {
+        "x": 0.0,
+        "y": 0.565,
+        "w": 1.0,
+        "h": 0.4
+      },
+      "caption": {
+        "kicker": "Nimiq Pay",
+        "head": "One real NIM. Wallet to wallet.",
+        "sub": "The holder approves it in their own wallet."
+      }
+    },
+    {
+      "scene": "in-flight",
+      "layout": "AB",
+      "in": 132.6,
+      "out": 134.2,
+      "music": "ceremony",
+      "holder": "A",
+      "caption": {
+        "kicker": "Handoff in flight",
+        "head": "Checked on Nimiq.",
+        "sub": "Waiting time cut."
+      }
+    },
+    {
+      "scene": "handoff",
+      "layout": "AB",
+      "in": 136.8,
+      "out": 142.0,
+      "music": "ceremony",
+      "holder": "B",
+      "arrow": "AB",
+      "caption": {
+        "kicker": "Handoff #2 · verified",
+        "head": "The baton changes hands.",
+        "sub": "Sent on one phone. Received on the other."
+      }
+    },
+    {
+      "scene": "receipt",
+      "layout": "B",
+      "b_in": 139.0,
+      "b_out": 139.7,
+      "music": "ceremony",
+      "holder": "B",
+      "caption": {
+        "kicker": "Phone B",
+        "head": "The next runner now holds it.",
+        "sub": "runner-204816: “You hold it.”"
+      },
+      "hold": 2.6
+    },
+    {
+      "scene": "b-leg-intro",
+      "layout": "B",
+      "b_in": 142.0,
+      "b_out": 146.6,
+      "music": "race",
+      "holder": "B",
+      "caption": {
+        "head": "Now they carry it.",
+        "sub": "Baton incoming from runner-95d356."
+      }
+    },
+    {
+      "scene": "b-race-1",
+      "layout": "B",
+      "b_in": 150.0,
+      "b_out": 154.0,
+      "music": "race",
+      "holder": "B",
+      "live": "A",
+      "caption": {
+        "head": "Now they carry it.",
+        "sub": "The last runner watches live."
+      }
+    },
+    {
+      "scene": "b-race-2",
+      "layout": "B",
+      "b_in": 170.0,
+      "b_out": 174.0,
+      "music": "race",
+      "holder": "B",
+      "live": "A"
+    },
+    {
+      "scene": "b-race-3",
+      "layout": "B",
+      "b_in": 196.0,
+      "b_out": 200.0,
+      "music": "race",
+      "holder": "B",
+      "live": "A"
+    },
+    {
+      "scene": "b-finish",
+      "layout": "B",
+      "b_in": 210.2,
+      "b_out": 212.0,
+      "music": "race",
+      "holder": "B",
+      "caption": {
+        "head": "Verified finish.",
+        "sub": "60.28 s."
+      }
+    },
+    {
+      "scene": "b-runner",
+      "layout": "B",
+      "b_in": 216.2,
+      "b_out": 217.8,
+      "music": "ceremony",
+      "holder": "B",
+      "caption": {
+        "head": "And passes it on.",
+        "sub": "Back to runner-95d356."
+      }
+    },
+    {
+      "scene": "b-pay",
+      "layout": "zoomB",
+      "b_in": 222.3,
+      "b_out": 223.2,
+      "hold": 2.2,
+      "music": "ceremony",
+      "holder": "B",
+      "zoom": {
+        "x": 0.0,
+        "y": 0.565,
+        "w": 1.0,
+        "h": 0.4
+      },
+      "caption": {
+        "kicker": "Nimiq Pay",
+        "head": "Another real 1 NIM.",
+        "sub": "Approved on Phone B."
+      }
+    },
+    {
+      "scene": "handoff-2",
+      "layout": "AB",
+      "b_in": 231.2,
+      "b_out": 236.6,
+      "music": "ceremony",
+      "holder": "A",
+      "arrow": "BA",
+      "caption": {
+        "kicker": "Handoff #3 · verified",
+        "head": "Every handoff joins the journey.",
+        "sub": "Phone A’s journey updates to 3 verified handoffs."
+      }
+    },
+    {
+      "scene": "journey",
+      "layout": "A",
+      "in": 240.0,
+      "out": 247.5,
+      "music": "world",
+      "holder": "A",
+      "caption": {
+        "kicker": "The journey",
+        "head": "The route grows with every pass.",
+        "sub": "From Genesis Station, one verified leg at a time."
+      }
+    },
+    {
+      "scene": "retention-profile",
+      "layout": "B",
+      "b_in": 237.8,
+      "b_out": 239.2,
+      "hold": 1.2,
+      "music": "world",
+      "caption": {
+        "kicker": "Why people return",
+        "head": "Your relay history grows with you.",
+        "sub": "Levels, records and Relay Grants."
+      }
+    },
+    {
+      "scene": "retention-crew",
+      "layout": "B",
+      "b_in": 240.6,
+      "b_out": 242.0,
+      "music": "world",
+      "caption": {
+        "kicker": "Why people return",
+        "head": "Crews. Rivals. Missions.",
+        "sub": "New runners get their first baton on us."
+      }
+    },
+    {
+      "scene": "retention-inbox",
+      "layout": "B",
+      "b_in": 242.3,
+      "b_out": 243.3,
+      "hold": 0.8,
+      "music": "world",
+      "caption": {
+        "kicker": "Why people return",
+        "head": "Your turn lands in your inbox."
+      }
+    },
+    {
+      "scene": "proof",
+      "layout": "proof",
+      "in": 38.6,
+      "out": 39.6,
+      "hold": 5.4,
+      "music": "world",
+      "caption": {
+        "kicker": "Proof",
+        "head": "Real handoff. Real transaction. Verified run."
+      }
+    },
+    {
+      "scene": "world-lit",
+      "layout": "solo",
+      "src": "B",
+      "b_in": 243.4,
+      "b_out": 244.55,
+      "hold": 4.4,
+      "music": "world",
+      "caption": {
+        "kicker": "Light the world",
+        "head": "The world lights up.",
+        "sub": "3 of 24 stations lit, up from 2 when we started."
+      }
+    },
+    {
+      "scene": "end-1",
+      "layout": "card",
+      "dur": 3.0,
+      "music": "world",
+      "card": {
+        "head": "One NIM.\nOne relay.\nOne journey."
+      }
+    },
+    {
+      "scene": "end-2",
+      "layout": "card",
+      "dur": 3.6,
+      "music": "world",
+      "card": {
+        "logo": true,
+        "head": "NIM RELAY",
+        "sub": "nimrelay.xyz",
+        "small": "Built inside Nimiq Pay"
+      }
+    }
+  ],
+  "proofCard": {
+    "title": "On Nimiq mainnet",
+    "subtitle": "Starter Baton 8A06053762 · checked after recording with pnpm verify:handoff",
+    "rows": [
+      {
+        "leg": "Leg 1",
+        "from": "runner-204816",
+        "to": "runner-95d356",
+        "tx": "19c40cf4b221f4ae7c4dfdb9343ac088e4cc3e401986680a621e6c542443035b",
+        "recorded": false
+      },
+      {
+        "leg": "Leg 2",
+        "from": "runner-95d356",
+        "to": "runner-204816",
+        "tx": "fb2f99fcfb80ed3d9e5a6d3cc508914ea5316bb0688bc001cb787f6c9715861d",
+        "recorded": true
+      },
+      {
+        "leg": "Leg 3",
+        "from": "runner-204816",
+        "to": "runner-95d356",
+        "tx": "44a4455cff9cd4f517860d90c5894efc66b71df2485e94a2b2da8602b1ba0c1d",
+        "recorded": true
+      }
+    ]
+  },
+  "voiceover": {
+    "file": "final/Nim Relay.m4a",
+    "note": "Narration recorded to the 2:00.5 edit. Speech starts at 1.2 s and ends at 123.4 s in the raw file. To fit without cutting words or time-stretching, the silent lead-in and the middle of four long pauses between sentences are removed (4.40 s in total). Every removed range is silence (below -34 dBFS).",
+    "remove": [
+      [
+        0.0,
+        1.1
+      ],
+      [
+        12.05,
+        12.65
+      ],
+      [
+        24.62,
+        25.17
+      ],
+      [
+        37.25,
+        38.1
+      ],
+      [
+        46.2,
+        47.5
+      ]
+    ],
+    "joinCrossfade": 0.03,
+    "voiceLufs": -16.0,
+    "musicUnderSpeechDb": -17.0,
+    "musicInPausesDb": -11.0,
+    "musicOutsideNarrationDb": -9.0,
+    "minPauseForLift": 0.6,
+    "rampSeconds": 0.25,
+    "masterLufs": -14.0,
+    "masterTruePeak": -1.0,
+    "script": "What if sending NIM wasn't something that happened after the game, but was actually part of the game itself? That's the idea behind NIM Relay. We turned a real one-NIM transfer into a baton that moves from runner to runner. You receive it, carry it through your relay leg, and pass it forward to another person. Every runner becomes part of the baton's history. Your run is verified by our server, your journey stays attached to the relay, and the next person continues from where you left off. And the world view lets you follow that journey as it grows, instead of treating each game as an isolated run. Here, I'm choosing the baton's next route and its next runner. Then I throw it forward and approve the actual one-NIM transfer inside Nimiq Pay. And this is the part I really wanted the product to make visible. On the left, the sender gets the confirmed handoff. On the right, the next runner receives the baton. There's no fake baton changing hands in our database. A real NIM transfer moves between the two wallets, while NIM Relay records the verified handoff and extends the journey. The new runner can then complete their own leg and send it forward again. Here, that same relay comes back, creating the third verified handoff in the chain. That loop is what everything else in NIM Relay is built around: people, runs, routes, handoffs, and a baton whose story gets longer every time somebody keeps it moving. And every handoff can be checked. These are the actual mainnet transactions behind this relay, with the one-NIM transfers verified onchain. We wanted blockchain to be something you feel through the experience, not something bolted onto it. One NIM. One relay. One journey. How far can we keep it moving?"
+  }
+}

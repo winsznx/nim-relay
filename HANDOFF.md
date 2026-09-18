@@ -23,7 +23,7 @@ What's built and committed:
 
 1. Ops analytics view with alerts.
 2. Testnet deploy of the integrated build, then a live smoke pass.
-3. **Real two-wallet handoff on a physical iPhone in Nimiq Pay** — user-owned, not yet done on testnet or mainnet.
+3. Real two-wallet handoffs on physical iPhones in Nimiq Pay: done on mainnet on 2026-09-18, with three verified legs (`evidence/production/first-mainnet-handoffs-2026-09-18.md`).
 4. Relay Echoes rendered directly in the race world from issued echoes.
 5. Live spectating status for an in-progress leg.
 6. Physical iPhone profiling and adaptive quality tuning from real measurements.
@@ -40,9 +40,8 @@ What's built and committed:
 
 ## Outstanding user-owned blockers
 
-1. Physical phone with Nimiq Pay installed, for the real two-wallet handoff test on testnet and then mainnet.
-2. Real NIM on MainAlbatross for production launch, once the testnet handoff is verified.
-3. Choice of competition submission cycle (Cycle II vs Cycle III).
+1. Choice of competition submission cycle (Cycle II vs Cycle III).
+2. Topping up the mainnet Relay Grants treasury as grants are claimed.
 
 ## What exists in the repo right now
 

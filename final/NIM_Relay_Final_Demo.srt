@@ -1,0 +1,139 @@
+1
+00:00:00,250 --> 00:00:06,400
+NIM RELAY
+How far can one NIM travel?
+
+2
+00:00:06,450 --> 00:00:08,400
+The world is the game board.
+One real NIM baton, traced across the globe.
+
+3
+00:00:08,450 --> 00:00:11,000
+Every route is a real relay leg.
+Stations are game-world destinations.
+
+4
+00:00:11,050 --> 00:00:15,600
+The baton reaches you.
+runner-204816 passed it to runner-95d356.
+
+5
+00:00:15,650 --> 00:00:20,300
+Now carry it forward.
+
+6
+00:00:20,350 --> 00:00:26,100
+Race your leg.
+The next runner watches it live.
+
+7
+00:00:31,250 --> 00:00:36,000
+Forks, gates and FLOW.
+A real skill run, not a button press.
+
+8
+00:00:40,650 --> 00:00:44,700
+The server replays every move.
+58.32 s, checked before the pass opens.
+
+9
+00:00:44,750 --> 00:00:48,100
+You choose where it goes next.
+Same route again? The next runner chases your ghost.
+
+10
+00:00:48,150 --> 00:00:49,400
+And who carries it.
+
+11
+00:00:49,450 --> 00:00:52,000
+And who carries it.
+Passing 1 NIM to runner-204816.
+
+12
+00:00:52,050 --> 00:00:55,600
+One real NIM. Wallet to wallet.
+The holder approves it in their own wallet.
+
+13
+00:00:55,650 --> 00:00:56,900
+Checked on Nimiq.
+Waiting time cut.
+
+14
+00:00:56,950 --> 00:01:01,800
+The baton changes hands.
+Sent on one phone. Received on the other.
+
+15
+00:01:01,850 --> 00:01:04,800
+The next runner now holds it.
+runner-204816: “You hold it.”
+
+16
+00:01:04,850 --> 00:01:09,100
+Now they carry it.
+Baton incoming from runner-95d356.
+
+17
+00:01:09,150 --> 00:01:12,900
+Now they carry it.
+The last runner watches live.
+
+18
+00:01:20,250 --> 00:01:21,700
+Verified finish.
+60.28 s.
+
+19
+00:01:21,750 --> 00:01:23,000
+And passes it on.
+Back to runner-95d356.
+
+20
+00:01:23,050 --> 00:01:25,800
+Another real 1 NIM.
+Approved on Phone B.
+
+21
+00:01:25,850 --> 00:01:30,900
+Every handoff joins the journey.
+Phone A’s journey updates to 3 verified handoffs.
+
+22
+00:01:30,950 --> 00:01:38,100
+The route grows with every pass.
+From Genesis Station, one verified leg at a time.
+
+23
+00:01:38,150 --> 00:01:40,400
+Your relay history grows with you.
+Levels, records and Relay Grants.
+
+24
+00:01:40,450 --> 00:01:41,500
+Crews. Rivals. Missions.
+New runners get their first baton on us.
+
+25
+00:01:41,550 --> 00:01:43,000
+Your turn lands in your inbox.
+
+26
+00:01:43,050 --> 00:01:49,100
+Real handoff. Real transaction. Verified run.
+
+27
+00:01:49,150 --> 00:01:54,350
+One coin. One relay. One journey.
+3 of 24 stations lit, up from 2 when we started.
+
+28
+00:01:54,400 --> 00:01:57,050
+Catch it. Carry it. Pass it on.
+
+29
+00:01:57,100 --> 00:02:00,450
+NIM RELAY
+nimrelay.xyz

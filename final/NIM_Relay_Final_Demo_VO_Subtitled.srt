@@ -1,0 +1,191 @@
+1
+00:00:00,000 --> 00:00:02,850
+What if sending NIM wasn't something that
+
+2
+00:00:02,850 --> 00:00:05,510
+happened after the game, but was actually
+
+3
+00:00:05,510 --> 00:00:07,320
+part of the game itself?
+
+4
+00:00:07,320 --> 00:00:10,720
+That's the idea behind NIM Relay.
+
+5
+00:00:10,720 --> 00:00:13,640
+We turned a real one-NIM transfer into a baton
+
+6
+00:00:13,640 --> 00:00:15,360
+that moves from runner to runner.
+
+7
+00:00:15,360 --> 00:00:19,010
+You receive it, carry it through your relay leg,
+
+8
+00:00:19,010 --> 00:00:22,360
+and pass it forward to another person.
+
+9
+00:00:22,360 --> 00:00:24,320
+Every runner becomes part of
+
+10
+00:00:24,320 --> 00:00:25,760
+the baton's history.
+
+11
+00:00:25,760 --> 00:00:28,300
+Your run is verified by our server,
+
+12
+00:00:28,300 --> 00:00:31,160
+your journey stays attached to the relay,
+
+13
+00:00:31,160 --> 00:00:34,570
+and the next person continues from where you left off.
+
+14
+00:00:34,570 --> 00:00:37,920
+And the world view lets you follow that journey
+
+15
+00:00:37,920 --> 00:00:41,450
+as it grows, instead of treating each game
+
+16
+00:00:41,450 --> 00:00:42,960
+as an isolated run.
+
+17
+00:00:42,960 --> 00:00:45,860
+Here, I'm choosing the baton's next
+
+18
+00:00:45,860 --> 00:00:47,580
+route and its next runner.
+
+19
+00:00:47,580 --> 00:00:51,090
+Then I throw it forward and approve the actual
+
+20
+00:00:51,090 --> 00:00:54,460
+one-NIM transfer inside Nimiq Pay.
+
+21
+00:00:54,460 --> 00:00:56,920
+And this is the part I really wanted
+
+22
+00:00:56,920 --> 00:00:58,660
+the product to make visible.
+
+23
+00:00:58,660 --> 00:01:00,350
+On the left, the sender gets
+
+24
+00:01:00,350 --> 00:01:01,510
+the confirmed handoff.
+
+25
+00:01:01,510 --> 00:01:03,210
+On the right, the next runner
+
+26
+00:01:03,210 --> 00:01:04,480
+receives the baton.
+
+27
+00:01:04,480 --> 00:01:07,540
+There's no fake baton changing
+
+28
+00:01:07,540 --> 00:01:08,720
+hands in our database.
+
+29
+00:01:08,720 --> 00:01:11,720
+A real NIM transfer moves between the two wallets,
+
+30
+00:01:11,720 --> 00:01:14,560
+while NIM Relay records the verified handoff
+
+31
+00:01:14,560 --> 00:01:16,640
+and extends the journey.
+
+32
+00:01:16,640 --> 00:01:19,510
+The new runner can then complete their own
+
+33
+00:01:19,510 --> 00:01:21,280
+leg and send it forward again.
+
+34
+00:01:21,280 --> 00:01:22,760
+Here, that same relay comes back,
+
+35
+00:01:22,760 --> 00:01:25,440
+creating the third verified handoff in the chain.
+
+36
+00:01:25,440 --> 00:01:28,760
+That loop is what everything else in NIM Relay is
+
+37
+00:01:28,760 --> 00:01:32,010
+built around: people, runs, routes,
+
+38
+00:01:32,010 --> 00:01:36,480
+handoffs, and a baton whose story gets longer every
+
+39
+00:01:36,480 --> 00:01:38,670
+time somebody keeps it moving.
+
+40
+00:01:38,670 --> 00:01:41,100
+And every handoff can be checked.
+
+41
+00:01:41,100 --> 00:01:43,850
+These are the actual mainnet transactions
+
+42
+00:01:43,850 --> 00:01:46,840
+behind this relay, with the one-NIM transfers
+
+43
+00:01:46,840 --> 00:01:48,510
+verified onchain.
+
+44
+00:01:48,510 --> 00:01:51,460
+We wanted blockchain to be something
+
+45
+00:01:51,460 --> 00:01:52,770
+you feel through the experience,
+
+46
+00:01:52,770 --> 00:01:54,440
+not something bolted onto it.
+
+47
+00:01:54,440 --> 00:01:57,040
+One NIM. One relay. One journey.
+
+48
+00:01:57,040 --> 00:01:59,417
+How far can we keep it moving?

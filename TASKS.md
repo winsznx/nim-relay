@@ -25,7 +25,7 @@ Goal: a living global relay game where a real NIM baton passes human to human; t
 ## In progress
 - [ ] Ops analytics view with alerts (agent)
 - [ ] Testnet deploy of the integrated build, then live smoke
-- [ ] Real two-wallet handoff on iPhone in Nimiq Pay (user-owned)
+- [x] Real two-wallet handoffs on iPhone in Nimiq Pay, three verified on mainnet (2026-09-18)
 
 ## Next
 - [ ] Relay Echoes rendered in the race world from issued echoes

@@ -9,12 +9,12 @@ Paste these into the Mini Apps Competition portal. Limits come from the submissi
 | pricing | Free |
 | repo_url | https://github.com/winsznx/nim-relay (public, MIT; push `production-relay` first) |
 | demo_url | https://nimrelay.xyz |
-| video_url | YouTube, Loom, Vimeo or X link to a public demo video (required, not recorded yet) |
-| contact_email | your contact email |
+| video_url | the public YouTube link to `final/NIM_Relay_Final_Demo_VO_Subtitled.mp4` (2:00, 4K), with `final/NIM_Relay_Final_Demo_VO_Subtitled.srt` uploaded as its captions |
+| contact_email | entered in the portal, not published here |
 | x_account | winsznx |
-| icon | `icon.png` (512 x 512) |
-| thumbnail | `thumbnail.png` (1536 x 864) |
-| screenshots | 3 to 5 images, each under 2 MB (capture from mainnet after the first real handoff) |
+| icon | `final/screenshots/app-icon-512.png` (512 x 512) |
+| thumbnail | `final/screenshots/thumbnail-240.png` (240 x 240, the size the portal asks for) |
+| screenshots | `final/screenshots/`, in order: `1-relay-world.jpg` (the social preview), `2-the-game.png`, `3-the-handoff.png`, `4-the-journey.png`, `5-runner-profile.png`; all under 2 MB |
 
 ## tagline (max 120)
 
@@ -48,8 +48,8 @@ NIM is fungible, so the baton is an ordered chain of verified transfers of the s
 
 ## Before submitting
 
-1. Push `production-relay` to GitHub and make sure the default branch shows the current code.
-2. Deploy the verified build to mainnet and complete one real two-wallet handoff.
-3. Record the demo video on a phone in Nimiq Pay: world, a leg with a ghost, the throw, Nimiq Pay approval, the confirmed departure.
-4. Capture 3 to 5 screenshots from mainnet.
-5. Post on X and Skool (promotion points), then add both links in the portal.
+1. Done: `main` on GitHub shows the current code.
+2. Done: three real two-wallet handoffs verified on mainnet (`evidence/production/first-mainnet-handoffs-2026-09-18.md`).
+3. Done: demo video recorded on two phones in Nimiq Pay and edited with narration (`final/`).
+4. Done: five screenshots in `final/screenshots/`.
+5. Post on X and Skool for the promotion points, then add both links in the portal.

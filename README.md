@@ -10,7 +10,7 @@ A living relay game where 1 real NIM travels hand to hand. The home is a 3D Eart
 
 Around the leg: Quick best-of-3/5 matches, crews with daily streaks, two-baton rivalries, one Daily course for everyone, an inbox of turns, a 3D Relay Station, runner profiles with Nimiq identicons, achievements and share cards, Chronicles and a public proof page.
 
-Status, 2026-09-17: the full two-runner lifecycle passes in a local end-to-end test with a mocked Nimiq Pay wallet and mock chain RPC against a real Worker. A real native handoff on physical phones has **not** been verified yet, on testnet or mainnet. Real-user adoption is not established; public metrics show only recorded activity, and testnet activity is excluded from mainnet usage.
+Status, 2026-09-18: two iPhones in Nimiq Pay passed a real 1 NIM baton back and forth on mainnet in three verified handoffs. The transaction hashes and how to check them are in [`evidence/production/first-mainnet-handoffs-2026-09-18.md`](./evidence/production/first-mainnet-handoffs-2026-09-18.md). The full two-runner lifecycle also passes in a local end-to-end test with a mocked wallet and mock chain RPC. Adoption beyond the builder's own devices isn't established yet. Public metrics show only recorded activity, and testnet activity is kept out of mainnet usage.
 
 ## What this is
 
