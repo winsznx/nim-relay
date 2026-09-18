@@ -241,7 +241,7 @@ test('an insufficient balance asks for the relay value and keeps the baton', asy
 
   // #then the ceremony names the required amount and the baton stays with him
   await expect(ceremonyHeading(tim.page, 'This relay requires 1 NIM')).toBeVisible()
-  await expect(tim.page.getByText('Add NIM to your wallet, then approve again. The baton is still with you.')).toBeVisible()
+  await expect(tim.page.getByText(/the account that holds the baton. Move at least 1 NIM into it/)).toBeVisible()
   await shot(tim.page, 'insufficient-01-requires-1-nim')
   await tim.page.getByRole('button', { name: 'Keep the baton for now' }).click()
   await expectTimStillHolds(tim.page, code)
