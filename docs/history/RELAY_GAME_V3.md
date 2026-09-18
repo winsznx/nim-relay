@@ -1,3 +1,5 @@
+> This document describes an earlier stage of NIM Relay (as of the V3 design spec stage, pre-implementation) and is kept for historical record. See README.md for the current system.
+
 # RELAY_GAME_V3 — the race, redesigned around one legible fantasy
 
 **Status: design spec. No V3 implementation until this doc is approved.**

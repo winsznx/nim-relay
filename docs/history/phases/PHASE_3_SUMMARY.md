@@ -1,3 +1,5 @@
+> This document describes an earlier stage of NIM Relay (as of Phase 3, 2026-09-06) and is kept for historical record. See README.md for the current system.
+
 # Phase 3 Summary — Baton Physics deterministic engine
 
 **Status: IN PROGRESS.** The engine and a playable solo-challenge client were

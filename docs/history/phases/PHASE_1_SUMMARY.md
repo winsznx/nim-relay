@@ -1,3 +1,5 @@
+> This document describes an earlier stage of NIM Relay (as of Phase 1, 2026-09-03) and is kept for historical record. See README.md for the current system.
+
 # Phase 1 Summary — Repository and infrastructure foundation
 
 **Status: PASS.** Code committed as `c798da8` on 2026-09-01 with four of five gate

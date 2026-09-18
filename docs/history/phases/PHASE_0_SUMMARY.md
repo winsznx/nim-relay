@@ -1,3 +1,5 @@
+> This document describes an earlier stage of NIM Relay (as of Phase 0, 2026-09-01) and is kept for historical record. See README.md for the current system.
+
 # Phase 0 Summary — Source-of-truth verification
 
 **Objective.** Verify current official APIs (competition, Nimiq Mini Apps, Nimiq Web Client, Cloudflare Workers/DO, Supabase) before any implementation depends on an unverified assumption.

@@ -1,3 +1,5 @@
+> This document describes an earlier stage of NIM Relay (as of Phase 3.6, 2026-09-06, superseded by V3) and is kept for historical record. See README.md for the current system.
+
 # Relay Game V2 — the playable layer redesign  ·  SUPERSEDED / FROZEN
 
 > **This design failed the human playability gate (2026-09-06).** The Phase 3.6 slice

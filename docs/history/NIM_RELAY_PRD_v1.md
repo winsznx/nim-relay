@@ -1,3 +1,5 @@
+> This document describes an earlier stage of NIM Relay (as of the original v1 PRD, pre-implementation) and is kept for historical record. See README.md for the current system.
+
 # NIM Relay - Product Requirements Document
 
 **Version:** 1.0  

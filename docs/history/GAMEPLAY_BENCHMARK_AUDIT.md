@@ -1,3 +1,5 @@
+> This document describes an earlier stage of NIM Relay (as of 2026-09-06) and is kept for historical record. See README.md for the current system.
+
 # Gameplay Benchmark Audit — NimJump & Nimiq Space
 
 Purpose: measure NIM Relay's playable layer against the two Nimiq Mini App / ecosystem

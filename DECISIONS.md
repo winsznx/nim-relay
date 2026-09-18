@@ -186,6 +186,42 @@ Phase 0's open item ("which network does `rpc.nimiqwatch.com` serve?") is resolv
 
 ---
 
+## D-007 — Full product rebuild starting 2026-09-07, replacing the phase-based build plan
+
+**Date:** 2026-09-07 through 2026-09-17
+**Status:** Locked
+
+The phase-based plan (Phase 0-4 docs, `RELAY_GAME_V2`/`V3` lab prototypes) was superseded by a from-scratch production build: Relay Leg v5's deterministic engine, the Relay Station 3D home, the full handoff ceremony state machine, the routed product shell, audio direction, social surfaces (crews, rivals, Daily, share cards, Chronicles), and a local two-runner end-to-end test with a mocked Nimiq Pay wallet and mock chain RPC against a real Worker. This is why `docs/phases/`, `docs/RELAY_GAME_V2.md`, `docs/RELAY_GAME_V3.md` and `NIM_RELAY_PRD_v1.md` are archived under `docs/history/` rather than treated as current: they describe a plan and prototypes the shipped product does not follow.
+
+One bug worth recording here: the RPC client stored `fetch` on the instance and called it as a method; unit tests stubbed the lookup so they passed, but in the Workers runtime that call throws "Illegal invocation", so no real handoff could ever verify until a browser test with two mocked wallets and a mock RPC caught it (see `docs/submission/submission.md`).
+
+## D-008 — Relay Leg v5 frozen, v6 becomes the live engine
+
+**Date:** 2026-09-17
+**Status:** Locked
+
+Commit `30e7a40` froze `packages/game-engine/src/relay-leg-v5` exactly as deployed, so any run already verified against it keeps replaying byte-for-byte forever. Commit `5c19e0b` introduced `packages/game-engine/src/relay-leg` (v6): a lane-based road with real edges, world events, two forks, a pulse section and `deriveGhostline()`. New gameplay work goes into v6 only; v5 is never edited again.
+
+## D-009 — Custom domains, then Relay Atlas and Relay Grants, then the first-run tour
+
+**Date:** 2026-09-17 through 2026-09-18
+**Status:** Locked
+
+`nimrelay.xyz` and `testnet.nimrelay.xyz` replaced the `workers.dev` addresses as the primary domains (commits `95a7d1a`, `4d84277`, `f4eb1f9`), with `workers.dev` kept enabled alongside them so old links still resolve. Server-rendered Open Graph tags and preview images followed (`e72218d`) so shared links show a real preview instead of a bare URL.
+
+A first-run product tour and an in-race micro-tutorial shipped next (`9e0d08f`) to onboard a player who has never held the baton before.
+
+Relay Atlas (the station/route map with qualified-leg-gated unlocks) and Relay Grants (a capped, server-held treasury that can fund a starter baton for an eligible new runner) shipped together (`54b26f7`), then Grants was turned on for testnet (`9758bf6`) and mainnet (`4b919f9`) once the eligibility and cap logic held up. Grant-funded starter batons are deliberately excluded from every qualified-handoff metric, Atlas statistic, ghost, crew and rivalry (see `starter-baton.ts`), so turning grants on can never make the game's core metrics look more active than real player-to-player relaying actually is.
+
+## D-010 — Competition submission cycle not yet chosen
+
+**Date:** 2026-09-16
+**Status:** Open
+
+Two Mini Apps Competition cycles were live options when the rebuild started: Cycle II (closing 2026-09-18) and Cycle III (closing 2026-10-30). No cycle has been chosen yet; this is a product decision for the operator, not an engineering one, and is tracked here instead of in a scratch file.
+
+---
+
 ## D-003 — Supabase project provisioned fresh, not reusing an existing linked project
 
 **Date:** 2026-09-01 (Phase 0)

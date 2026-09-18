@@ -1,3 +1,5 @@
+> This document describes an earlier stage of NIM Relay (as of Phase 2, 2026-09-03) and is kept for historical record. See README.md for the current system.
+
 # Phase 2 Summary — Nimiq bridge and session
 
 **Status: IN PROGRESS.** RPC client, signed-message verify, session/nonce/device

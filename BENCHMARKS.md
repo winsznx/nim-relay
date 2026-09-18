@@ -1,6 +1,6 @@
 # Benchmarks
 
-Performance evidence, per PRD §37.4. Populated starting Phase 3 (game performance) and Phase 8/9 (full-stack latency/load). Empty at Phase 0/1 — no runtime to measure yet.
+Performance evidence for the shipped product. The root `pnpm benchmark` script exists (`pnpm -r --if-present run benchmark`) but no package currently implements a `benchmark` script, so it is a no-op today. Real device profiling (physical iPhone, Nimiq Pay WebView) is the next planned source of this evidence — see `HANDOFF.md`.
 
 Planned measurements:
 - First load, route transition timing

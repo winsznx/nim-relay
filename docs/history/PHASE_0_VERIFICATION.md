@@ -1,3 +1,5 @@
+> This document describes an earlier stage of NIM Relay (as of 2026-09-01) and is kept for historical record. See README.md for the current system.
+
 # Phase 0 — Source-of-Truth Verification
 
 Date: 2026-09-01

@@ -16,11 +16,23 @@ Status, 2026-09-17: the full two-runner lifecycle passes in a local end-to-end t
 
 NIM Relay is a Nimiq Pay Mini App: an asynchronous social skill game where a real NIM transfer *is* the turn. A player receives custody of a shared baton through a real Nimiq transaction, races a short deterministic relay leg against the previous runner's verified ghost (independently replayed and scored server-side, never trusted from the client), then passes the baton to the next runner with one real Nimiq Pay approval. The chain proves the handoff; the server proves the game run; the social layer is the reason to come back.
 
-Full product/engineering specification: [`NIM_RELAY_PRD_v1.md`](./NIM_RELAY_PRD_v1.md).
+Original product/engineering specification (superseded by the shipped product, kept for historical record): [`docs/history/NIM_RELAY_PRD_v1.md`](./docs/history/NIM_RELAY_PRD_v1.md).
+
+## The race engine
+
+The leg runs on a deterministic 60 Hz simulation in `packages/game-engine`, shared verbatim between the browser and the Worker so a replay can never drift between them. `relay-leg` (v6) is the live engine: a lane-based road with real edges, world events, two forks and a pulse section. `relay-leg-v5` is frozen exactly as deployed on 2026-09-17 so previously verified v5 runs keep replaying; no new gameplay work touches it. See [`packages/game-engine/README.md`](./packages/game-engine/README.md).
 
 ## Relay Atlas
 
-The globe is the Relay Atlas: 24 Relay Stations and 55 routes between them. Stations are game-world destinations, never where a player is. Every route is a real relay-leg course, and after a qualified leg the holder picks where the baton goes next. Routes and stations light up only through qualified legs. See [`docs/atlas.md`](./docs/atlas.md).
+The globe is the Relay Atlas: a fixed set of Relay Stations and the routes between them. Stations are game-world destinations, never where a player is. Every route is a real relay-leg course, and after a qualified leg the holder picks where the baton goes next. Routes and stations light up only through qualified legs. See [`docs/atlas.md`](./docs/atlas.md).
+
+## Relay Grants
+
+A server-held treasury can fund a starter baton for a new runner whose wallet holds too little NIM to carry a relay, so nobody has to buy NIM before their first pass. Grants are capped, gated behind an explicit `TREASURY_ENABLED` flag, and never counted as a qualified handoff in any metric, Atlas statistic, ghost, crew or rivalry. See [`docs/grants.md`](./docs/grants.md).
+
+## First run
+
+A first-run product tour introduces the globe, the baton and the Atlas, and a short in-race micro-tutorial teaches the leg controls the first time someone actually races.
 
 ## Four authorities
 
@@ -35,15 +47,29 @@ See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the full architecture and [`DECIS
 
 ## Repository map
 
+Root docs, kept current against the running system:
+
 - [`ARCHITECTURE.md`](./ARCHITECTURE.md) — system design, the four authorities, repo layout
-- [`SECURITY.md`](./SECURITY.md) — threat model and mitigations
+- [`SECURITY.md`](./SECURITY.md) — threat model, what's defended against and what isn't
 - [`PRIVACY.md`](./PRIVACY.md) — exact data collection/disclosure contract
 - [`SETUP.md`](./SETUP.md) — fresh clone to local development
-- [`DECISIONS.md`](./DECISIONS.md) — architectural decisions and rejected alternatives
+- [`DECISIONS.md`](./DECISIONS.md) — append-only log of architectural decisions and why
 - [`CLAIMS.md`](./CLAIMS.md) — every public claim, labeled VERIFIED / TARGET / LIMITATION / NOT_CLAIMED
+- [`EVIDENCE.md`](./EVIDENCE.md) — index into `evidence/`, describing what's actually recorded there
+- [`HANDOFF.md`](./HANDOFF.md) — narrative state for anyone picking this project up
 - [`TASKS.md`](./TASKS.md) / [`run-state.json`](./run-state.json) — live build progress
-- [`docs/PHASE_0_VERIFICATION.md`](./docs/PHASE_0_VERIFICATION.md) — API verification evidence
-- [`evidence/`](./evidence/) — raw proof backing every claim in this README
+- [`BENCHMARKS.md`](./BENCHMARKS.md), [`DESIGN.md`](./DESIGN.md), [`DEMO.md`](./DEMO.md), [`CONTRIBUTIONS.md`](./CONTRIBUTIONS.md) — performance targets, visual/design tokens, demo shot list, contribution flow
+
+`docs/`:
+
+- [`docs/atlas.md`](./docs/atlas.md) — Relay Atlas stations and routes
+- [`docs/grants.md`](./docs/grants.md) — Relay Grants treasury, caps and eligibility
+- [`docs/submission/submission.md`](./docs/submission/submission.md) — competition portal submission draft
+- [`docs/history/`](./docs/history/) — superseded phase plans, the original PRD, and earlier game-design drafts, kept for the record, not current
+
+`packages/*/README.md` — the game engine (`packages/game-engine/README.md`) and its two live source trees (`packages/game-engine/src/relay-leg/README.md` for v6, `packages/game-engine/src/relay-leg-v5/README.md` for the frozen v5) document the determinism contract directly next to the code.
+
+[`evidence/`](./evidence/) — raw proof backing every claim in `CLAIMS.md`, indexed in `EVIDENCE.md`.
 
 ## License
 
