@@ -21,7 +21,7 @@ Every network metric (`apps/worker/src/station/network/metrics.ts`) is computed 
 
 | Claim | Status | Notes |
 |---|---|---|
-| "Every handoff is a real Nimiq transaction" | VERIFIED | `confirmHandoff` only marks a handoff canonical after `verifyHandoffTransaction` (`packages/relay-protocol/src/verify-transaction.ts`) independently confirms the on-chain transaction's sender, recipient, value, network, commitment and execution result against the intent issued before the wallet prompt. See `SECURITY.md` § Wallet and handoff threats. |
+| "Every handoff is a real Nimiq transaction" | VERIFIED | `confirmHandoff` only marks a handoff canonical after `verifyHandoffTransaction` (`packages/relay-protocol/src/verify-transaction.ts`) independently confirms the on-chain transaction's recipient, value, network, commitment and execution result against the intent issued before the wallet prompt. See `SECURITY.md` § Wallet and handoff threats. |
 | "Nimiq-account login is signature-verified" | VERIFIED | `verifyNimiqSignedMessage` (`packages/relay-protocol/src/nimiq-verify.ts`) is cross-checked against a golden vector generated with the real `@nimiq/core@2.21.0` library, not just derived from reading Rust source. See `evidence/testnet/phase2-nimiq-signature-vector.md`. |
 | "Server-verified skill / scores" | VERIFIED | `POST /api/runs/submit` (`apps/worker/src/runs/routes.ts`) derives the canonical score by replaying the client's submitted input trace with the same deterministic game engine server-side; the client-reported score is never trusted for qualification, leaderboards or XP. See `evidence/testnet/phase4-runs.md`. |
 | "Handoffs are never counted twice, and grants aren't counted as handoffs" | VERIFIED | See the grant/handoff section above. |

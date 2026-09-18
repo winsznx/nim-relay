@@ -19,7 +19,6 @@ function withData(intent: NetworkHandoffIntent, part: 'relay' | 'leg' | 'commitm
 }
 
 const REJECTIONS: [HandoffReasonCode, (intent: NetworkHandoffIntent) => Partial<NimiqTransaction>][] = [
-  ['SENDER_MISMATCH', () => ({ sender: 'NQ00 SOMEONE ELSE' })],
   ['RECIPIENT_MISMATCH', () => ({ recipient: 'NQ00 ANOTHER RUNNER' })],
   ['VALUE_MISMATCH', intent => ({ value: String(intent.value - 1) })],
   ['DATA_MALFORMED', () => ({ data: 'not a relay commitment' })],
@@ -31,6 +30,16 @@ const REJECTIONS: [HandoffReasonCode, (intent: NetworkHandoffIntent) => Partial<
 ]
 
 describe('handoff confirmation reason codes', () => {
+  it('verifies a pass paid from another address, as Nimiq Pay does', async () => {
+    // #given an attempted handoff, and a wallet that pays from an internal address rather than the sign-in address
+    const { a, intent } = await attemptedHandoff()
+    const hash = randomTxHash()
+    // #when that transfer carries the pass's commitment to the chosen runner
+    const verified = await confirmWith(a, intent, hash, chainTransfer(intent, hash, { sender: 'NQ59 NIMIQ PAY INTERNAL' }))
+    // #then it counts
+    expect(verified.status).toBe('verified')
+  })
+
   it.each(REJECTIONS)('rejects a transfer with %s and waits for the correct one', async (reason, mismatch) => {
     // #given an attempted handoff
     const { a, intent } = await attemptedHandoff()

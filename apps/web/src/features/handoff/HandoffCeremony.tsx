@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import type { RelayNote } from '@nim-relay/shared'
 import type { HandoffRoster, OpenRoster } from '../leg/runner-groups'
 import { useAtlas, useRunnerWallets } from '../relays/data'
-import { chooseNoticeCopy, failureCopy, formatNim, sceneStateFor, shortAddress, verificationCopy, type CeremonySceneState } from './copy'
+import { chooseNoticeCopy, failureCopy, formatNim, sceneStateFor, verificationCopy, type CeremonySceneState } from './copy'
 import { HoloCard } from './holo'
 import { LaunchPad } from './LaunchPad'
 import type { HandoffOrchestrator, HandoffStage } from './machine'
@@ -248,35 +248,9 @@ export function HandoffCeremony({ machine, roster, batonName, value, createInvit
                 <h2 id={TITLE_ID} className="handoff-title">
                   This relay requires {formatNim(stage.intent.value)}
                 </h2>
-                <p className="handoff-body">
-                  The pass has to come from {shortAddress(stage.intent.sender)}, the account that holds the baton. Move at least {formatNim(stage.intent.value)} into it in Nimiq Pay, keep it selected, then approve again. The baton is still with you.
-                </p>
+                <p className="handoff-body">Add NIM to your Nimiq Pay wallet, then approve again. The baton is still with you.</p>
                 <button type="button" className="handoff-primary" onClick={() => void machine.launch()}>
                   Approve again
-                </button>
-              </HoloCard>
-              <div className="handoff-footer">{keepBaton}</div>
-            </>
-          ),
-        }
-      case 'wrong-account':
-        return {
-          key: 'retry',
-          content: (
-            <>
-              <HoloCard labelledBy={TITLE_ID}>
-                <h2 id={TITLE_ID} className="handoff-title">
-                  Switch your Nimiq Pay account
-                </h2>
-                <p className="handoff-body">
-                  Nimiq Pay is set to {shortAddress(stage.active)}, but this baton belongs to {shortAddress(stage.intent.sender)}. A pass only counts when the holder’s own account pays it.
-                </p>
-                <p className="handoff-muted">Switch to that account in Nimiq Pay, then try again. The baton is still with you.</p>
-                <button type="button" className="handoff-primary" onClick={() => void machine.launch()}>
-                  I’ve switched, try again
-                </button>
-                <button type="button" className="handoff-quiet" onClick={() => void machine.launch({ skipAccountCheck: true })}>
-                  Open Nimiq Pay anyway
                 </button>
               </HoloCard>
               <div className="handoff-footer">{keepBaton}</div>
@@ -348,7 +322,7 @@ export function HandoffCeremony({ machine, roster, batonName, value, createInvit
               <p className="handoff-body">{verificationCopy(stage.reason)}</p>
               <p className="handoff-muted">
                 {stage.resendable
-                  ? `That transfer can’t count for this pass. Send it again from ${shortAddress(stage.intent.sender)}, the account that holds the baton.`
+                  ? 'That transfer can’t count for this pass. Send the same pass again; the baton is still with you.'
                   : 'The baton stays with you until a matching transfer is verified.'}
               </p>
               {stage.resendable && (

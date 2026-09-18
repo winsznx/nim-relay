@@ -47,20 +47,6 @@ export async function connectAccount(): Promise<string> {
   return address
 }
 
-const ACCOUNT_CHECK_MS = 1500
-
-/**
- * The account Nimiq Pay lists first, which is the one it sends from. Null outside Nimiq Pay, or when the wallet doesn't
- * answer within a moment: the account check must never hold up a pass.
- */
-export async function activeAccount(): Promise<string | null> {
-  const lookup = provider()
-    .then(p => p.listAccounts())
-    .then(accounts => (Array.isArray(accounts) ? (accounts[0] ?? null) : null))
-  const timeout = new Promise<null>(resolve => window.setTimeout(() => resolve(null), ACCOUNT_CHECK_MS))
-  return Promise.race([lookup, timeout])
-}
-
 export async function signMessage(message: string): Promise<{ publicKeyHex: string; signatureHex: string }> {
   const p = await provider()
   const result = unwrap(await p.sign(message))

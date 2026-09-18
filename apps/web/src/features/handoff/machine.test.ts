@@ -55,7 +55,6 @@ function harness(overrides: Partial<HandoffDeps> = {}, routes: AtlasNextRoute | 
     confirm: vi.fn(async (): Promise<NetworkConfirmation> => ({ status: 'verified', intent: intent({ state: 'verified', txHash: HASH }) })),
     check: vi.fn(async () => intent({ state: 'attempting', attemptedAt: 1 })),
     send: vi.fn(async () => HASH),
-    activeAccount: vi.fn(async (): Promise<string | null> => null),
     readTransfer: async id => records.get(id),
     saveTransfer: async record => {
       records.set(record.id, record)
@@ -444,41 +443,7 @@ describe('relay note', () => {
   })
 })
 
-describe('handoff sender account', () => {
-  it('keeps Nimiq Pay closed while it is set to another account, then sends once the holder switches', async () => {
-    // #given Nimiq Pay set to an account other than the baton holder's
-    const active = vi.fn(async (): Promise<string | null> => 'NQ11 OTHER')
-    const { deps, machine } = harness({ activeAccount: active })
-    aim(machine)
-    // #when the holder throws
-    await machine.throwBaton(launch)
-    // #then nothing is attempted or sent, and the holder is told which account to use
-    expect(machine.getSnapshot()).toMatchObject({ stage: 'wrong-account', active: 'NQ11OTHER' })
-    expect(deps.attempt).not.toHaveBeenCalled()
-    expect(deps.send).not.toHaveBeenCalled()
-    // #when they switch to the holder's account and try again
-    active.mockResolvedValue('nq00 sender')
-    await machine.launch()
-    // #then the pass goes out and verifies
-    expect(deps.send).toHaveBeenCalledTimes(1)
-    expect(machine.getSnapshot().stage).toBe('confirmed')
-  })
-
-  it('opens Nimiq Pay anyway when the holder overrides the account check', async () => {
-    const { deps, machine } = harness({ activeAccount: vi.fn(async () => 'NQ11 OTHER') })
-    aim(machine)
-    await machine.throwBaton(launch)
-    await machine.launch({ skipAccountCheck: true })
-    expect(deps.send).toHaveBeenCalledTimes(1)
-  })
-
-  it('sends normally when the wallet does not report its account', async () => {
-    const { deps, machine } = harness({ activeAccount: vi.fn(async () => { throw new Error('unsupported') }) })
-    aim(machine)
-    await machine.throwBaton(launch)
-    expect(deps.send).toHaveBeenCalledTimes(1)
-  })
-
+describe('handoff resend after a rejected transfer', () => {
   it('forgets a transfer from the wrong account and sends the same pass again', async () => {
     // #given the relay rejects the first transfer and releases it, keeping the pass open
     const released = intent({ state: 'attempting', txHash: null, failure: 'SENDER_MISMATCH' })

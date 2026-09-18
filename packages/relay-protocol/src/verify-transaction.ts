@@ -31,7 +31,11 @@ export type TxVerificationFailure =
   | 'EXECUTION_FAILED'
 
 export interface ExpectedHandoffTransaction {
-  senderWallet: string
+  /**
+   * The paying address, or null to accept any. Nimiq Pay pays from an internal address that differs from the address
+   * a player signs in with, so relay handoffs rely on the server-issued commitment in the data instead.
+   */
+  senderWallet: string | null
   recipientWallet: string
   /** Baton amount in Luna. */
   valueLuna: bigint
@@ -73,11 +77,11 @@ export function verifyHandoffTransaction(
 ): TxVerificationResult {
   const sender = normalizeAddress(tx.sender)
   const recipient = normalizeAddress(tx.recipient)
-  const expectedSender = normalizeAddress(expected.senderWallet)
   const expectedRecipient = normalizeAddress(expected.recipientWallet)
 
-  if (sender !== expectedSender) {
-    return fail('SENDER_MISMATCH', `sender ${sender} != expected ${expectedSender}`)
+  if (expected.senderWallet !== null) {
+    const expectedSender = normalizeAddress(expected.senderWallet)
+    if (sender !== expectedSender) return fail('SENDER_MISMATCH', `sender ${sender} != expected ${expectedSender}`)
   }
   if (recipient !== expectedRecipient) {
     return fail('RECIPIENT_MISMATCH', `recipient ${recipient} != expected ${expectedRecipient}`)

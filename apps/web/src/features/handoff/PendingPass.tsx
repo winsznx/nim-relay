@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, useState, useSyncExternalStore } from 'react'
 import type { NetworkHandoffIntent } from '@nim-relay/shared'
-import { failureCopy, formatNim, shortAddress, verificationCopy } from './copy'
+import { failureCopy, formatNim, verificationCopy } from './copy'
 import { handoffDeps } from './deps'
 import { HandoffOrchestrator, type HandoffStage } from './machine'
 import { RelayNoteQuote } from './RelayNoteQuote'
@@ -79,25 +79,9 @@ export function PendingPass({ intent, onConfirmed, onCancelled }: PendingPassPro
           case 'insufficient':
             return (
               <>
-                <p>
-                  This relay requires {amount} in {shortAddress(stage.intent.sender)}, the account that holds the baton. Move NIM into it in Nimiq Pay, keep it selected, then approve again. The baton is still with you.
-                </p>
+                <p>This relay requires {amount}. Add NIM to your Nimiq Pay wallet, then approve again. The baton is still with you.</p>
                 <button type="button" className="handoff-primary" onClick={() => void machine.launch()}>
                   Approve again
-                </button>
-              </>
-            )
-          case 'wrong-account':
-            return (
-              <>
-                <p>
-                  Nimiq Pay is set to {shortAddress(stage.active)}, but this baton belongs to {shortAddress(stage.intent.sender)}. Switch to that account in Nimiq Pay, then try again.
-                </p>
-                <button type="button" className="handoff-primary" onClick={() => void machine.launch()}>
-                  I’ve switched, try again
-                </button>
-                <button type="button" className="handoff-quiet" onClick={() => void machine.launch({ skipAccountCheck: true })}>
-                  Open Nimiq Pay anyway
                 </button>
               </>
             )
@@ -155,7 +139,7 @@ export function PendingPass({ intent, onConfirmed, onCancelled }: PendingPassPro
                 <p>Handoff not verified. {verificationCopy(stage.reason)}</p>
                 {stage.resendable ? (
                   <>
-                    <p className="handoff-muted">Send it again from {shortAddress(stage.intent.sender)}, the account that holds the baton.</p>
+                    <p className="handoff-muted">That transfer can’t count for this pass. Send the same pass again; the baton is still with you.</p>
                     <button type="button" className="handoff-primary" onClick={() => void machine.sendAgain()}>
                       Send again
                     </button>

@@ -1,5 +1,4 @@
 import { MAX_RELAY_NOTE_CHARS, type AtlasNextRoute, type NetworkBaton, type NetworkConfirmation, type NetworkHandoffIntent, type RelayNote } from '@nim-relay/shared'
-import { paymentAddress } from '@nim-relay/relay-protocol'
 
 /**
  * The handoff ceremony as an explicit state machine. The baton only leaves the
@@ -52,8 +51,6 @@ export type HandoffStage =
   | { stage: 'wallet'; intent: NetworkHandoffIntent }
   | { stage: 'paused'; intent: NetworkHandoffIntent }
   | { stage: 'insufficient'; intent: NetworkHandoffIntent }
-  /** Nimiq Pay's active account isn't the holder's: a transfer from it could never verify, so the wallet stays closed. */
-  | { stage: 'wrong-account'; intent: NetworkHandoffIntent; active: string }
   | { stage: 'checking'; intent: NetworkHandoffIntent }
   | { stage: 'recovery'; intent: NetworkHandoffIntent; invalidHash: boolean }
   | { stage: 'in-flight'; intent: NetworkHandoffIntent; hash: string; slow: boolean }
@@ -81,8 +78,6 @@ export interface HandoffDeps {
   check(intentId: string): Promise<NetworkHandoffIntent>
   /** Opens native Nimiq Pay approval and resolves with the transaction hash. */
   send(intent: NetworkHandoffIntent): Promise<string>
-  /** The account Nimiq Pay would send from, or null when the wallet doesn't say. */
-  activeAccount(): Promise<string | null>
   readTransfer(id: string): Promise<TransferRecord | undefined>
   saveTransfer(record: TransferRecord): Promise<void>
   wait(ms: number): Promise<void>
@@ -340,9 +335,9 @@ export class HandoffOrchestrator {
   }
 
   /** Opens Nimiq Pay for a locked intent: after a throw, or when retrying a paused or resumed pass. */
-  async launch(options: { skipAccountCheck?: boolean } = {}): Promise<void> {
+  async launch(): Promise<void> {
     const current = this.state
-    if (current.stage !== 'armed' && current.stage !== 'paused' && current.stage !== 'insufficient' && current.stage !== 'wrong-account') return
+    if (current.stage !== 'armed' && current.stage !== 'paused' && current.stage !== 'insufficient') return
     const intent = current.intent
     const record = await this.deps.readTransfer(intent.id)
     if (record?.hash) {
@@ -354,14 +349,6 @@ export class HandoffOrchestrator {
       return
     }
 
-    if (!options.skipAccountCheck) {
-      const active = await this.deps.activeAccount().catch(() => null)
-      if (active && paymentAddress(active) !== paymentAddress(intent.sender)) {
-        this.set({ stage: 'wrong-account', intent, active: paymentAddress(active) })
-        return
-      }
-    }
-
     await this.deps.saveTransfer({ id: intent.id, hash: null, state: 'attempting' })
     this.set({ stage: 'wallet', intent })
     try {
@@ -369,10 +356,6 @@ export class HandoffOrchestrator {
     } catch (error) {
       await this.deps.saveTransfer({ id: intent.id, hash: null, state: 'ready' })
       const code = errorCode(error)
-      if (code === 'holder_balance_too_low') {
-        this.set({ stage: 'insufficient', intent })
-        return
-      }
       this.set(code === 'handoff_expired' ? { stage: 'not-verified', intent, hash: '', reason: 'INTENT_EXPIRED', resendable: false } : { stage: 'failed', message: code || 'attempt_failed' })
       return
     }
