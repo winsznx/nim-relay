@@ -136,8 +136,11 @@ function quickRecipientAllowed(baton: BatonRecord, recipientId: string): boolean
 export async function attemptHandoff(context: NetworkContext, profile: Profile, body: unknown): Promise<NetworkHandoffIntent> {
   const intent = ownIntentFor(context.state, body, profile.wallet)
   const now = Date.now()
+  if (intent.state !== 'prepared' && intent.state !== 'attempting') throw new ApiError('handoff_not_sendable', 409)
+  if (intent.state === 'prepared' && intent.expiresAt < now) throw new ApiError('handoff_expired', 410)
+  // A holder account that can't cover the baton makes Nimiq Pay pay from another account, and that pass never verifies.
+  if (await holderShortOfFunds(context.env, intent)) throw new ApiError('holder_balance_too_low', 409)
   if (intent.state === 'prepared') {
-    if (intent.expiresAt < now) throw new ApiError('handoff_expired', 410)
     intent.state = 'attempting'
   } else if (intent.state !== 'attempting') {
     throw new ApiError('handoff_not_sendable', 409)
@@ -145,6 +148,18 @@ export async function attemptHandoff(context: NetworkContext, profile: Profile, 
   intent.attemptedAt = now
   await context.storage.setAlarm(now + RECONCILE_RETRY_MS)
   return intent
+}
+
+const BALANCE_CHECK_MS = 2500
+
+/** True only when the chain says the holder's account holds less than the baton; an unreadable balance never blocks a pass. */
+async function holderShortOfFunds(env: Env, intent: NetworkHandoffIntent): Promise<boolean> {
+  const read = new NimiqRpcClient({ rpcUrl: env.NIMIQ_RPC_URL })
+    .getAccountBalance(intent.sender)
+    .then(balance => balance.luna < BigInt(intent.value))
+    .catch(() => false)
+  const timeout = new Promise<boolean>(resolve => setTimeout(() => resolve(false), BALANCE_CHECK_MS))
+  return Promise.race([read, timeout])
 }
 
 /** Only before the wallet opened: afterwards a transfer may exist and must be recovered, not rerouted. */

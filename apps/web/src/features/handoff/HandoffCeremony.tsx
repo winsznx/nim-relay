@@ -248,7 +248,9 @@ export function HandoffCeremony({ machine, roster, batonName, value, createInvit
                 <h2 id={TITLE_ID} className="handoff-title">
                   This relay requires {formatNim(stage.intent.value)}
                 </h2>
-                <p className="handoff-body">Add NIM to your wallet, then approve again. The baton is still with you.</p>
+                <p className="handoff-body">
+                  The pass has to come from {shortAddress(stage.intent.sender)}, the account that holds the baton. Move at least {formatNim(stage.intent.value)} into it in Nimiq Pay, keep it selected, then approve again. The baton is still with you.
+                </p>
                 <button type="button" className="handoff-primary" onClick={() => void machine.launch()}>
                   Approve again
                 </button>

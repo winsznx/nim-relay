@@ -350,7 +350,7 @@ test('a new runner claims the Starter Baton, sees it confirm, then passes it on 
   const mariana = await relay.runner(MARIANA)
   await joinNetwork(mariana)
   await relay.leave(mariana.page)
-  const noor = await relay.runner(NOOR)
+  const noor = await relay.runner(NOOR, { balanceLuna: 0 })
   await joinNetwork(noor)
 
   // #when the World home offers the Starter Baton and she claims it
@@ -370,6 +370,8 @@ test('a new runner claims the Starter Baton, sees it confirm, then passes it on 
   const reveal = noor.page.getByRole('dialog', { name: 'You received your first baton' })
   await expect(reveal).toBeVisible({ timeout: 60_000 })
   await shot(noor.page, 'grant-03-reveal')
+  // The mock chain keeps balances by hand: the confirmed grant is now in her account.
+  await mockChain.balance(noor.wallet.identity.address, 100_000)
   expect(noor.wallet.transfers).toHaveLength(0)
 
   // #when she carries the Starter Baton and passes it to Mariana

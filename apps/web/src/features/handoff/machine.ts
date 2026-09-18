@@ -369,6 +369,10 @@ export class HandoffOrchestrator {
     } catch (error) {
       await this.deps.saveTransfer({ id: intent.id, hash: null, state: 'ready' })
       const code = errorCode(error)
+      if (code === 'holder_balance_too_low') {
+        this.set({ stage: 'insufficient', intent })
+        return
+      }
       this.set(code === 'handoff_expired' ? { stage: 'not-verified', intent, hash: '', reason: 'INTENT_EXPIRED', resendable: false } : { stage: 'failed', message: code || 'attempt_failed' })
       return
     }

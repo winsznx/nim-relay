@@ -1,5 +1,6 @@
 import type { Browser, BrowserContext, Page, TestInfo } from '@playwright/test'
 import { APP_ORIGIN, APP_PORT, SHOTS_DIR, VIEWPORT } from './env'
+import { mockChain } from './rpc'
 import { MockNimiqPay, type RunnerKey } from './wallet'
 
 /** A signed-in-capable runner: their own browser context, Nimiq Pay wallet and page. */
@@ -76,8 +77,10 @@ export class RelayHarness {
     private readonly testInfo: TestInfo,
   ) {}
 
-  async runner(key: RunnerKey): Promise<Runner> {
+  /** A runner in their own browser. Their account holds `balanceLuna` on the mock chain, 10 NIM unless a test says otherwise. */
+  async runner(key: RunnerKey, { balanceLuna = 10 * 100_000 }: { balanceLuna?: number } = {}): Promise<Runner> {
     const wallet = await MockNimiqPay.create(key)
+    await mockChain.balance(wallet.identity.address, balanceLuna)
     const page = await this.open(key.name.toLowerCase(), async context => {
       await wallet.install(context)
       await context.addInitScript(() => Reflect.set(window, '__NIM_RELAY_E2E_AUTOPILOT__', true))

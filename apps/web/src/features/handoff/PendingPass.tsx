@@ -79,7 +79,9 @@ export function PendingPass({ intent, onConfirmed, onCancelled }: PendingPassPro
           case 'insufficient':
             return (
               <>
-                <p>This relay requires {amount}. Add NIM to your wallet, then approve again. The baton is still with you.</p>
+                <p>
+                  This relay requires {amount} in {shortAddress(stage.intent.sender)}, the account that holds the baton. Move NIM into it in Nimiq Pay, keep it selected, then approve again. The baton is still with you.
+                </p>
                 <button type="button" className="handoff-primary" onClick={() => void machine.launch()}>
                   Approve again
                 </button>
