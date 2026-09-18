@@ -1,4 +1,6 @@
-# NIM Relay competition submission (draft)
+# NIM Relay competition submission
+
+Submitted to Cycle II on 2026-09-18: https://github.com/nimiq/miniappscompetition-submissions/pull/240 (all validation checks passed).
 
 Paste these into the Mini Apps Competition portal. Limits come from the submissions repo validator (`scripts/lib/schema.mjs`).
 
@@ -9,7 +11,7 @@ Paste these into the Mini Apps Competition portal. Limits come from the submissi
 | pricing | Free |
 | repo_url | https://github.com/winsznx/nim-relay (public, MIT; push `production-relay` first) |
 | demo_url | https://nimrelay.xyz |
-| video_url | the public YouTube link to `final/NIM_Relay_Final_Demo_VO_Subtitled.mp4` (2:00, 4K), with `final/NIM_Relay_Final_Demo_VO_Subtitled.srt` uploaded as its captions |
+| video_url | https://youtu.be/6orRlOB75ww (4K, captions from `final/NIM_Relay_Final_Demo_VO_Subtitled.srt`) |
 | contact_email | entered in the portal, not published here |
 | x_account | winsznx |
 | icon | `final/screenshots/app-icon-512.png` (512 x 512) |
@@ -52,4 +54,4 @@ NIM is fungible, so the baton is an ordered chain of verified transfers of the s
 2. Done: three real two-wallet handoffs verified on mainnet (`evidence/production/first-mainnet-handoffs-2026-09-18.md`).
 3. Done: demo video recorded on two phones in Nimiq Pay and edited with narration (`final/`).
 4. Done: five screenshots in `final/screenshots/`.
-5. Post on X and Skool for the promotion points, then add both links in the portal.
+5. Done: X and Skool posts linked in the submission.
